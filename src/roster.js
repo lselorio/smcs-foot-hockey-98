@@ -1,0 +1,121 @@
+// Customizable Classmate Rosters!
+// Swap names, numbers, stats, jacket colors, and hair styles to match your real classmates.
+
+export const TEAMS = {
+  home: {
+    id: 'home',
+    name: 'ROOM 12',
+    short: 'RM12',
+    primary: '#2368d8',    // Royal blue hoodies/tees
+    secondary: '#f5f8ff',
+    trim: '#ffd84d',
+    ringColor: '#48b8ff',
+    players: [
+      {
+        id: 'h_c',
+        name: 'YOU',
+        number: 94,
+        role: 'C',
+        skin: '#f0be96',
+        hair: '#2b1d14',
+        hairStyle: 'spiky',
+        sneakers: '#ffffff',
+        stats: { speed: 1.85, kick: 5.4, control: 0.92, hands: 0.95 },
+      },
+      {
+        id: 'h_lw',
+        name: 'MIKE',
+        number: 7,
+        role: 'LW',
+        skin: '#e5ae85',
+        hair: '#693d1e',
+        hairStyle: 'cap',
+        sneakers: '#ff4242',
+        stats: { speed: 1.92, kick: 5.0, control: 0.88, hands: 0.85 },
+      },
+      {
+        id: 'h_rw',
+        name: 'TINA',
+        number: 11,
+        role: 'RW',
+        skin: '#c4865b',
+        hair: '#1a1514',
+        hairStyle: 'pony',
+        sneakers: '#3ee8c5',
+        stats: { speed: 1.80, kick: 5.5, control: 0.94, hands: 0.92 },
+      },
+      {
+        id: 'h_g',
+        name: 'DANNY',
+        number: 1,
+        role: 'G',
+        skin: '#f2c6a0',
+        hair: '#c98e32',
+        hairStyle: 'messy',
+        sneakers: '#ffe04d',
+        jacketColor: '#22a65b', // Big puffy green recess jacket used as a goalie shield!
+        jacketTrim: '#146b39',
+        gloveColor: '#a65d2a',  // Classic brown leather baseball glove
+        stats: { speed: 1.55, kick: 4.8, control: 0.9, hands: 0.96, reflex: 0.88 },
+      },
+    ],
+  },
+  away: {
+    id: 'away',
+    name: 'ROOM 14',
+    short: 'RM14',
+    primary: '#d4333d',    // Varsity red hoodies/tees
+    secondary: '#fff5e6',
+    trim: '#ffca3a',
+    ringColor: '#ff5263',
+    players: [
+      {
+        id: 'a_c',
+        name: 'MARCO',
+        number: 19,
+        role: 'C',
+        skin: '#dfa47a',
+        hair: '#1e1918',
+        hairStyle: 'part',
+        sneakers: '#1e222e',
+        stats: { speed: 1.78, kick: 5.2, control: 0.88, hands: 0.86 },
+      },
+      {
+        id: 'a_lw',
+        name: 'SAM',
+        number: 22,
+        role: 'LW',
+        skin: '#8f593b',
+        hair: '#171412',
+        hairStyle: 'buzz',
+        sneakers: '#ffffff',
+        stats: { speed: 1.84, kick: 4.9, control: 0.86, hands: 0.88 },
+      },
+      {
+        id: 'a_rw',
+        name: 'ALEX',
+        number: 8,
+        role: 'RW',
+        skin: '#f3c6a3',
+        hair: '#b86f28',
+        hairStyle: 'spiky',
+        sneakers: '#ffd23f',
+        stats: { speed: 1.74, kick: 5.3, control: 0.85, hands: 0.82 },
+      },
+      {
+        id: 'a_g',
+        name: 'CHRIS',
+        number: 30,
+        role: 'G',
+        skin: '#e8b58f',
+        hair: '#3d2817',
+        hairStyle: 'cap',
+        sneakers: '#ffffff',
+        jacketColor: '#e08e1b', // Bright mustard/orange windbreaker jacket!
+        jacketTrim: '#9e5d0c',
+        gloveColor: '#7a3f1a',  // Dark oiled leather baseball glove
+        stats: { speed: 1.50, kick: 4.7, control: 0.88, hands: 0.92, reflex: 0.84 },
+      },
+    ],
+  },
+};

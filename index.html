@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RECESS FOOT HOCKEY '94</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="cabinet">
+    <div class="screen-bezel">
+      <canvas id="game" width="320" height="240" aria-label="Recess Foot Hockey 94 game screen"></canvas>
+      <div id="crt-overlay" class="crt-overlay active" aria-hidden="true"></div>
+    </div>
+
+    <footer class="controls-bar">
+      <div class="control-group">
+        <span class="label">MOVE</span>
+        <kbd>Arrows</kbd> / <kbd>WASD</kbd>
+      </div>
+      <div class="control-group">
+        <span class="label">KICK / DROP-KICK / STEAL</span>
+        <kbd>Z</kbd> or <kbd>J</kbd>
+      </div>
+      <div class="control-group">
+        <span class="label">PASS / DROP / SWITCH</span>
+        <kbd>X</kbd> or <kbd>K</kbd>
+      </div>
+      <div class="control-group">
+        <span class="label">CATCH / DROP BALL</span>
+        <kbd>C</kbd> or <kbd>Space</kbd>
+      </div>
+      <div class="control-group">
+        <span class="label">CRT / AUDIO / PAUSE</span>
+        <kbd>T</kbd> <kbd>M</kbd> <kbd>Enter</kbd>
+      </div>
+    </footer>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
