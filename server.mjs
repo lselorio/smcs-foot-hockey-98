@@ -49,5 +49,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`RECESS FOOT HOCKEY '94 running at http://127.0.0.1:${PORT}`);
+  console.log(`FOOT HOCKEY 98 running at http://127.0.0.1:${PORT}`);
 });

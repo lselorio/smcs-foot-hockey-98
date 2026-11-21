@@ -1,5 +1,5 @@
 import { COURT, GOAL, PHYSICS } from './constants.js';
-import { catchBall, dropHeldBall, launchBall } from './physics.js';
+import { catchBall, dropHeldBall, launchBall, launchThrow } from './physics.js';
 
 function steerToward(p, tx, ty, speedScale = 1) {
   const dx = tx - p.x;
@@ -29,24 +29,35 @@ export function updateGoalie(g, game) {
   g.facingX = 0;
   g.facingY = isTop ? 1 : -1;
 
-  // If goalie caught the tennis ball in their baseball glove, pause briefly then clear/pass!
+  // If goalie caught the tennis ball in their baseball glove:
+  // - Home goalie is controlled by the player to aim & THROW across the yard! (Auto-throws only at timeout.)
+  // - Away CPU goalie scans teammates and launches an overhand throw (outlet OR full-field bomb!).
   if (g.holdingBall && ball.owner === g) {
     g.holdFrames++;
     g.vx *= 0.7;
     g.vy *= 0.7;
+
+    if (g.team === 'home') {
+      if (g.holdFrames >= PHYSICS.goalieMaxHoldFrames) {
+        game.executeGoalieThrow(g, game.passTarget, false);
+      }
+      return;
+    }
+
     if (g.holdFrames >= 38) {
-      // Outlet pass to an open teammate on the wing!
       const mates = game.players.filter((p) => p.team === g.team && p.role !== 'G');
+      // Sort furthest downfield first so CPU goalie can throw full-field passes too!
       mates.sort((a, b) => (isTop ? b.y - a.y : a.y - b.y));
-      const target = mates[0];
-      const dx = target ? target.x - g.x : (Math.random() - 0.5) * 80;
-      const dy = target ? target.y - g.y : (isTop ? 90 : -90);
-      launchBall(ball, g, dx, dy, 4.4, 2.2, {
-        startZ: 7,
-        cooldown: 14,
+      const pickDeep = Math.random() < 0.55;
+      const target = pickDeep ? mates[0] : mates[mates.length - 1];
+      const tx = target ? target.x + target.vx * 12 : COURT.centerX + (Math.random() - 0.5) * 90;
+      const ty = target ? target.y + target.vy * 12 : (isTop ? COURT.centerY + 80 : COURT.centerY - 80);
+      const info = launchThrow(ball, g, tx, ty, {
         passTargetId: target?.id ?? null,
+        isBomb: pickDeep,
       });
-      game.onKickEffect(g.x, g.y, 'CLEAR!', '#ffe84d', false);
+      game.stats[g.team].passes++;
+      game.onThrowEffect(g, info.dist > 165);
     }
     return;
   }
@@ -89,12 +100,17 @@ export function updateGoalie(g, game) {
   const inX = relX > -17 && relX < 17;
   if (!inY || !inX || ball.z > GOAL.height + 2) return;
 
-  // Slightly beat-able on wicked corners/one-timers so goals feel rewarding!
+  // Hard Shots (slap-kicks) & wicked corners are tougher for the goalie to stop!
   const edgeDistance = Math.abs(relX);
-  const saveChance =
-    ballSpeed > 5.4 && edgeDistance > 11
-      ? g.stats.reflex * 0.52
-      : g.stats.reflex * 0.94;
+  const isHardShot = ball.shotPower >= 6.4 || ballSpeed >= 6.2;
+  let saveChance = g.stats.reflex * 0.94;
+  if (isHardShot && edgeDistance > 9) {
+    saveChance = g.stats.reflex * 0.40;
+  } else if (isHardShot) {
+    saveChance = g.stats.reflex * 0.72;
+  } else if (ballSpeed > 5.0 && edgeDistance > 11) {
+    saveChance = g.stats.reflex * 0.56;
+  }
 
   if (Math.random() > saveChance) {
     // Goalie dives heroically but misses!
@@ -103,8 +119,9 @@ export function updateGoalie(g, game) {
     return;
   }
 
-  // Decide Baseball Glove Catch vs. Jacket Block based on side & ball height!
-  const isGloveSide = relX >= 0 || ball.z >= 7;
+  // Decide Baseball Glove Catch vs. Jacket Block based on side, ball height, or slow crease scoop!
+  const isSlowCreaseScoop = ballSpeed < 2.4 && Math.hypot(relX, relY) < 13;
+  const isGloveSide = isSlowCreaseScoop || relX >= 0 || ball.z >= 7;
   if (isGloveSide) {
     // BASEBALL GLOVE SNATCH!
     catchBall(ball, g);
@@ -112,6 +129,10 @@ export function updateGoalie(g, game) {
     g.diveDir = 1;
     g.diveTimer = 10;
     game.onGoalieSave(g, 'glove');
+    // Hand control to the player immediately so they can aim & throw the tennis ball across the yard!
+    if (g.team === 'home') {
+      game.controlledId = g.id;
+    }
   } else {
     // JACKET SHIELD BLOCK! Swings puffy coat out to deaden the shot into a rebound
     g.jacketTimer = 20;
@@ -150,6 +171,7 @@ export function updateSkaterAI(p, game) {
         const aimX = COURT.centerX + (Math.random() - 0.5) * 48 - p.x;
         const aimY = attackGoalY - p.y;
         launchBall(ball, p, aimX, aimY, p.stats.kick * 1.04, 2.9, { startZ: 5 });
+        game.stats[p.team].shots++;
         game.onKickEffect(p.x, p.y, 'DROP-KICK!', '#d9ff2e', true);
       } else {
         // Drop to feet to dribble forward!
@@ -174,6 +196,7 @@ export function updateSkaterAI(p, game) {
       const loft = Math.random() > 0.45 ? 2.4 : 1.1;
       launchBall(ball, p, aimX, aimY, p.stats.kick * (0.94 + Math.random() * 0.14), loft);
       p.aiDecisionCooldown = 35;
+      game.stats[p.team].shots++;
       game.onKickEffect(p.x, p.y, null, null, false);
       return;
     }
@@ -194,6 +217,7 @@ export function updateSkaterAI(p, game) {
           passTargetId: openMate.id,
         });
         p.aiDecisionCooldown = 35;
+        game.stats[p.team].passes++;
         game.onKickEffect(p.x, p.y, null, null, false);
         return;
       }
@@ -209,8 +233,29 @@ export function updateSkaterAI(p, game) {
     return;
   }
 
-  // === CASE 3: TEAMMATE HAS THE BALL -> GET OPEN FOR PASS / ONE-TIMER! ===
+  // === CASE 3: TEAMMATE HAS THE BALL -> GET OPEN FOR PASS / ONE-TIMER / FULL-FIELD THROW! ===
   if (ball.owner && ball.owner.team === p.team) {
+    // If our GOALIE has the ball, spread out across the whole schoolyard so they can throw short, mid, OR full-field!
+    if (ball.owner.role === 'G') {
+      let tx = COURT.centerX;
+      let ty = COURT.centerY;
+      if (p.role === 'LW') {
+        // Streak DEEP across half-court for a full-field goalie throw!
+        tx = COURT.left + 44;
+        ty = isHome ? COURT.top + 64 : COURT.bottom - 64;
+      } else if (p.role === 'RW') {
+        // Mid-deep right wing outlet!
+        tx = COURT.right - 44;
+        ty = isHome ? COURT.centerY - 36 : COURT.centerY + 36;
+      } else {
+        // Center safe outlet near own blue line
+        tx = COURT.centerX;
+        ty = isHome ? COURT.centerY + 52 : COURT.centerY - 52;
+      }
+      steerToward(p, tx, ty, 0.98);
+      return;
+    }
+
     const laneX =
       p.role === 'LW'
         ? COURT.left + 44
@@ -235,6 +280,7 @@ export function updateSkaterAI(p, game) {
     if (Math.random() < p.stats.hands * 0.16) {
       catchBall(ball, p);
       p.aiDecisionCooldown = 45;
+      game.stats[p.team].catches++;
       game.onCatchEffect(p);
       return;
     }

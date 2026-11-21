@@ -45,6 +45,10 @@ const FONT_5X7 = {
   '.': ['00000', '00000', '00000', '00000', '00000', '00000', '00100'],
   '/': ['00001', '00010', '00010', '00100', '01000', '01000', '10000'],
   '#': ['01010', '11111', '01010', '01010', '11111', '01010', '00000'],
+  '%': ['11001', '11010', '00010', '00100', '01000', '01011', '10011'],
+  '(': ['00010', '00100', '01000', '01000', '01000', '00100', '00010'],
+  ')': ['01000', '00100', '00010', '00010', '00010', '00100', '01000'],
+  ',': ['00000', '00000', '00000', '00000', '00100', '00100', '01000'],
   ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
 };
 
@@ -117,14 +121,27 @@ export function drawStarRing(ctx, x, y, color, tick, isHoldingBall = false, hold
   ctx.restore();
 }
 
-// Draw neon-yellow fuzzy tennis ball with 2.5D shadow and bounce scale
+// Draw neon-yellow fuzzy tennis ball with 2.5D shadow, bounce scale, and hard-shot speed trail
 export function drawTennisBall(ctx, ball, tick) {
   const bx = Math.round(ball.x);
   const by = Math.round(ball.y);
   const bz = Math.round(ball.z);
 
-  // Asphalt shadow shrinks slightly as ball rises
-  const shadowScale = Math.max(0.45, 1 - bz / 48);
+  // Speed afterimage trail for Hard Shots / One-Timers / Full-Field Throws!
+  if (ball.trail && ball.trail.length > 1) {
+    for (let i = 0; i < ball.trail.length; i++) {
+      const t = ball.trail[i];
+      const alpha = ((i + 1) / (ball.trail.length + 1)) * 0.45;
+      ctx.fillStyle = ball.isThrow
+        ? `rgba(255, 232, 77, ${alpha.toFixed(2)})`
+        : `rgba(255, 118, 46, ${alpha.toFixed(2)})`;
+      const tr = i > 2 ? 2 : 1;
+      ctx.fillRect(Math.round(t.x) - tr, Math.round(t.y - t.z) - tr, tr * 2 + 1, tr * 2 + 1);
+    }
+  }
+
+  // Asphalt shadow shrinks as ball rises high in the air (e.g. full-field goalie throw!)
+  const shadowScale = Math.max(0.32, 1 - bz / 78);
   ctx.fillStyle = PALETTE.shadow;
   ctx.beginPath();
   ctx.ellipse(bx, by + 2, 3.8 * shadowScale, 2.2 * shadowScale, 0, 0, Math.PI * 2);
@@ -257,10 +274,11 @@ export function drawSkater(ctx, p, team, tick) {
   ctx.ellipse(x, y + 2, 6, 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Legs & Sneakers (animated run or big kick extension!)
+  // Legs & Sneakers (animated run, slap-kick wind-up cockback, or big kick extension!)
   const leftLegY = y - 1 + Math.round(stride * 2);
   const rightLegY = y - 1 - Math.round(stride * 2);
-  const kickExt = p.kickTimer > 0 ? 4 : 0;
+  const isWindup = p.windupFrames >= 10;
+  const kickExt = p.kickTimer > 0 ? 4 : isWindup ? -4 : 0;
 
   // Jeans / shorts
   ctx.fillStyle = '#293957';
@@ -268,12 +286,20 @@ export function drawSkater(ctx, p, team, tick) {
   ctx.fillRect(x + 1, y - 5 - bob, 3, 4);
 
   // Sneakers
+  const rkOx = kickExt ? Math.round(p.facingX * kickExt) : 0;
+  const rkOy = kickExt ? Math.round(p.facingY * kickExt * 0.5) : 0;
   ctx.fillStyle = '#151822';
   ctx.fillRect(x - 5, leftLegY - 1, 5, 3);
-  ctx.fillRect(x + (kickExt ? Math.round(p.facingX * kickExt) : 0), rightLegY - 1 + Math.round(p.facingY * kickExt * 0.5), 5, 3);
+  ctx.fillRect(x + rkOx, rightLegY - 1 + rkOy, 5, 3);
   ctx.fillStyle = p.sneakers;
   ctx.fillRect(x - 4, leftLegY, 3, 2);
-  ctx.fillRect(x + 1 + (kickExt ? Math.round(p.facingX * kickExt) : 0), rightLegY + Math.round(p.facingY * kickExt * 0.5), 3, 2);
+  ctx.fillRect(x + 1 + rkOx, rightLegY + rkOy, 3, 2);
+
+  // Flashing spark at kicking heel when fully cocked for a Hard Shot!
+  if (isWindup && p.windupFrames >= 20 && Math.floor(tick / 3) % 2 === 0) {
+    ctx.fillStyle = '#ff6d2e';
+    ctx.fillRect(x + 2 + rkOx, rightLegY - 1 + rkOy, 2, 2);
+  }
 
   // Torso (90s oversized schoolyard jersey/hoodie)
   const ty = y - 12 - bob;
@@ -414,12 +440,14 @@ export function drawGoalie(ctx, g, team, tick) {
   ctx.fillStyle = team.secondary;
   ctx.fillRect(gx - 5, ty + 3, 10, 2);
 
-  // === RIGHT SIDE: GIANT LEATHER BASEBALL GLOVE! ===
-  const glx = gx + 6 + gloveReach;
-  const gly = ty - 2 - (gloveReach > 0 ? 2 : 0);
-  // Arm reaching out
+  // === RIGHT SIDE: GIANT LEATHER BASEBALL GLOVE (+ OVERHAND THROW ANIMATION!) ===
+  const isThrowing = g.throwTimer > 0;
+  const throwWhipY = isThrowing ? (facingDown ? 4 : -6) : 0;
+  const glx = gx + 6 + gloveReach + (isThrowing ? 2 : 0);
+  const gly = ty - 2 - (gloveReach > 0 ? 2 : 0) + throwWhipY;
+  // Arm reaching out or whipping forward on an overhand throw
   ctx.fillStyle = team.primary;
-  ctx.fillRect(gx + 4, ty + 1, 4 + gloveReach, 3);
+  ctx.fillRect(gx + 4, ty + 1 + Math.round(throwWhipY * 0.5), 4 + gloveReach, 3);
   // Oversized leather mitt outline
   ctx.fillStyle = '#1b0f08';
   ctx.fillRect(glx - 1, gly - 1, 9, 9);
@@ -496,4 +524,35 @@ export function drawSpectator(ctx, spec, tick, celebrating) {
     ctx.fillRect(x - 5, y - 6, 2, 3);
     ctx.fillRect(x + 3, y - 6, 2, 3);
   }
+}
+
+// Draw NHL '94 deliberate pass/throw receiver chevron over targeted teammate!
+export function drawPassTargetMarker(ctx, target, tick, isGoalieThrow = false) {
+  const x = Math.round(target.x);
+  const y = Math.round(target.y);
+  const bob = Math.round(Math.sin(tick * 0.25) * 2);
+  const color = isGoalieThrow ? '#d9ff2e' : '#7ae8ff';
+
+  // Subtle dashed receiver ring at feet
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.setLineDash([2, 2]);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(x, y + 1, 9, 4.5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Pulsing downward chevron right above teammate's head
+  const cy = y - 24 + bob;
+  ctx.fillStyle = '#0d111d';
+  ctx.fillRect(x - 4, cy - 1, 9, 3);
+  ctx.fillRect(x - 3, cy + 2, 7, 2);
+  ctx.fillRect(x - 1, cy + 4, 3, 2);
+
+  ctx.fillStyle = color;
+  ctx.fillRect(x - 3, cy, 7, 1);
+  ctx.fillRect(x - 2, cy + 1, 5, 1);
+  ctx.fillRect(x - 1, cy + 2, 3, 1);
+  ctx.fillRect(x, cy + 3, 1, 1);
 }

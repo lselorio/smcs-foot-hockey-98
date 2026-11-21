@@ -104,3 +104,19 @@ kbd {
   font-size: 11px;
   font-weight: 700;
 }
+
+.pad-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #1b2136;
+  color: #8fa1c7;
+  border: 1px solid #394466;
+}
+
+.pad-badge.connected {
+  background: #143628;
+  color: #6ef0a4;
+  border-color: #2da866;
+}

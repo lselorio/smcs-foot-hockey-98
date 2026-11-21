@@ -89,11 +89,28 @@ class SoundEngine {
     this.noise(0.05, 900, 'lowpass', 0.15 * p);
   }
 
-  // Crisp one-timer or drop-kick volley boom
+  // Crisp controlled pass kick
+  playPass() {
+    this.tone(290, 120, 0.06, 'triangle', 0.16);
+    this.noise(0.035, 1100, 'lowpass', 0.10);
+  }
+
+  // Subtle click/whoosh when entering slap-kick hard-shot wind-up
+  playWindupTick() {
+    this.tone(320, 480, 0.045, 'square', 0.07);
+  }
+
+  // Booming NHL '94 slap-kick hard shot / one-timer / drop-kick
   playPowerKick() {
-    this.tone(320, 62, 0.14, 'sawtooth', 0.18);
-    this.tone(640, 180, 0.08, 'square', 0.12);
-    this.noise(0.08, 1400, 'bandpass', 0.18);
+    this.tone(340, 56, 0.16, 'sawtooth', 0.21);
+    this.tone(680, 160, 0.09, 'square', 0.13);
+    this.noise(0.09, 1500, 'bandpass', 0.20);
+  }
+
+  // Goalie overhand baseball throw across the schoolyard (*WHOOSH-ZIP!*)
+  playThrow(isLong = false) {
+    this.noise(isLong ? 0.14 : 0.09, isLong ? 1700 : 1200, 'bandpass', 0.17);
+    this.tone(isLong ? 420 : 320, isLong ? 880 : 620, isLong ? 0.12 : 0.08, 'triangle', 0.14);
   }
 
   // Catching tennis ball in bare hands

@@ -43,10 +43,23 @@ export const PHYSICS = {
   playerFriction: 0.85,
   maxHoldFrames: 95,         // ~1.58s max catch-and-hold before forced drop
   maxHoldSteps: 26,          // Distance limit while holding ball so you must drop to play
+  goalieMaxHoldFrames: 180,  // 3.0s for goalie to scan the whole yard and throw!
   catchReach: 16,
-  catchMaxZ: 22,
+  catchMaxZ: 24,
   dribbleDist: 8.5,
-  oneTimerWindow: 26,        // Frames to trigger an NHL '94 one-timer kick
+  oneTimerWindow: 28,        // Frames to trigger an NHL '94 one-timer kick
+};
+
+// Two-tier NHL '94 shooting: Tap = Quick Shot, Hold = Slap-Kick Hard Shot
+export const SHOT = {
+  hardMinFrames: 10,         // Hold >= 10 frames (~165ms) to enter Hard Shot wind-up
+  hardFullFrames: 26,        // Full-power charge peak
+  hardAutoFireFrames: 46,    // Auto-release if held cocked too long
+  quickSpeedMult: 0.92,
+  quickLoft: 0.95,
+  hardMinSpeedMult: 1.24,
+  hardMaxSpeedMult: 1.46,
+  hardLoft: 2.25,
 };
 
 // Match rules

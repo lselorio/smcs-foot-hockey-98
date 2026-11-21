@@ -12,13 +12,15 @@ export function createBall(x = COURT.centerX, y = COURT.centerY, z = 14) {
     lastTouchTeam: null,
     lastTouchPlayer: null,
     pickupCooldown: 0,  // Brief immunity for kicker so ball leaves their foot cleanly
-    passTargetId: null, // For NHL '94 one-timer window
+    passTargetId: null, // For NHL '94 one-timer window & deliberate pass tracking
     passTimer: 0,
     shotPower: 0,       // Helps trail visuals & goalie save detection
+    isThrow: false,     // True when flying from a goalie overhand throw
+    trail: [],          // Recent positions for hard-shot / long-throw arcade trail
   };
 }
 
-// Kick or pass the ball from a player (works for ground kick, lofted kick, drop-kick, and one-timer!)
+// Kick or pass the ball from a player (works for quick shot, hard shot, pass, drop-kick, and one-timer!)
 export function launchBall(ball, player, dirX, dirY, speed, loftZ = 0, options = {}) {
   const mag = Math.hypot(dirX, dirY) || 1;
   const nx = dirX / mag;
@@ -35,14 +37,66 @@ export function launchBall(ball, player, dirX, dirY, speed, loftZ = 0, options =
   ball.lastTouchPlayer = player;
   ball.pickupCooldown = options.cooldown ?? 10;
   ball.passTargetId = options.passTargetId ?? null;
-  ball.passTimer = options.passTargetId ? PHYSICS.oneTimerWindow : 0;
-  ball.shotPower = speed;
+  ball.passTimer = options.passTargetId ? (options.passTimer ?? PHYSICS.oneTimerWindow) : 0;
+  ball.shotPower = options.shotPower ?? speed;
+  ball.isThrow = false;
 
   player.holdingBall = false;
   player.holdFrames = 0;
   player.holdDist = 0;
-  player.kickTimer = 11;
+  player.windupFrames = 0;
+  player.kickTimer = options.kickTimer ?? 11;
   player.stealCooldown = Math.max(player.stealCooldown, 12);
+}
+
+// Goalie overhand tennis-ball throw — calculates exact arc to reach a teammate anywhere on the field!
+export function launchThrow(ball, thrower, targetX, targetY, options = {}) {
+  const dx = targetX - thrower.x;
+  const dy = targetY - thrower.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  const isBomb = Boolean(options.isBomb);
+  const startZ = 10;
+  const landZ = options.landZ ?? 5;
+
+  // Choose flight time proportional to distance so both short outlets and full-court bombs feel crisp!
+  const baseFrames = isBomb
+    ? Math.max(20, Math.min(44, dist * 0.13 + 10))
+    : Math.max(18, Math.min(48, dist * 0.155 + 10));
+  const T = Math.round(baseFrames);
+
+  // Exact drag-compensated horizontal speed for airDrag^T geometric sum
+  const drag = PHYSICS.airDrag;
+  const dragSum = (1 - Math.pow(drag, T)) / (1 - drag);
+  const speed = Math.min(isBomb ? 9.4 : 8.4, Math.max(3.2, dist / dragSum));
+
+  // Exact parabolic vertical launch speed so ball arcs smoothly overhead and drops to receiver!
+  const vz = Math.min(6.4, Math.max(1.5, (0.5 * PHYSICS.gravity * T * T + (landZ - startZ)) / T));
+
+  ball.owner = null;
+  ball.x = thrower.x + nx * 8;
+  ball.y = thrower.y + ny * 8;
+  ball.z = startZ;
+  ball.vx = nx * speed;
+  ball.vy = ny * speed;
+  ball.vz = vz;
+  ball.lastTouchTeam = thrower.team;
+  ball.lastTouchPlayer = thrower;
+  ball.pickupCooldown = 14;
+  ball.passTargetId = options.passTargetId ?? null;
+  ball.passTimer = options.passTargetId ? T + 22 : 0;
+  ball.shotPower = isBomb ? speed : 0;
+  ball.isThrow = true;
+
+  thrower.holdingBall = false;
+  thrower.holdFrames = 0;
+  thrower.holdDist = 0;
+  thrower.throwTimer = 18;
+  thrower.gloveTimer = 0;
+
+  return { dist, flightFrames: T, speed, vz };
 }
 
 // Player catches a loose/bouncing/airborne tennis ball in their hands!
@@ -59,10 +113,13 @@ export function catchBall(ball, player) {
   ball.passTargetId = null;
   ball.passTimer = 0;
   ball.shotPower = 0;
+  ball.isThrow = false;
+  ball.trail = [];
 
   player.holdingBall = true;
   player.holdFrames = 0;
   player.holdDist = 0;
+  player.windupFrames = 0;
   player.catchAnim = 14;
 }
 
@@ -129,6 +186,13 @@ export function stepBallPhysics(ball, callbacks = {}) {
   }
 
   // Free-flight / rolling 2.5D tennis ball physics
+  if (ball.shotPower >= 6.0 || ball.isThrow) {
+    ball.trail.push({ x: ball.x, y: ball.y, z: ball.z });
+    if (ball.trail.length > 6) ball.trail.shift();
+  } else if (ball.trail.length > 0) {
+    ball.trail.shift();
+  }
+
   const prevY = ball.y;
   ball.x += ball.vx;
   ball.y += ball.vy;
@@ -139,6 +203,7 @@ export function stepBallPhysics(ball, callbacks = {}) {
     ball.z += ball.vz;
     if (ball.z <= 0) {
       ball.z = 0;
+      ball.isThrow = false;
       if (Math.abs(ball.vz) > PHYSICS.minBounceVz) {
         const impact = Math.abs(ball.vz);
         ball.vz = impact * PHYSICS.bounceRestitution;

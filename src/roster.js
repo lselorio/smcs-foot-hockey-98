@@ -14,7 +14,7 @@ export const TEAMS = {
       {
         id: 'h_c',
         name: 'YOU',
-        number: 94,
+        number: 98,
         role: 'C',
         skin: '#f0be96',
         hair: '#2b1d14',

@@ -1,4 +1,4 @@
-import { COURT, GOAL, MATCH, PHYSICS, VIEW_H, WORLD_H } from './constants.js';
+import { COURT, GOAL, MATCH, PHYSICS, SHOT, VIEW_H, WORLD_H } from './constants.js';
 import { TEAMS } from './roster.js';
 import { sound } from './audio.js';
 import {
@@ -7,9 +7,23 @@ import {
   createBall,
   dropHeldBall,
   launchBall,
+  launchThrow,
   stepBallPhysics,
 } from './physics.js';
 import { updateGoalie, updateSkaterAI } from './ai.js';
+
+function createEmptyTeamStats() {
+  return {
+    shots: 0,
+    passes: 0,
+    catches: 0,
+    steals: 0,
+    saves: 0,
+    gloveSaves: 0,
+    jacketBlocks: 0,
+    possessionFrames: 0,
+  };
+}
 
 export class FootHockeyGame {
   constructor() {
@@ -19,9 +33,10 @@ export class FootHockeyGame {
 
     this.score = { home: 0, away: 0 };
     this.stats = {
-      home: { shots: 0, catches: 0, saves: 0 },
-      away: { shots: 0, catches: 0, saves: 0 },
+      home: createEmptyTeamStats(),
+      away: createEmptyTeamStats(),
     };
+    this.goalLog = [];
 
     this.period = 1;
     this.clockFrames = MATCH.periodSeconds * 60;
@@ -45,6 +60,8 @@ export class FootHockeyGame {
     this.keys = new Set();
     this.justPressed = new Set();
     this.kickCharge = 0;
+    this.passTarget = null; // Highlighted teammate for deliberate passes & goalie throws
+    this.gamepadName = null;
     this.crtEnabled = true;
 
     this.initRoster();
@@ -97,6 +114,7 @@ export class FootHockeyGame {
           holdingBall: false,
           holdFrames: 0,
           holdDist: 0,
+          windupFrames: 0,
           kickTimer: 0,
           catchAnim: 0,
           stealCooldown: 0,
@@ -105,6 +123,7 @@ export class FootHockeyGame {
           diveDir: 0,
           jacketTimer: 0,
           gloveTimer: 0,
+          throwTimer: 0,
           animOffset: idx * 1.7,
         });
       });
@@ -115,9 +134,10 @@ export class FootHockeyGame {
   startNewMatch() {
     this.score = { home: 0, away: 0 };
     this.stats = {
-      home: { shots: 0, catches: 0, saves: 0 },
-      away: { shots: 0, catches: 0, saves: 0 },
+      home: createEmptyTeamStats(),
+      away: createEmptyTeamStats(),
     };
+    this.goalLog = [];
     this.period = 1;
     this.clockFrames = MATCH.periodSeconds * 60;
     this.particles = [];
@@ -156,18 +176,21 @@ export class FootHockeyGame {
       p.holdingBall = false;
       p.holdFrames = 0;
       p.holdDist = 0;
+      p.windupFrames = 0;
       p.kickTimer = 0;
       p.catchAnim = 0;
       p.stealCooldown = 0;
       p.diveTimer = 0;
       p.jacketTimer = 0;
       p.gloveTimer = 0;
+      p.throwTimer = 0;
     }
 
     this.controlledId = 'h_c';
     this.ball = createBall(COURT.centerX, COURT.centerY, 26);
     this.ball.vz = -0.3;
     this.kickCharge = 0;
+    this.passTarget = null;
   }
 
   getControlledPlayer() {
@@ -211,29 +234,73 @@ export class FootHockeyGame {
     this.keys.delete(code);
   }
 
-  pollGamepad() {
-    if (typeof navigator === 'undefined' || !navigator.getGamepads) return null;
-    const pads = navigator.getGamepads();
-    const gp = pads && pads[0];
-    if (!gp) return null;
+  toggleCrt() {
+    this.crtEnabled = !this.crtEnabled;
+    if (typeof document !== 'undefined') {
+      const overlay = document.getElementById('crt-overlay');
+      if (overlay) overlay.classList.toggle('active', this.crtEnabled);
+    }
+  }
 
-    let ax = gp.axes[0] || 0;
-    let ay = gp.axes[1] || 0;
-    if (Math.abs(ax) < 0.22) ax = 0;
-    if (Math.abs(ay) < 0.22) ay = 0;
-    // D-pad support
-    if (gp.buttons[14]?.pressed) ax = -1;
-    if (gp.buttons[15]?.pressed) ax = 1;
-    if (gp.buttons[12]?.pressed) ay = -1;
-    if (gp.buttons[13]?.pressed) ay = 1;
+  pollGamepad(padsOverride = null) {
+    const pads =
+      padsOverride ||
+      (typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : null);
+    if (!pads) {
+      this.gamepadName = null;
+      return null;
+    }
 
+    // Scan all slots — on Linux/Bluetooth/Steam, the active controller is often at index 1+!
+    let gp = null;
+    for (let i = 0; i < pads.length; i++) {
+      const candidate = pads[i];
+      if (candidate && candidate.connected !== false) {
+        gp = candidate;
+        break;
+      }
+    }
+    if (!gp) {
+      this.gamepadName = null;
+      return null;
+    }
+    this.gamepadName = gp.id || 'GAMEPAD';
+
+    // Left analog stick with radial deadzone
+    let ax = gp.axes?.[0] || 0;
+    let ay = gp.axes?.[1] || 0;
+    if (Math.hypot(ax, ay) < 0.22) {
+      ax = 0;
+      ay = 0;
+    }
+
+    // Standard W3C D-pad buttons (Xbox, PS, Switch Pro, 8BitDo X-Input)
+    const btns = gp.buttons || [];
+    if (btns[14]?.pressed) ax = -1;
+    if (btns[15]?.pressed) ax = 1;
+    if (btns[12]?.pressed) ay = -1;
+    if (btns[13]?.pressed) ay = 1;
+
+    // Non-standard retro USB / Linux hidraw D-pad fallback (axes 6/7)
+    if (gp.mapping !== 'standard' && gp.axes && gp.axes.length >= 8) {
+      if (Math.abs(gp.axes[6]) > 0.5) ax = Math.sign(gp.axes[6]);
+      if (Math.abs(gp.axes[7]) > 0.5) ay = Math.sign(gp.axes[7]);
+    }
+
+    // Classic NHL '94 + modern console mapping:
+    // - Pass / Drop / Goalie Throw / Switch: A / Cross / SNES B (buttons[0])
+    // - Shoot (Tap Quick / Hold Hard) / Steal / Bomb Throw: B / Circle / SNES A (buttons[1]) OR X / Square (buttons[2])
+    // - Catch / Drop: Y / Triangle (buttons[3]) OR LB/L1 (buttons[4]) OR RB/R1 (buttons[5])
+    // - Start / Pause: Start / Options (buttons[9])
+    // - CRT Toggle: Select / Share (buttons[8])
     return {
       ax,
       ay,
-      kickDown: Boolean(gp.buttons[0]?.pressed || gp.buttons[2]?.pressed),
-      passDown: Boolean(gp.buttons[1]?.pressed),
-      catchDown: Boolean(gp.buttons[3]?.pressed || gp.buttons[5]?.pressed),
-      startDown: Boolean(gp.buttons[9]?.pressed),
+      passDown: Boolean(btns[0]?.pressed),
+      kickDown: Boolean(btns[1]?.pressed || btns[2]?.pressed),
+      catchDown: Boolean(btns[3]?.pressed || btns[4]?.pressed || btns[5]?.pressed),
+      selectDown: Boolean(btns[8]?.pressed),
+      startDown: Boolean(btns[9]?.pressed),
     };
   }
 
@@ -273,13 +340,42 @@ export class FootHockeyGame {
       this.justPressed.has('Enter') ||
       (gp?.startDown && !this._prevGpStart);
 
+    const pausePressed =
+      startPressed ||
+      this.justPressed.has('KeyP') ||
+      this.justPressed.has('Escape');
+
+    const restartPressed = this.justPressed.has('KeyR');
+
+    const selectPressed = Boolean(gp?.selectDown && !this._prevGpSelect);
+    if (selectPressed) {
+      this.toggleCrt();
+    }
+
+    // Unlock Web Audio automatically on first gamepad press too
+    if (kickPressed || passPressed || catchPressed || startPressed || pausePressed) {
+      sound.ensureContext();
+    }
+
     this._prevKickHeld = kickHeld;
     this._prevGpKick = Boolean(gp?.kickDown);
     this._prevGpPass = Boolean(gp?.passDown);
     this._prevGpCatch = Boolean(gp?.catchDown);
+    this._prevGpSelect = Boolean(gp?.selectDown);
     this._prevGpStart = Boolean(gp?.startDown);
 
-    return { mx, my, kickPressed, kickHeld, kickReleased, passPressed, catchPressed, startPressed };
+    return {
+      mx,
+      my,
+      kickPressed,
+      kickHeld,
+      kickReleased,
+      passPressed,
+      catchPressed,
+      startPressed,
+      pausePressed,
+      restartPressed,
+    };
   }
 
   // === MAIN FIXED-TIMESTEP UPDATE (60Hz) ===
@@ -288,26 +384,32 @@ export class FootHockeyGame {
     const input = this.readInput();
     this.justPressed.clear();
 
-    // Update particles & floating arcade text in all states
-    this.updateEffects();
-
-    if (this.state === 'TITLE') {
-      if (input.startPressed || input.kickPressed || input.catchPressed) {
+    if (this.state === 'PAUSED') {
+      if (input.pausePressed) {
+        this.state = this.prevState;
+        sound.playMenuSelect();
+      } else if (input.restartPressed) {
         sound.playMenuSelect();
         this.startNewMatch();
       }
       return;
     }
 
-    if (this.state === 'PAUSED') {
-      if (input.startPressed) {
-        this.state = this.prevState;
+    // Update particles & floating arcade text when not paused
+    this.updateEffects();
+
+    if (this.state === 'TITLE') {
+      if (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed) {
         sound.playMenuSelect();
+        this.startNewMatch();
       }
       return;
     }
 
-    if (input.startPressed && (this.state === 'PLAYING' || this.state === 'FACEOFF')) {
+    if (
+      input.pausePressed &&
+      (this.state === 'PLAYING' || this.state === 'FACEOFF' || this.state === 'GOAL_CELEBRATION')
+    ) {
       this.prevState = this.state;
       this.state = 'PAUSED';
       sound.playMenuSelect();
@@ -358,7 +460,7 @@ export class FootHockeyGame {
     }
 
     if (this.state === 'GAME_OVER') {
-      if (input.startPressed || input.kickPressed) {
+      if (input.startPressed || input.kickPressed || input.passPressed) {
         sound.playMenuSelect();
         this.startNewMatch();
       }
@@ -367,6 +469,9 @@ export class FootHockeyGame {
 
     // === PLAYING STATE ===
     this.clockFrames--;
+    if (this.ball.owner) {
+      this.stats[this.ball.owner.team].possessionFrames++;
+    }
     if (this.clockFrames <= 0) {
       sound.playRecessBell();
       if (this.period < MATCH.periods) {
@@ -390,6 +495,7 @@ export class FootHockeyGame {
       if (p.diveTimer > 0) p.diveTimer--;
       if (p.jacketTimer > 0) p.jacketTimer--;
       if (p.gloveTimer > 0) p.gloveTimer--;
+      if (p.throwTimer > 0) p.throwTimer--;
 
       if (p.role === 'G') {
         updateGoalie(p, this);
@@ -459,16 +565,61 @@ export class FootHockeyGame {
     const p = this.getControlledPlayer();
     const { ball } = this;
 
-    // 8-way schoolyard footwork movement
+    // Update highlighted deliberate pass/throw target whenever our controlled player owns the ball
+    if (ball.owner === p) {
+      this.passTarget = this.findPassTarget(p, input);
+    } else {
+      this.passTarget = null;
+    }
+
+    // === SPECIAL CASE: HOME GOALIE HOLDING THE BALL -> AIM & THROW ACROSS THE WHOLE FIELD! ===
+    if (p.role === 'G') {
+      if (!p.holdingBall || ball.owner !== p) {
+        // Return control to nearest skater once goalie no longer holds ball
+        const skater = this.findNearestPlayer(ball.x, ball.y, 'home', true);
+        if (skater) this.controlledId = skater.id;
+        return;
+      }
+
+      // Let player aim across the schoolyard with Arrows/WASD (doesn't walk goalie out of crease)
+      if (input.mx !== 0 || input.my !== 0) {
+        const mag = Math.hypot(input.mx, input.my) || 1;
+        p.facingX = input.mx / mag;
+        p.facingY = input.my / mag;
+      }
+
+      if (input.passPressed) {
+        // Deliberate accurate overhand throw to the highlighted teammate (short, mid, or full-court!)
+        this.executeGoalieThrow(p, this.passTarget, false);
+        return;
+      }
+      if (input.kickPressed) {
+        // Full-field BOMB throw! Faster high-velocity baseball heave downfield!
+        this.executeGoalieThrow(p, this.passTarget, true);
+        return;
+      }
+      if (input.catchPressed) {
+        // Quick short underhand toss just outside the crease
+        const tx = p.x + (input.mx * 34);
+        const ty = p.y - 42;
+        const info = launchThrow(ball, p, tx, ty, { isBomb: false, landZ: 2 });
+        const next = this.findNearestPlayer(tx, ty, 'home', true);
+        if (next) this.controlledId = next.id;
+        this.onThrowEffect(p, info.dist > 165, 'TOSS!');
+        return;
+      }
+      return;
+    }
+
+    // 8-way schoolyard footwork movement (slows slightly during slap-kick wind-up or while holding ball)
     if (input.mx !== 0 || input.my !== 0) {
       const mag = Math.hypot(input.mx, input.my) || 1;
       const nx = input.mx / mag;
       const ny = input.my / mag;
-      // Moving slightly slower while holding the caught ball (pivot to drop or punt!)
-      const holdSlow = p.holdingBall ? 0.45 : 1;
-      const maxSpd = p.stats.speed * holdSlow;
-      p.vx += nx * PHYSICS.playerAccel * holdSlow;
-      p.vy += ny * PHYSICS.playerAccel * holdSlow;
+      const speedMod = p.holdingBall ? 0.45 : p.windupFrames >= SHOT.hardMinFrames ? 0.56 : 1;
+      const maxSpd = p.stats.speed * speedMod;
+      p.vx += nx * PHYSICS.playerAccel * speedMod;
+      p.vy += ny * PHYSICS.playerAccel * speedMod;
       const cur = Math.hypot(p.vx, p.vy);
       if (cur > maxSpd) {
         p.vx = (p.vx / cur) * maxSpd;
@@ -489,7 +640,7 @@ export class FootHockeyGame {
       if (input.kickPressed) {
         // Signature schoolyard DROP-KICK volley!
         const aim = this.getAimVector(p, input);
-        launchBall(ball, p, aim.x, aim.y, p.stats.kick * 1.12, 3.1, { startZ: 5 });
+        launchBall(ball, p, aim.x, aim.y, p.stats.kick * 1.18, 3.1, { startZ: 5 });
         this.stats.home.shots++;
         this.onKickEffect(p.x, p.y, 'DROP-KICK!', '#d9ff2e', true);
         return;
@@ -499,77 +650,98 @@ export class FootHockeyGame {
 
     // === ACTION 2: DRIBBLING BALL AT FEET ===
     if (ball.owner === p) {
-      // Charge kick slightly while holding Z/J for booming top-corner shots!
-      if (input.kickHeld) {
-        this.kickCharge = Math.min(24, this.kickCharge + 1);
-      }
-      if (input.kickReleased || (this.kickCharge >= 24 && input.kickHeld)) {
-        const powerBoost = 0.85 + (this.kickCharge / 24) * 0.42;
-        const loft = 1.0 + (this.kickCharge / 24) * 2.1;
-        const aim = this.getAimVector(p, input);
-        launchBall(ball, p, aim.x, aim.y, p.stats.kick * powerBoost, loft);
-        this.stats.home.shots++;
-        const isBoom = this.kickCharge >= 16;
-        this.onKickEffect(p.x, p.y, isBoom ? 'BOOM!' : null, '#ffe84d', isBoom);
-        this.kickCharge = 0;
-        return;
-      }
-
-      // Pass (X / K) -> crisp pass to best teammate in facing direction + sets up NHL '94 one-timer!
+      // Deliberate Pass (X / K) — works anytime AND cancels a hard-shot wind-up just like NHL '94!
       if (input.passPressed) {
         this.kickCharge = 0;
-        const target = this.findPassTarget(p, input);
-        if (target) {
-          const dx = target.x + target.vx * 8 - p.x;
-          const dy = target.y + target.vy * 8 - p.y;
-          launchBall(ball, p, dx, dy, 4.4, 0.75, { passTargetId: target.id });
-          this.controlledId = target.id;
-          sound.playKick(0.65);
-          this.spawnParticles(p.x, p.y, '#e9eef4', 4);
-        } else {
-          const aim = this.getAimVector(p, input);
-          launchBall(ball, p, aim.x, aim.y, 4.1, 0.7);
-          sound.playKick(0.65);
-        }
+        p.windupFrames = 0;
+        this.executeDeliberatePass(p, this.passTarget, input);
         return;
       }
 
       // Scoop-catch own ball with C / Space (great to set up a drop-kick!)
       if (input.catchPressed) {
         this.kickCharge = 0;
+        p.windupFrames = 0;
         catchBall(ball, p);
         this.stats.home.catches++;
         this.onCatchEffect(p);
+        return;
+      }
+
+      // Two-tier NHL '94 Shooting on Z / J:
+      // - TAP (< 10 frames): QUICK SHOT (instant low-mid snap kick!)
+      // - HOLD (>= 10 frames): HARD SHOT / SLAP-KICK (leg cocks back, charges power, screaming shot!)
+      if (input.kickHeld) {
+        this.kickCharge++;
+        p.windupFrames = this.kickCharge;
+        if (this.kickCharge === SHOT.hardMinFrames) {
+          sound.playWindupTick();
+        }
+      }
+
+      const subFrameTap = input.kickPressed && !input.kickHeld;
+      const autoFire = this.kickCharge >= SHOT.hardAutoFireFrames && input.kickHeld;
+      if (subFrameTap || (input.kickReleased && this.kickCharge > 0) || autoFire) {
+        const isHardShot = this.kickCharge >= SHOT.hardMinFrames;
+        const aim = this.getAimVector(p, input);
+        if (isHardShot) {
+          const chargeRatio = Math.min(
+            1,
+            (this.kickCharge - SHOT.hardMinFrames) / (SHOT.hardFullFrames - SHOT.hardMinFrames)
+          );
+          const mult = SHOT.hardMinSpeedMult + chargeRatio * (SHOT.hardMaxSpeedMult - SHOT.hardMinSpeedMult);
+          const speed = p.stats.kick * mult;
+          launchBall(ball, p, aim.x, aim.y, speed, SHOT.hardLoft, {
+            shotPower: speed,
+            kickTimer: 15,
+          });
+          this.stats.home.shots++;
+          this.onKickEffect(p.x, p.y, chargeRatio > 0.75 ? 'SLAP-KICK!' : 'HARD SHOT!', '#ff6d2e', true);
+        } else {
+          // Instant crisp QUICK SHOT!
+          const speed = p.stats.kick * SHOT.quickSpeedMult;
+          launchBall(ball, p, aim.x, aim.y, speed, SHOT.quickLoft, {
+            shotPower: speed,
+            kickTimer: 9,
+          });
+          this.stats.home.shots++;
+          this.onKickEffect(p.x, p.y, 'QUICK SHOT', '#ffe84d', false);
+        }
+        this.kickCharge = 0;
+        p.windupFrames = 0;
         return;
       }
       return;
     }
 
     this.kickCharge = 0;
+    p.windupFrames = 0;
 
     // === ACTION 3: WITHOUT BALL (DEFENSE / ONE-TIMER / CATCH INTERCEPT!) ===
 
-    // NHL '94 ONE-TIMER! If a pass is coming toward this player and you hit KICK!
+    // NHL '94 ONE-TIMER! If a pass/throw is coming toward this player and you hit SHOOT!
     if (
       input.kickPressed &&
       !ball.owner &&
       ball.passTimer > 0 &&
       ball.passTargetId === p.id &&
-      Math.hypot(ball.x - p.x, ball.y - p.y) < 32
+      Math.hypot(ball.x - p.x, ball.y - p.y) < 34
     ) {
       const aimX = COURT.centerX + (input.mx * 26) - p.x;
       const aimY = GOAL.topLineY - p.y;
-      launchBall(ball, p, aimX, aimY, p.stats.kick * 1.24, 2.3, { startZ: 3 });
+      const speed = p.stats.kick * 1.38;
+      launchBall(ball, p, aimX, aimY, speed, 2.3, { startZ: 3, shotPower: speed });
       this.stats.home.shots++;
       this.onKickEffect(p.x, p.y, 'ONE-TIMER!', '#ff8c2e', true);
       return;
     }
 
-    // CATCH / INTERCEPT! Press C / Space to snag a loose, bouncing, or aerial tennis ball!
+    // CATCH / INTERCEPT! Press C / Space to snag a loose, bouncing, or thrown tennis ball!
     if (input.catchPressed) {
       p.catchAnim = 12;
       const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
-      if (!ball.owner && dist <= PHYSICS.catchReach + 4 && ball.z <= PHYSICS.catchMaxZ) {
+      const catchRadius = ball.passTargetId === p.id ? PHYSICS.catchReach + 9 : PHYSICS.catchReach + 4;
+      if (!ball.owner && dist <= catchRadius && ball.z <= PHYSICS.catchMaxZ) {
         catchBall(ball, p);
         this.stats.home.catches++;
         this.onCatchEffect(p);
@@ -593,6 +765,60 @@ export class FootHockeyGame {
     }
   }
 
+  executeDeliberatePass(p, target, input) {
+    const { ball } = this;
+    if (target) {
+      const rawDist = Math.hypot(target.x - p.x, target.y - p.y);
+      // Scale pass speed smoothly with distance so both crisp short passes and cross-yard feeds land on the tape!
+      const speed = Math.max(4.2, Math.min(6.4, rawDist * 0.022 + 3.4));
+      const leadFrames = Math.min(18, rawDist / speed);
+      const tx = Math.max(COURT.left + 12, Math.min(COURT.right - 12, target.x + target.vx * leadFrames * 0.7));
+      const ty = Math.max(COURT.top + 12, Math.min(COURT.bottom - 12, target.y + target.vy * leadFrames * 0.7));
+      const dx = tx - p.x;
+      const dy = ty - p.y;
+      const loft = rawDist > 130 ? 1.5 : 0.7;
+      launchBall(ball, p, dx, dy, speed, loft, {
+        passTargetId: target.id,
+        passTimer: Math.max(PHYSICS.oneTimerWindow, Math.round(leadFrames) + 18),
+        shotPower: 0,
+      });
+      this.controlledId = target.id;
+      this.stats[p.team].passes++;
+      sound.playPass();
+      this.spawnParticles(p.x, p.y, '#7ae8ff', 5);
+    } else {
+      const aim = this.getAimVector(p, input);
+      launchBall(ball, p, aim.x, aim.y, 4.4, 0.7, { shotPower: 0 });
+      this.stats[p.team].passes++;
+      sound.playPass();
+    }
+  }
+
+  executeGoalieThrow(g, target, isBomb = false) {
+    const { ball } = this;
+    const mates = this.players.filter((m) => m.team === g.team && m.role !== 'G');
+    const receiver = target || mates[0];
+    if (!receiver) return;
+
+    // Predict where receiver is heading so full-field throws lead them cleanly in stride!
+    const approxDist = Math.hypot(receiver.x - g.x, receiver.y - g.y);
+    const leadFrames = Math.min(26, approxDist * 0.09);
+    const tx = Math.max(COURT.left + 14, Math.min(COURT.right - 14, receiver.x + receiver.vx * leadFrames * 0.55));
+    const ty = Math.max(COURT.top + 18, Math.min(COURT.bottom - 18, receiver.y + receiver.vy * leadFrames * 0.55));
+
+    const info = launchThrow(ball, g, tx, ty, {
+      passTargetId: receiver.id,
+      isBomb,
+      landZ: 5,
+    });
+
+    if (g.team === 'home') {
+      this.controlledId = receiver.id;
+    }
+    this.stats[g.team].passes++;
+    this.onThrowEffect(g, info.dist > 165 || isBomb);
+  }
+
   getAimVector(p, input) {
     if (input.mx !== 0 || input.my !== 0) {
       return { x: input.mx, y: input.my };
@@ -607,11 +833,17 @@ export class FootHockeyGame {
   findPassTarget(p, input) {
     const mates = this.players.filter((m) => m.team === p.team && m.id !== p.id && m.role !== 'G');
     if (!mates.length) return null;
-    const ax = input.mx !== 0 || input.my !== 0 ? input.mx : p.facingX;
-    const ay = input.mx !== 0 || input.my !== 0 ? input.my : p.facingY;
+
+    const hasStickAim = input.mx !== 0 || input.my !== 0;
+    const ax = hasStickAim ? input.mx : p.facingX;
+    const ay = hasStickAim ? input.my : p.facingY;
     const amag = Math.hypot(ax, ay) || 1;
     const nx = ax / amag;
     const ny = ay / amag;
+
+    // Goalie throwing can aim all the way across the entire court with zero distance penalty!
+    const distWeight = p.role === 'G' ? 0.0005 : hasStickAim ? 0.0018 : 0.0038;
+    const alignWeight = hasStickAim ? 3.8 : 2.2;
 
     let best = mates[0];
     let bestScore = -Infinity;
@@ -620,7 +852,7 @@ export class FootHockeyGame {
       const dy = m.y - p.y;
       const dist = Math.hypot(dx, dy) || 1;
       const align = (dx / dist) * nx + (dy / dist) * ny;
-      const score = align * 2 - dist / 240;
+      const score = align * alignWeight - dist * distWeight;
       if (score > bestScore) {
         bestScore = score;
         best = m;
@@ -646,9 +878,11 @@ export class FootHockeyGame {
       // Can't steal directly out of hands if they're holding—Wait: a poke knocks it loose if dribbling!
       if (!victim.holdingBall) {
         victim.stealCooldown = 26;
+        victim.windupFrames = 0;
         ball.owner = p;
         ball.lastTouchTeam = p.team;
         ball.lastTouchPlayer = p;
+        this.stats[p.team].steals++;
         this.spawnParticles(ball.x, ball.y, '#ffe84d', 6);
         this.addCallout(p.x, p.y - 16, 'STEAL!', '#48b8ff');
       }
@@ -660,21 +894,28 @@ export class FootHockeyGame {
 
   checkLooseBallPickup() {
     const { ball } = this;
-    if (ball.owner || ball.z > 7.5) return;
+    if (ball.owner) return;
 
     for (const p of this.players) {
       if (p.role === 'G') continue;
       if (p.stealCooldown > 10) continue;
       if (ball.pickupCooldown > 0 && ball.lastTouchPlayer?.id === p.id) continue;
 
+      const isIntendedTarget = ball.passTargetId === p.id && ball.passTimer > 0;
+      const maxZ = isIntendedTarget ? 12.5 : 7.5;
+      const maxDist = isIntendedTarget ? 14.5 : 10.5;
+      if (ball.z > maxZ) continue;
+
       const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
-      if (dist < 10.5) {
+      if (dist < maxDist) {
         ball.owner = p;
         ball.lastTouchTeam = p.team;
         ball.lastTouchPlayer = p;
         ball.passTargetId = null;
         ball.passTimer = 0;
         ball.shotPower = 0;
+        ball.isThrow = false;
+        ball.trail = [];
         return;
       }
     }
@@ -714,6 +955,15 @@ export class FootHockeyGame {
         ? this.ball.lastTouchPlayer
         : this.players.find((p) => p.team === team && p.role === 'C');
 
+    if (this.lastScorer) {
+      this.goalLog.push({
+        team,
+        name: this.lastScorer.name,
+        number: this.lastScorer.number,
+        period: this.period,
+      });
+    }
+
     this.state = 'GOAL_CELEBRATION';
     this.stateTimer = 145;
     this.goalShake[goalSide] = 18;
@@ -752,13 +1002,22 @@ export class FootHockeyGame {
     if (label) this.addCallout(p.x, p.y - 16, label, '#9be8ff');
   }
 
+  onThrowEffect(g, isLong = false, customLabel = null) {
+    sound.playThrow(isLong);
+    this.spawnParticles(g.x + 8, g.y - 10, '#ffe84d', isLong ? 10 : 6);
+    const label = customLabel || (isLong ? 'LONG THROW!' : 'THROW!');
+    this.addCallout(g.x, g.y - 20, label, isLong ? '#d9ff2e' : '#7ae8ff');
+  }
+
   onGoalieSave(g, type) {
     this.stats[g.team].saves++;
     if (type === 'glove') {
+      this.stats[g.team].gloveSaves++;
       sound.playGloveSave();
       this.spawnParticles(g.x + 10, g.y - 8, '#f0b86e', 9);
       this.addCallout(g.x, g.y - 20, 'GLOVE SAVE!', '#ffd84d');
     } else {
+      this.stats[g.team].jacketBlocks++;
       sound.playJacketBlock();
       this.spawnParticles(g.x - 10, g.y - 6, g.jacketColor || '#22a65b', 9);
       this.addCallout(g.x, g.y - 20, 'JACKET BLOCK!', '#6ef0a4');

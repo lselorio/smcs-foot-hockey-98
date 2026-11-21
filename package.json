@@ -1,7 +1,7 @@
 {
   "name": "foot-hockey-2027",
   "version": "0.1.0",
-  "description": "16-bit NHL '94-inspired schoolyard recess foot hockey prototype",
+  "description": "Foot Hockey 98 — 16-bit schoolyard recess foot hockey game",
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
