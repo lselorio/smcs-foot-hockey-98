@@ -140,6 +140,15 @@ export function renderGame(ctx, game) {
     });
   }
 
+  // Depth-sort the protruding brick room above the right-wall net for crisp 3/4 occlusion!
+  if (game.court.protrudingRoom) {
+    const pr = game.court.protrudingRoom;
+    drawables.push({
+      y: pr.y2,
+      draw: () => drawProtrudingRoom(ctx, pr, game.court.worldW, game.weather === 'snow'),
+    });
+  }
+
   drawables.sort((a, b) => a.y - b.y);
   for (const item of drawables) item.draw();
 
@@ -643,6 +652,61 @@ function drawSchoolyard(ctx, game) {
   for (const spec of game.spectators) {
     drawSpectator(ctx, spec, game.tick, celebrating);
   }
+}
+
+// Draw the small red-brick room protruding out of the right wall just above the square cage net
+function drawProtrudingRoom(ctx, pr, worldW, isSnow) {
+  const rx = pr.x1;
+  const ry = pr.y1;
+  const rw = pr.x2 - pr.x1;
+  const rh = pr.y2 - pr.y1;
+  const wallH = 14; // Visible south-facing red-brick wall below the flat roof
+  const roofH = rh - wallH;
+  const fullW = worldW - rx;
+
+  // Ground shadow cast left & downward onto the schoolyard blacktop
+  ctx.fillStyle = 'rgba(10, 12, 20, 0.42)';
+  ctx.fillRect(rx - 4, ry + 3, 4, rh + 2);
+  ctx.fillRect(rx - 3, pr.y2, rw + 3, 4);
+
+  // South-facing red brick facade (seamlessly matches the right red-brick school wall!)
+  const brickY = ry + roofH;
+  ctx.fillStyle = '#572019';
+  ctx.fillRect(rx, brickY, fullW, wallH);
+  ctx.fillStyle = '#963f33';
+  for (let row = 0; row < 2; row++) {
+    const by = brickY + 1 + row * 6;
+    for (let bx = rx + 1 + (row % 2) * 5; bx < worldW; bx += 11) {
+      const clipW = Math.min(9, worldW - bx);
+      if (clipW > 0) ctx.fillRect(bx, by, clipW, 4);
+    }
+  }
+  // Crisp dark brick base trim & corner edge shadow
+  ctx.fillStyle = '#3a1510';
+  ctx.fillRect(rx, pr.y2 - 1, rw + 1, 2);
+  ctx.fillRect(rx, ry, 2, rh);
+
+  // Flat tar/gravel roof (or packed snow roof on Snow Day!) extending into the right building
+  ctx.fillStyle = isSnow ? '#d8e4f2' : '#4a505e';
+  ctx.fillRect(rx + 2, ry + 2, fullW - 2, roofH - 2);
+  ctx.fillStyle = isSnow ? '#edf4fc' : '#5e6575';
+  ctx.fillRect(rx + 4, ry + 4, rw - 4, roofH - 6);
+
+  // Stone roof coping parapet edging along top, left, and bottom lip of the roof
+  ctx.fillStyle = isSnow ? '#ffffff' : '#969fae';
+  ctx.fillRect(rx, ry, fullW, 2);
+  ctx.fillRect(rx, ry, 2, roofH);
+  ctx.fillRect(rx, brickY - 2, fullW, 2);
+  ctx.fillStyle = '#2d323d';
+  ctx.fillRect(rx, brickY, fullW, 1);
+
+  // Small dark frosted utility window on the south brick wall for school-building character
+  ctx.fillStyle = '#333b4a';
+  ctx.fillRect(rx + 8, brickY + 3, 12, 7);
+  ctx.fillStyle = '#182436';
+  ctx.fillRect(rx + 9, brickY + 4, 10, 5);
+  ctx.fillStyle = '#2e4766';
+  ctx.fillRect(rx + 10, brickY + 5, 3, 2);
 }
 
 function renderHud(ctx, game) {

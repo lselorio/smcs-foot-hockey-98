@@ -385,6 +385,30 @@ export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap =
     }
   }
 
+  // === RIGHT-WALL PROTRUDING ROOM JUST ABOVE THE RIGHT NET ===
+  if (court && court.protrudingRoom) {
+    const pr = court.protrudingRoom;
+    const minX = pr.x1 - r;
+    const minY = pr.y1 - r;
+    const maxY = pr.y2 + r;
+    if (ball.x > minX && ball.y > minY && ball.y < maxY) {
+      const distLeft = Math.abs(ball.x - minX);
+      const distTop = Math.abs(ball.y - minY);
+      const distBot = Math.abs(ball.y - maxY);
+      if (prevX <= minX + 1 || (distLeft <= distTop && distLeft <= distBot)) {
+        ball.x = minX;
+        ball.vx = -Math.abs(ball.vx) * PHYSICS.fenceRestitution;
+      } else if (prevY <= minY + 1 || distTop <= distBot) {
+        ball.y = minY;
+        ball.vy = -Math.abs(ball.vy) * PHYSICS.fenceRestitution;
+      } else {
+        ball.y = maxY;
+        ball.vy = Math.abs(ball.vy) * PHYSICS.fenceRestitution;
+      }
+      callbacks.onFenceHit?.();
+    }
+  }
+
   // === BOTTOM-RIGHT CORNER STAIRS (FOOT OF UPWARD STAIRS & SEATED KID) ===
   if (court && court.cornerStairs) {
     const cs = court.cornerStairs;
@@ -442,8 +466,8 @@ export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap =
   return null;
 }
 
-// Keep a player inside the schoolyard walls/fence and out of the Basement 56 stairwell & corner stairs!
-export function clampPlayerToCourt(p, bounds = COURT, basementStairs = null, cornerStairs = null) {
+// Keep a player inside the schoolyard walls/fence and out of staircases & protruding brick room!
+export function clampPlayerToCourt(p, bounds = COURT, basementStairs = null, cornerStairs = null, protrudingRoom = null) {
   const pad = 7;
   if (p.x < bounds.left + pad) {
     p.x = bounds.left + pad;
@@ -497,6 +521,29 @@ export function clampPlayerToCourt(p, bounds = COURT, basementStairs = null, cor
       } else {
         p.x = minX;
         if (p.vx > 0) p.vx = 0;
+      }
+    }
+  }
+
+  // Keep skaters cleanly outside the protruding red-brick room above the right-wall net!
+  if (protrudingRoom) {
+    const pr = protrudingRoom;
+    const minX = pr.x1 - pad;
+    const minY = pr.y1 - pad;
+    const maxY = pr.y2 + pad;
+    if (p.x > minX && p.y > minY && p.y < maxY) {
+      const distLeft = Math.abs(p.x - minX);
+      const distTop = Math.abs(p.y - minY);
+      const distBot = Math.abs(p.y - maxY);
+      if (distLeft <= distTop && distLeft <= distBot) {
+        p.x = minX;
+        if (p.vx > 0) p.vx = 0;
+      } else if (distTop <= distBot) {
+        p.y = minY;
+        if (p.vy > 0) p.vy = 0;
+      } else {
+        p.y = maxY;
+        if (p.vy < 0) p.vy = 0;
       }
     }
   }

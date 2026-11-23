@@ -880,7 +880,13 @@ export class FootHockeyGame {
       p.y += p.vy;
       p.vx *= skaterFriction;
       p.vy *= skaterFriction;
-      clampPlayerToCourt(p, this.court.bounds, this.court.basementStairs, this.court.cornerStairs);
+      clampPlayerToCourt(
+        p,
+        this.court.bounds,
+        this.court.basementStairs,
+        this.court.cornerStairs,
+        this.court.protrudingRoom
+      );
 
       // Kick up crisp white snow spray when carving hard in Snow Day weather!
       if (isSnow && Math.hypot(p.vx, p.vy) > 1.25 && this.tick % 5 === 0) {

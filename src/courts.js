@@ -84,6 +84,15 @@ export function createBond66Court() {
     captionLines: ['THE BIRD THAT', "COULDN'T FLY."],
   };
 
+  // Small red-brick room protruding out from the right wall above the right square cage net
+  // (~2 kids wide x ~2 kids tall — creates authentic bank-pass angles above the net!)
+  const protrudingRoom = {
+    x1: 420,
+    x2: bounds.right,
+    y1: 192,
+    y2: 230,
+  };
+
   return {
     id: 'bond66',
     name: '66 BOND',
@@ -93,6 +102,7 @@ export function createBond66Court() {
     topWindows,
     basementStairs,
     cornerStairs,
+    protrudingRoom,
     nets: [topYellowNet, rightCageNet],
     // Center faceoff / restart point balanced between the two 90-degree nets
     faceoffX: 224,

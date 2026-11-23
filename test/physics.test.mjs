@@ -681,4 +681,19 @@ test('Basement 56 staircase on bottom red-brick wall catches ball from right and
   assert.ok(cs, '66 Bond should have the bottom-right corner stairs landmark');
   assert.equal(cs.caption, "The Bird That Couldn't Fly.");
   assert.ok(cs.x1 > s.x2, 'Bottom-right stairs should sit cleanly to the right of Basement 56');
+
+  // Verify protruding brick room just above the right-wall square cage net bounces the ball cleanly
+  const pr = game.court.protrudingRoom;
+  const rightNet = game.court.nets[1];
+  assert.ok(pr, '66 Bond should have the protruding room on the right wall');
+  assert.ok(pr.y2 < rightNet.minCoord, 'Protruding room should sit just above the right-wall net');
+  game.state = 'PLAYING';
+  game.ball.owner = null;
+  game.ball.x = pr.x1 - 2;
+  game.ball.y = (pr.y1 + pr.y2) / 2;
+  game.ball.z = 4;
+  game.ball.vx = 5;
+  game.ball.vy = 0;
+  game.update();
+  assert.ok(game.ball.vx < 0, 'Tennis ball should bounce off the left face of the protruding room');
 });
