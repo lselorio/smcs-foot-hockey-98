@@ -191,6 +191,13 @@ class SoundEngine {
     this.tone(210, 130, 0.05, 'triangle', 0.10);
   }
 
+  // Heavy NHL '94 body-check crunch (along left wall boards OR anywhere in Snow!)
+  playBodyCheck() {
+    this.tone(135, 42, 0.16, 'triangle', 0.30);
+    this.tone(92, 36, 0.14, 'sawtooth', 0.16);
+    this.noise(0.11, 520, 'lowpass', 0.28);
+  }
+
   // Classic recess school bell (rapid metallic clapper!)
   playRecessBell() {
     for (let i = 0; i < 10; i++) {

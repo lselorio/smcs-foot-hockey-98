@@ -146,7 +146,7 @@ export function dropHeldBall(ball, player, nudgeSpeed = 0.65) {
 
 // Step 2.5D tennis ball physics and check wall/grill/post/goal collisions
 // Supports both classic symmetric GOAL and arbitrary multi-wall court nets (like 66 Bond's top rectangle + right square cage!)
-export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap = null) {
+export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap = null, isSnow = false) {
   const bounds = court ? court.bounds : COURT;
   if (ball.pickupCooldown > 0) ball.pickupCooldown--;
   if (ball.throwGrace > 0) ball.throwGrace--;
@@ -225,8 +225,9 @@ export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap =
     }
   }
 
-  // Drag / asphalt rolling friction
-  const drag = ball.z > 0.5 ? PHYSICS.airDrag : PHYSICS.groundFriction;
+  // Drag / asphalt rolling friction (slightly slicker glide on packed snow!)
+  const groundDrag = isSnow ? 0.985 : PHYSICS.groundFriction;
+  const drag = ball.z > 0.5 ? PHYSICS.airDrag : groundDrag;
   ball.vx *= drag;
   ball.vy *= drag;
   if (Math.hypot(ball.vx, ball.vy) < 0.04) {

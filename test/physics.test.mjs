@@ -503,3 +503,127 @@ test('66 Bond court has larger blacktop, asymmetrical 90-degree nets, and swaps 
   assert.equal(game.getAttackNet('home').id, 'right_cage', 'Teams should swap nets for Lunch Recess');
   assert.equal(game.getDefendNet('home').id, 'top_yellow');
 });
+
+test('demo mode runs full CPU-vs-CPU match, auto-starts after title idle, and exits cleanly', () => {
+  const game = new FootHockeyGame();
+  game.state = 'TITLE';
+
+  // Press D on Title Screen -> launches CPU-vs-CPU Demo Mode!
+  game.onKeyDown('KeyD');
+  game.update();
+  game.onKeyUp('KeyD');
+  assert.equal(game.isDemo, true);
+  assert.equal(game.state, 'FACEOFF');
+
+  // Simulate 3 seconds of CPU-vs-CPU play — Home center should move autonomously!
+  const homeCenter = game.players.find((p) => p.id === 'h_c');
+  const startX = homeCenter.x;
+  const startY = homeCenter.y;
+  for (let i = 0; i < 180; i++) game.update();
+  assert.ok(
+    Math.hypot(homeCenter.x - startX, homeCenter.y - startY) > 10,
+    'Home skater should move autonomously under CPU control in Demo Mode'
+  );
+
+  // Press Escape -> returns cleanly to TITLE
+  game.onKeyDown('Escape');
+  game.update();
+  game.onKeyUp('Escape');
+  assert.equal(game.isDemo, false);
+  assert.equal(game.state, 'TITLE');
+
+  // Auto-attract: idling 600 frames on TITLE automatically launches Demo Mode
+  for (let i = 0; i < 605; i++) game.update();
+  assert.equal(game.isDemo, true, 'Title Screen should auto-launch Demo Mode after idle timeout');
+
+  // Pressing Enter during Demo Mode jumps straight into a real 1P match
+  game.onKeyDown('Enter');
+  game.update();
+  game.onKeyUp('Enter');
+  assert.equal(game.isDemo, false);
+  assert.equal(game.state, 'FACEOFF');
+});
+
+test('66 Bond top-left corner basketball players stay active and deflect the tennis ball in play', () => {
+  const game = new FootHockeyGame();
+  game.startNewMatch();
+  game.state = 'PLAYING';
+
+  assert.ok(game.hoops, '66 Bond should have a top-left corner basketball game');
+  assert.equal(game.hoops.kids.length, 3);
+  assert.ok(game.hoops.zone.hoopX < game.court.bounds.centerX, 'Basketball hoop should sit in top-left corner');
+
+  // Fire tennis ball straight at the first basketball kid -> should deflect or get booted away in play!
+  const hoopKid = game.hoops.kids[0];
+  game.ball.owner = null;
+  game.ball.x = hoopKid.x + 6;
+  game.ball.y = hoopKid.y;
+  game.ball.z = 5;
+  game.ball.vx = -4;
+  game.ball.vy = 0;
+
+  game.update();
+  assert.ok(
+    game.ball.vx > 0 || hoopKid.kickTimer > 0,
+    'Tennis ball should either ricochet off or get booted away by an in-play basketball kid'
+  );
+
+  // Verify basketball kid eventually boots a nearby slow tennis ball away in a random direction
+  let kicked = false;
+  for (let attempt = 0; attempt < 30 && !kicked; attempt++) {
+    hoopKid.kickCooldown = 0;
+    hoopKid.kickTimer = 0;
+    game.ball.owner = null;
+    game.ball.x = hoopKid.x + 12;
+    game.ball.y = hoopKid.y;
+    game.ball.z = 2;
+    game.ball.vx = 0;
+    game.ball.vy = 0;
+    game.update();
+    if (hoopKid.kickTimer > 0 && Math.hypot(game.ball.vx, game.ball.vy) > 3.0) {
+      kicked = true;
+    }
+  }
+  assert.ok(kicked, 'Basketball kid should sometimes boot a nearby tennis ball away');
+});
+
+test('body checking is legal along the left wall on clear days and legal everywhere when snowing', () => {
+  const game = new FootHockeyGame();
+  game.startNewMatch();
+  game.state = 'PLAYING';
+
+  const leftWallX = game.court.bounds.left + 20;
+  const centerX = game.court.bounds.centerX;
+
+  // Clear weather: legal along left wall, NOT legal at center court
+  assert.equal(game.weather, 'clear');
+  assert.equal(game.isBodyCheckLegal(leftWallX), true);
+  assert.equal(game.isBodyCheckLegal(centerX), false);
+
+  // Execute body check along left wall -> victim gets stunned & check stat increments!
+  const hitter = game.players.find((p) => p.id === 'h_c');
+  const victim = game.players.find((p) => p.id === 'a_c');
+  hitter.x = leftWallX + 12;
+  hitter.y = 220;
+  victim.x = leftWallX;
+  victim.y = 220;
+  game.ball.owner = victim;
+  game.attemptSteal(hitter);
+  assert.ok(victim.stunTimer > 0, 'Left-wall body check should stun opponent');
+  assert.equal(game.ball.owner, null, 'Body check should pop the tennis ball loose');
+  assert.equal(game.stats.home.checks, 1);
+
+  // Toggle to Snow weather -> body checking is now legal EVERYWHERE!
+  assert.equal(game.toggleWeather(), 'snow');
+  assert.equal(game.isBodyCheckLegal(centerX), true, 'In snow, body checking is legal everywhere');
+
+  victim.stunTimer = 0;
+  hitter.stealCooldown = 0;
+  hitter.x = centerX - 12;
+  hitter.y = 240;
+  victim.x = centerX;
+  victim.y = 240;
+  game.attemptSteal(hitter);
+  assert.ok(victim.stunTimer > 0, 'Open-court body check should stun opponent during Snow Day');
+  assert.equal(game.stats.home.checks, 2);
+});

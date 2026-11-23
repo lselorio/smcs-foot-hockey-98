@@ -273,12 +273,21 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   const facingUp = p.facingY < -0.3;
   const flipX = p.facingX < -0.25 ? -1 : 1;
   const isDress = uniformMode === 'dress';
+  const isStunned = p.stunTimer > 0;
 
   // Ground shadow
   ctx.fillStyle = PALETTE.shadow;
   ctx.beginPath();
-  ctx.ellipse(x, y + 2, 6, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 2, isStunned ? 8 : 6, 3, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // If body-checked / knocked down, tilt sprite sideways with spinning NHL '94 dizziness stars!
+  ctx.save();
+  if (isStunned) {
+    ctx.translate(x, y - 4);
+    ctx.rotate((p.stunDir || 1) * 0.55);
+    ctx.translate(-x, -(y - 4));
+  }
 
   // Legs & Sneakers (animated run, slap-kick wind-up cockback, or big kick extension!)
   const leftLegY = y - 1 + Math.round(stride * 2);
@@ -444,6 +453,19 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
     ctx.fillRect(bx - 2, by - 2, 5, 5);
     ctx.fillStyle = PALETTE.tennisSeam;
     ctx.fillRect(bx - 1, by - 1, 2, 1);
+  }
+
+  ctx.restore();
+
+  // Spinning golden stars above head when body-checked!
+  if (isStunned) {
+    for (let i = 0; i < 3; i++) {
+      const a = tick * 0.25 + (i * Math.PI * 2) / 3;
+      const sx = Math.round(x + Math.cos(a) * 6);
+      const sy = Math.round(y - 22 + Math.sin(a) * 2.5);
+      ctx.fillStyle = '#ffe84d';
+      ctx.fillRect(sx - 1, sy, 2, 2);
+    }
   }
 }
 

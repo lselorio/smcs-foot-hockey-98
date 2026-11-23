@@ -1,16 +1,17 @@
 import { PHYSICS } from './constants.js';
 import { catchBall, dropHeldBall, launchBall, launchThrow } from './physics.js';
 
-function steerToward(p, tx, ty, speedScale = 1) {
+function steerToward(p, tx, ty, speedScale = 1, isSnow = false) {
   const dx = tx - p.x;
   const dy = ty - p.y;
   const dist = Math.hypot(dx, dy);
   if (dist < 2) return;
   const nx = dx / dist;
   const ny = dy / dist;
-  const maxSpd = p.stats.speed * speedScale;
-  p.vx += nx * PHYSICS.playerAccel * speedScale;
-  p.vy += ny * PHYSICS.playerAccel * speedScale;
+  const accel = (isSnow ? 0.19 : PHYSICS.playerAccel) * speedScale;
+  const maxSpd = p.stats.speed * speedScale * (isSnow ? 1.06 : 1);
+  p.vx += nx * accel;
+  p.vy += ny * accel;
   const cur = Math.hypot(p.vx, p.vy);
   if (cur > maxSpd) {
     p.vx = (p.vx / cur) * maxSpd;
@@ -42,7 +43,7 @@ export function updateGoalie(g, game) {
     g.vx *= 0.7;
     g.vy *= 0.7;
 
-    if (g.team === 'home') {
+    if (g.team === 'home' && !game.isDemo) {
       if (g.holdFrames >= PHYSICS.goalieMaxHoldFrames) {
         game.executeGoalieThrow(g, game.passTarget, false);
       }
@@ -148,7 +149,7 @@ export function updateGoalie(g, game) {
     g.diveDir = 1;
     g.diveTimer = 10;
     game.onGoalieSave(g, 'glove');
-    if (g.team === 'home') {
+    if (g.team === 'home' && !game.isDemo) {
       game.controlledId = g.id;
     }
   } else {
@@ -169,7 +170,9 @@ export function updateGoalie(g, game) {
 
 // Skater AI — fully general for 90-degree / diagonal asymmetrical courts like 66 Bond!
 export function updateSkaterAI(p, game) {
+  if (p.stunTimer > 0) return;
   const { ball, court } = game;
+  const isSnow = game.weather === 'snow';
   const bounds = court.bounds;
   const attackNet = game.getAttackNet(p.team);
   const defendNet = game.getDefendNet(p.team);
@@ -262,7 +265,7 @@ export function updateSkaterAI(p, game) {
       tx = clampX(tx + (p.x > nearestOpp.x ? 24 : -24));
       ty = clampY(ty + (p.y > nearestOpp.y ? 24 : -24));
     }
-    steerToward(p, tx, ty, 0.92);
+    steerToward(p, tx, ty, 0.92, isSnow);
     return;
   }
 
@@ -282,14 +285,14 @@ export function updateSkaterAI(p, game) {
         tx = clampX(defendNet.centerX + defendNet.normalX * 92 + wx * 18);
         ty = clampY(defendNet.centerY + defendNet.normalY * 92 + wy * 18);
       }
-      steerToward(p, tx, ty, 0.98);
+      steerToward(p, tx, ty, 0.98, isSnow);
       return;
     }
 
     const wingOffset = p.role === 'LW' ? -58 : p.role === 'RW' ? 58 : 0;
     const idealX = clampX(ball.owner.x + ax * 68 + wx * wingOffset);
     const idealY = clampY(ball.owner.y + ay * 68 + wy * wingOffset);
-    steerToward(p, idealX, idealY, 0.9);
+    steerToward(p, idealX, idealY, 0.9, isSnow);
     return;
   }
 
@@ -303,7 +306,7 @@ export function updateSkaterAI(p, game) {
     const wingShift = p.role === 'LW' ? -64 : p.role === 'RW' ? 64 : 0;
     const safeX = clampX(oppNet.centerX + oppNet.normalX * 86 + (-oppNet.normalY) * wingShift);
     const safeY = clampY(oppNet.centerY + oppNet.normalY * 86 + oppNet.normalX * wingShift);
-    steerToward(p, safeX, safeY, 0.84);
+    steerToward(p, safeX, safeY, 0.84, isSnow);
     return;
   }
 
@@ -329,16 +332,17 @@ export function updateSkaterAI(p, game) {
   }
 
   if (isClosestMate) {
-    steerToward(p, ball.x, ball.y, 0.96);
+    steerToward(p, ball.x, ball.y, 0.96, isSnow);
 
     if (
       ball.owner &&
       ball.owner.team !== p.team &&
       !ball.owner.holdingBall &&
-      distToBall < 15 &&
+      distToBall < 18 &&
       p.stealCooldown <= 0
     ) {
-      if (Math.random() < 0.07) {
+      const checkChance = game.isBodyCheckLegal(ball.owner.x, ball.owner.y) ? 0.12 : 0.07;
+      if (Math.random() < checkChance) {
         game.attemptSteal(p);
       }
     }
@@ -347,6 +351,6 @@ export function updateSkaterAI(p, game) {
     const wingShift = p.role === 'LW' ? -48 : p.role === 'RW' ? 48 : 0;
     const supportX = clampX(ball.x * 0.55 + defendNet.centerX * 0.45 + wx * wingShift * 0.6);
     const supportY = clampY(ball.y * 0.55 + defendNet.centerY * 0.45 + wy * wingShift * 0.6);
-    steerToward(p, supportX, supportY, 0.84);
+    steerToward(p, supportX, supportY, 0.84, isSnow);
   }
 }

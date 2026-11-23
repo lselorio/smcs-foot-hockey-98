@@ -1,5 +1,6 @@
-import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_W, SHOT, VIEW_H } from './constants.js';
+import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { createBond66Court } from './courts.js';
+import { createCornerBasketball, updateCornerBasketball } from './basketball.js';
 import { TEAMS, draftRecessTeams } from './roster.js';
 import { sound } from './audio.js';
 import {
@@ -19,6 +20,7 @@ function createEmptyTeamStats() {
     passes: 0,
     catches: 0,
     steals: 0,
+    checks: 0,
     saves: 0,
     gloveSaves: 0,
     jacketBlocks: 0,
@@ -60,6 +62,8 @@ export class FootHockeyGame {
     this.particles = [];
     this.callouts = [];
     this.spectators = this.createSpectators();
+    this.hoops = createCornerBasketball(this.court);
+    this.snowflakes = this.createSnowflakes();
 
     // Input states
     this.keys = new Set();
@@ -68,6 +72,9 @@ export class FootHockeyGame {
     this.passTarget = null; // Highlighted teammate for deliberate passes & goalie throws
     this.gamepadName = null;
     this.uniformMode = 'default'; // 'default' (maroon shirt, tie, blue pants) | 'dress' (optional blazer dress uniform)
+    this.weather = 'clear';       // 'clear' (blacktop, left-wall checks only) | 'snow' (white slippery snow, checks legal everywhere!)
+    this.isDemo = false;          // True during CPU-vs-CPU Arcade Demo / Attract Mode
+    this.titleIdleFrames = 0;     // Auto-launches Demo Mode after ~10s idle on Title Screen
     this.crtEnabled = true;
 
     this.initRoster();
@@ -102,6 +109,34 @@ export class FootHockeyGame {
       });
     }
     return kids;
+  }
+
+  createSnowflakes() {
+    const flakes = [];
+    for (let i = 0; i < 64; i++) {
+      flakes.push({
+        x: Math.random() * SCREEN_W,
+        y: Math.random() * SCREEN_H,
+        vx: -0.25 - Math.random() * 0.35,
+        vy: 0.45 + Math.random() * 0.65,
+        size: i % 4 === 0 ? 2 : 1,
+      });
+    }
+    return flakes;
+  }
+
+  // Body checking is legal along the left wall of 66 Bond on clear days, and legal EVERYWHERE in snow!
+  isBodyCheckLegal(x) {
+    if (this.weather === 'snow') return true;
+    return x <= this.court.bounds.left + 48;
+  }
+
+  toggleWeather() {
+    this.weather = this.weather === 'clear' ? 'snow' : 'clear';
+    sound.playMenuSelect();
+    const label = this.weather === 'snow' ? 'SNOW DAY! CHECKS ON' : 'CLEAR BLACKTOP';
+    this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, label, '#9be8ff');
+    return this.weather;
   }
 
   // Odd periods (Morning, Afternoon): Home attacks Top Yellow Bricks & defends Right Window Cage.
@@ -169,6 +204,8 @@ export class FootHockeyGame {
           jacketTimer: 0,
           gloveTimer: 0,
           throwTimer: 0,
+          stunTimer: 0,
+          stunDir: 1,
           animOffset: idx * 1.7,
         });
       });
@@ -180,8 +217,10 @@ export class FootHockeyGame {
     return RECESS_PERIODS[this.period - 1] || RECESS_PERIODS[0];
   }
 
-  startNewMatch() {
+  startNewMatch(demo = false) {
     // Draft a fresh collection of classmates & random jacket colors each recess game!
+    this.isDemo = Boolean(demo);
+    this.titleIdleFrames = 0;
     this.initRoster(true);
     this.score = { home: 0, away: 0 };
     this.stats = {
@@ -194,8 +233,13 @@ export class FootHockeyGame {
     this.restartTeam = null;
     this.particles = [];
     this.callouts = [];
+    this.hoops = createCornerBasketball(this.court);
     this.startFaceoff();
     sound.playRecessBell();
+  }
+
+  startDemoMatch() {
+    this.startNewMatch(true);
   }
 
   startFaceoff() {
@@ -315,6 +359,8 @@ export class FootHockeyGame {
       p.jacketTimer = 0;
       p.gloveTimer = 0;
       p.throwTimer = 0;
+      p.stunTimer = 0;
+      p.stunDir = 1;
     }
 
     this.controlledId = 'h_c';
@@ -359,6 +405,12 @@ export class FootHockeyGame {
       this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, musicOn ? 'MUSIC ON' : 'MUSIC OFF', '#9be8ff');
     } else if (code === 'KeyU') {
       this.toggleUniformMode();
+    } else if (code === 'KeyW' && this.state === 'TITLE') {
+      this.titleIdleFrames = 0;
+      this.toggleWeather();
+    } else if (code === 'KeyB') {
+      // Quick weather toggle anytime during play too (W is WASD Up during play)
+      this.toggleWeather();
     } else if (code === 'KeyT') {
       this.toggleCrt();
     } else {
@@ -492,11 +544,11 @@ export class FootHockeyGame {
 
     const restartPressed = this.justPressed.has('KeyR');
     const replayIntroPressed = this.justPressed.has('KeyI');
+    const demoPressed = this.justPressed.has('KeyD');
+    const exitDemoPressed = this.justPressed.has('Escape') || this.justPressed.has('KeyP');
     const menuTogglePressed =
       this.justPressed.has('ArrowLeft') ||
-      this.justPressed.has('ArrowRight') ||
-      this.justPressed.has('KeyA') ||
-      this.justPressed.has('KeyD');
+      this.justPressed.has('ArrowRight');
 
     const selectPressed = Boolean(gp?.selectDown && !this._prevGpSelect);
     if (selectPressed) {
@@ -527,6 +579,8 @@ export class FootHockeyGame {
       pausePressed,
       restartPressed,
       replayIntroPressed,
+      demoPressed,
+      exitDemoPressed,
       menuTogglePressed,
     };
   }
@@ -576,23 +630,48 @@ export class FootHockeyGame {
     }
 
     if (this.state === 'TITLE') {
+      this.titleIdleFrames++;
       if (input.replayIntroPressed) {
         sound.ensureContext();
+        this.titleIdleFrames = 0;
         this.bootFrames = 0;
         this.state = 'BOOT';
         return;
       }
       if (input.menuTogglePressed) {
+        this.titleIdleFrames = 0;
         this.toggleUniformMode();
+      }
+      if (input.demoPressed || this.titleIdleFrames >= 600) {
+        if (input.demoPressed) sound.playMenuSelect();
+        this.startDemoMatch();
+        return;
       }
       if (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed) {
         sound.playMenuSelect();
-        this.startNewMatch();
+        this.startNewMatch(false);
       }
       return;
     }
 
+    // In Demo Mode (CPU vs CPU): Escape/P returns to Title, Enter/Z/X/Space jumps straight into a 1P match!
+    if (this.isDemo) {
+      if (input.exitDemoPressed) {
+        sound.playMenuSelect();
+        this.isDemo = false;
+        this.titleIdleFrames = 0;
+        this.state = 'TITLE';
+        return;
+      }
+      if (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed) {
+        sound.playMenuSelect();
+        this.startNewMatch(false);
+        return;
+      }
+    }
+
     if (
+      !this.isDemo &&
       input.pausePressed &&
       (this.state === 'PLAYING' ||
         this.state === 'FACEOFF' ||
@@ -657,7 +736,8 @@ export class FootHockeyGame {
 
     if (this.state === 'PERIOD_END') {
       this.stateTimer--;
-      if (this.stateTimer <= 0 && (input.startPressed || input.kickPressed || input.passPressed || this.stateTimer < -90)) {
+      const autoNext = this.isDemo ? this.stateTimer <= -30 : this.stateTimer < -90;
+      if (this.stateTimer <= 0 && (input.startPressed || input.kickPressed || input.passPressed || autoNext)) {
         this.period++;
         this.clockFrames = this.getCurrentPeriodInfo().seconds * 60;
         this.startFaceoff();
@@ -667,9 +747,18 @@ export class FootHockeyGame {
     }
 
     if (this.state === 'GAME_OVER') {
+      if (this.isDemo) {
+        this.stateTimer++;
+        if (this.stateTimer >= 180) {
+          this.isDemo = false;
+          this.titleIdleFrames = 0;
+          this.state = 'TITLE';
+        }
+        return;
+      }
       if (input.startPressed || input.kickPressed || input.passPressed) {
         sound.playMenuSelect();
-        this.startNewMatch();
+        this.startNewMatch(false);
       }
       return;
     }
@@ -691,9 +780,17 @@ export class FootHockeyGame {
       return;
     }
 
-    this.handlePlayerControl(input);
+    if (!this.isDemo) {
+      this.handlePlayerControl(input);
+    } else {
+      this.passTarget = null;
+      this.kickCharge = 0;
+    }
 
     // Update all players (AI + physics integration + timers)
+    const isSnow = this.weather === 'snow';
+    const skaterFriction = isSnow ? 0.942 : PHYSICS.playerFriction;
+
     for (const p of this.players) {
       if (p.kickTimer > 0) p.kickTimer--;
       if (p.catchAnim > 0) p.catchAnim--;
@@ -703,13 +800,14 @@ export class FootHockeyGame {
       if (p.jacketTimer > 0) p.jacketTimer--;
       if (p.gloveTimer > 0) p.gloveTimer--;
       if (p.throwTimer > 0) p.throwTimer--;
+      if (p.stunTimer > 0) p.stunTimer--;
 
       if (p.role === 'G') {
         updateGoalie(p, this);
         continue;
       }
 
-      if (p.id !== this.controlledId) {
+      if ((this.isDemo || p.id !== this.controlledId) && p.stunTimer <= 0) {
         updateSkaterAI(p, this);
       }
 
@@ -717,9 +815,14 @@ export class FootHockeyGame {
       const prevY = p.y;
       p.x += p.vx;
       p.y += p.vy;
-      p.vx *= PHYSICS.playerFriction;
-      p.vy *= PHYSICS.playerFriction;
+      p.vx *= skaterFriction;
+      p.vy *= skaterFriction;
       clampPlayerToCourt(p, this.court.bounds);
+
+      // Kick up crisp white snow spray when carving hard in Snow Day weather!
+      if (isSnow && Math.hypot(p.vx, p.vy) > 1.25 && this.tick % 5 === 0) {
+        this.spawnParticles(p.x, p.y + 1, '#ffffff', 1);
+      }
 
       // Enforce recess catch-and-drop rule: can't run across the yard holding the ball!
       if (p.holdingBall && this.ball.owner === p) {
@@ -735,13 +838,16 @@ export class FootHockeyGame {
     // Soft skater-vs-skater body spacing
     this.resolvePlayerCollisions();
 
+    // Update live top-left corner basketball game & check in-play interference!
+    updateCornerBasketball(this.hoops, this);
+
     // Step 2.5D tennis ball physics & check goal across 66 Bond's asymmetrical nets!
     const goalEvent = stepBallPhysics(
       this.ball,
       {
         onBounce: (v) => {
           sound.playBounce(v);
-          this.spawnParticles(this.ball.x, this.ball.y, '#e9eef4', 3);
+          this.spawnParticles(this.ball.x, this.ball.y, isSnow ? '#ffffff' : '#e9eef4', 3);
         },
         onFenceHit: () => {
           sound.playFenceHit();
@@ -759,7 +865,8 @@ export class FootHockeyGame {
         },
       },
       this.court,
-      this.getTeamNetMap()
+      this.getTeamNetMap(),
+      isSnow
     );
 
     if (goalEvent) {
@@ -829,15 +936,18 @@ export class FootHockeyGame {
       return;
     }
 
-    // 8-way schoolyard footwork movement (slows slightly during slap-kick wind-up or while holding ball)
+    // 8-way schoolyard footwork movement (slows during slap-kick wind-up or while holding ball; slippery in Snow!)
+    if (p.stunTimer > 0) return;
     if (input.mx !== 0 || input.my !== 0) {
       const mag = Math.hypot(input.mx, input.my) || 1;
       const nx = input.mx / mag;
       const ny = input.my / mag;
+      const isSnow = this.weather === 'snow';
       const speedMod = p.holdingBall ? 0.45 : p.windupFrames >= SHOT.hardMinFrames ? 0.56 : 1;
-      const maxSpd = p.stats.speed * speedMod;
-      p.vx += nx * PHYSICS.playerAccel * speedMod;
-      p.vy += ny * PHYSICS.playerAccel * speedMod;
+      const accel = (isSnow ? 0.19 : PHYSICS.playerAccel) * speedMod;
+      const maxSpd = p.stats.speed * speedMod * (isSnow ? 1.07 : 1);
+      p.vx += nx * accel;
+      p.vy += ny * accel;
       const cur = Math.hypot(p.vx, p.vy);
       if (cur > maxSpd) {
         p.vx = (p.vx / cur) * maxSpd;
@@ -1089,20 +1199,70 @@ export class FootHockeyGame {
   }
 
   attemptSteal(p) {
+    if (p.stunTimer > 0) return;
     p.kickTimer = 10;
-    p.stealCooldown = 20;
+    p.stealCooldown = 22;
     // Quick forward lunge
-    p.vx += p.facingX * 1.3;
-    p.vy += p.facingY * 1.3;
-    sound.playSteal();
+    p.vx += p.facingX * 1.5;
+    p.vy += p.facingY * 1.5;
 
     const { ball } = this;
+
+    // === BODY CHECK! Legal along the left wall of 66 Bond, and EVERYWHERE when snowing! ===
+    const oppTeam = p.team === 'home' ? 'away' : 'home';
+    const targetOpp = this.findNearestPlayer(p.x, p.y, oppTeam, true);
+    if (
+      targetOpp &&
+      targetOpp.stunTimer <= 0 &&
+      Math.hypot(targetOpp.x - p.x, targetOpp.y - p.y) <= 22 &&
+      (this.isBodyCheckLegal(targetOpp.x, targetOpp.y) || this.isBodyCheckLegal(p.x, p.y))
+    ) {
+      const dx = targetOpp.x - p.x;
+      const dy = targetOpp.y - p.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const nx = dx / dist;
+      const ny = dy / dist;
+
+      targetOpp.vx = nx * 4.2;
+      targetOpp.vy = ny * 4.2;
+      targetOpp.stunTimer = 36;
+      targetOpp.stunDir = nx >= 0 ? 1 : -1;
+      targetOpp.windupFrames = 0;
+      targetOpp.stealCooldown = 36;
+      this.stats[p.team].checks++;
+      this.screenShake = 7;
+      sound.playBodyCheck();
+
+      const nearLeftWall = targetOpp.x <= this.court.bounds.left + 48;
+      this.spawnParticles(targetOpp.x, targetOpp.y, this.weather === 'snow' ? '#ffffff' : '#ffe84d', 12);
+      this.addCallout(
+        targetOpp.x,
+        targetOpp.y - 18,
+        nearLeftWall ? 'BOARDED!' : 'BODY CHECK!',
+        '#ff6d2e'
+      );
+
+      // Pop the tennis ball loose if the checked player had it!
+      if (ball.owner === targetOpp) {
+        targetOpp.holdingBall = false;
+        ball.owner = null;
+        ball.vx = nx * 2.2 + (Math.random() - 0.5) * 1.4;
+        ball.vy = ny * 2.2 + (Math.random() - 0.5) * 1.4;
+        ball.vz = 1.8;
+        ball.pickupCooldown = 8;
+        ball.lastTouchTeam = p.team;
+        ball.lastTouchPlayer = p;
+      }
+      return;
+    }
+
+    // Standard poke-steal when body checking is not legal or no opponent within check range
+    sound.playSteal();
     const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
     if (dist > 20 || ball.z > 10) return;
 
     if (ball.owner && ball.owner.team !== p.team && ball.owner.role !== 'G') {
       const victim = ball.owner;
-      // Can't steal directly out of hands if they're holding—Wait: a poke knocks it loose if dribbling!
       if (!victim.holdingBall) {
         victim.stealCooldown = 26;
         victim.windupFrames = 0;
@@ -1114,7 +1274,6 @@ export class FootHockeyGame {
         this.addCallout(p.x, p.y - 16, 'STEAL!', '#48b8ff');
       }
     } else if (!ball.owner && ball.z < 9) {
-      // Poke a loose ball forward!
       launchBall(ball, p, p.facingX, p.facingY, 3.6, 1.1);
     }
   }
@@ -1125,6 +1284,7 @@ export class FootHockeyGame {
 
     for (const p of this.players) {
       if (p.role === 'G') continue;
+      if (p.stunTimer > 0) continue;
       if (p.stealCooldown > 10) continue;
       if (ball.pickupCooldown > 0 && ball.lastTouchPlayer?.id === p.id) continue;
       // Protect goalie clears from instant opponent steals right as the throw leaves the crease!
@@ -1244,6 +1404,18 @@ export class FootHockeyGame {
     this.addCallout(g.x, g.y - 20, label, isLong ? '#d9ff2e' : '#7ae8ff');
   }
 
+  onHoopsInterference(x, y, label = 'HOOPS!') {
+    sound.playBounce(0.95);
+    this.spawnParticles(x, y, '#f58c38', 7);
+    this.addCallout(x, y - 14, label, '#f58c38');
+  }
+
+  onHoopsKickAway(x, y) {
+    sound.playKick(0.9);
+    this.spawnParticles(x, y, '#f58c38', 8);
+    this.addCallout(x, y - 16, 'HEY!!', '#ff9642');
+  }
+
   onGoalieSave(g, type) {
     this.stats[g.team].saves++;
     if (type === 'glove') {
@@ -1308,6 +1480,18 @@ export class FootHockeyGame {
       c.y -= 0.35;
       c.life--;
       if (c.life <= 0) this.callouts.splice(i, 1);
+    }
+
+    if (this.weather === 'snow' && this.snowflakes) {
+      for (const fl of this.snowflakes) {
+        fl.x += fl.vx;
+        fl.y += fl.vy;
+        if (fl.x < 0) fl.x += SCREEN_W;
+        if (fl.y > SCREEN_H) {
+          fl.y = 0;
+          fl.x = Math.random() * SCREEN_W;
+        }
+      }
     }
   }
 

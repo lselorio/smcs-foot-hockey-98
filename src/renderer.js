@@ -11,6 +11,11 @@ import {
   drawTennisBall,
 } from './sprites.js';
 import { drawSpinningSmcsCrest } from './smcs-crest.js';
+import {
+  HOOPS_TEAM_STYLE,
+  drawBasketball,
+  drawCornerBasketballCourt,
+} from './basketball.js';
 
 // Pre-generate deterministic asphalt grit specks across the larger 66 Bond blacktop!
 const ASPHALT_SPECKS = [];
@@ -60,14 +65,14 @@ export function renderGame(ctx, game) {
       y: p.y,
       draw: () => {
         const team = TEAMS[p.team];
-        if (p.id === game.controlledId) {
+        if (!game.isDemo && p.id === game.controlledId) {
           const holdRatio = p.holdingBall
             ? p.role === 'G'
               ? Math.max(0, 1 - p.holdFrames / PHYSICS.goalieMaxHoldFrames)
               : Math.max(0, 1 - Math.max(p.holdFrames / PHYSICS.maxHoldFrames, p.holdDist / PHYSICS.maxHoldSteps))
             : 0;
           drawStarRing(ctx, p.x, p.y, team.ringColor, game.tick, p.holdingBall, holdRatio);
-        } else if (game.ball.owner?.id === p.id && p.team === 'away') {
+        } else if (game.ball.owner?.id === p.id) {
           drawStarRing(ctx, p.x, p.y, team.ringColor, game.tick, p.holdingBall, 0);
         }
 
@@ -109,6 +114,20 @@ export function renderGame(ctx, game) {
     });
   }
 
+  // Depth-sort the live top-left corner basketball kids & orange basketball right in play!
+  if (game.hoops) {
+    for (const k of game.hoops.kids) {
+      drawables.push({
+        y: k.y,
+        draw: () => drawSkater(ctx, k, HOOPS_TEAM_STYLE, game.tick, game.uniformMode),
+      });
+    }
+    drawables.push({
+      y: game.hoops.bball.y + 0.5,
+      draw: () => drawBasketball(ctx, game.hoops.bball),
+    });
+  }
+
   drawables.sort((a, b) => a.y - b.y);
   for (const item of drawables) item.draw();
 
@@ -118,12 +137,22 @@ export function renderGame(ctx, game) {
     ctx.fillRect(Math.round(pt.x), Math.round(pt.y), pt.size, pt.size);
   }
 
-  // Arcade callouts ("CAUGHT!", "GLOVE SAVE!", "JACKET BLOCK!", "ONE-TIMER!")
+  // Arcade callouts ("CAUGHT!", "GLOVE SAVE!", "JACKET BLOCK!", "BOARDED!", "HOOPS!")
   for (const c of game.callouts) {
     drawPixelText(ctx, c.text, c.x, c.y, c.color, 1, 'center', '#0c0f1a');
   }
 
   ctx.restore();
+
+  // Animated 16-bit falling snowflakes across viewport on Snow Day!
+  if (game.weather === 'snow' && game.snowflakes) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    for (const fl of game.snowflakes) {
+      if (fl.y >= HUD_H) {
+        ctx.fillRect(Math.round(fl.x), Math.round(fl.y), fl.size, fl.size);
+      }
+    }
+  }
 
   // Off-screen indicators on the larger 66 Bond blacktop:
   // 1) Targeted pass/throw teammate arrow (any edge!)
@@ -142,7 +171,7 @@ export function renderGame(ctx, game) {
   }
 
   // 2) Off-screen Attack Net indicator so you always know where to shoot on 66 Bond!
-  if (game.state === 'PLAYING' || game.state === 'RESTART') {
+  if (!game.isDemo && (game.state === 'PLAYING' || game.state === 'RESTART')) {
     const atk = game.getAttackNet('home');
     const nx = atk.centerX - game.cameraX;
     const ny = HUD_H + (atk.centerY - game.cameraY);
@@ -161,6 +190,14 @@ export function renderGame(ctx, game) {
 
   // === TOP 16-BIT BROADCAST SCOREBOARD HUD ===
   renderHud(ctx, game);
+
+  // Classic 16-bit Arcade Demo Mode ticker along bottom edge!
+  if (game.isDemo && game.state !== 'GAME_OVER') {
+    ctx.fillStyle = 'rgba(10, 14, 26, 0.82)';
+    ctx.fillRect(0, SCREEN_H - 13, SCREEN_W, 13);
+    const col = Math.floor(game.tick / 20) % 2 === 0 ? '#ffe84d' : '#9be8ff';
+    drawPixelText(ctx, 'DEMO MODE (CPU VS CPU) - ENTER:PLAY  ESC:TITLE', SCREEN_W / 2, SCREEN_H - 10, col, 1, 'center', null);
+  }
 
   // === STATE OVERLAYS ===
   if (game.state === 'FACEOFF') {
@@ -200,55 +237,80 @@ function drawSchoolyard(ctx, game) {
   const b = court.bounds;
   const W = court.worldW;
   const H = court.worldH;
+  const isSnow = game.weather === 'snow';
 
-  // Outer recess grass / concrete border
-  ctx.fillStyle = PALETTE.grassDark;
+  // Outer recess grass / snowy yard border
+  ctx.fillStyle = isSnow ? '#b8c9de' : PALETTE.grassDark;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = PALETTE.grassLight;
+  ctx.fillStyle = isSnow ? '#cad8ea' : PALETTE.grassLight;
   for (let y = 0; y < H; y += 24) {
     ctx.fillRect(0, y, W, 12);
   }
 
   // Sidewalk curb around left & bottom of blacktop
-  ctx.fillStyle = '#9aa3b2';
+  ctx.fillStyle = isSnow ? '#eef4fb' : '#9aa3b2';
   ctx.fillRect(b.left - 4, b.top - 4, b.right - b.left + 8, b.bottom - b.top + 8);
 
-  // Main 66 Bond blacktop asphalt surface
-  ctx.fillStyle = PALETTE.asphaltMid;
+  // Main 66 Bond playing surface: dry grey blacktop OR white packed snow!
+  ctx.fillStyle = isSnow ? '#e2ebf5' : PALETTE.asphaltMid;
   ctx.fillRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
 
-  // Asphalt grit texture
-  for (const s of ASPHALT_SPECKS) {
-    ctx.fillStyle = s.light ? PALETTE.asphaltLight : PALETTE.asphaltDark;
-    ctx.fillRect(s.x, s.y, 2, 1);
+  if (isSnow) {
+    // Subtle packed-snow drift bands & snow sparkle specks
+    ctx.fillStyle = '#d2dfee';
+    for (let y = b.top + 18; y < b.bottom - 10; y += 44) {
+      ctx.fillRect(b.left + 12, y, b.right - b.left - 24, 14);
+    }
+    for (const s of ASPHALT_SPECKS) {
+      ctx.fillStyle = s.light ? '#ffffff' : '#bfd0e3';
+      ctx.fillRect(s.x, s.y, 2, 1);
+    }
+  } else {
+    // Asphalt grit texture
+    for (const s of ASPHALT_SPECKS) {
+      ctx.fillStyle = s.light ? PALETTE.asphaltLight : PALETTE.asphaltDark;
+      ctx.fillRect(s.x, s.y, 2, 1);
+    }
+    // Charming schoolyard asphalt cracks
+    ctx.fillStyle = PALETTE.asphaltCrack;
+    ctx.fillRect(88, 152, 24, 1);
+    ctx.fillRect(110, 153, 14, 1);
+    ctx.fillRect(298, 322, 28, 1);
+    ctx.fillRect(286, 323, 13, 1);
+    ctx.fillRect(142, 358, 18, 1);
   }
 
-  // Charming schoolyard asphalt cracks
-  ctx.fillStyle = PALETTE.asphaltCrack;
-  ctx.fillRect(88, 152, 24, 1);
-  ctx.fillRect(110, 153, 14, 1);
-  ctx.fillRect(298, 322, 28, 1);
-  ctx.fillRect(286, 323, 13, 1);
-  ctx.fillRect(142, 358, 18, 1);
+  // Subtle dashed zone line marking the Left Wall Body-Check Boards on Clear days!
+  if (!isSnow) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 160, 72, 0.22)';
+    ctx.setLineDash([4, 6]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(b.left + 48, b.top + 4);
+    ctx.lineTo(b.left + 48, b.bottom - 4);
+    ctx.stroke();
+    ctx.restore();
+  }
 
-  // Subtle faded four-square chalk in the quiet left side of the yard
-  ctx.strokeStyle = 'rgba(233, 238, 244, 0.14)';
+  // Subtle faded four-square chalk in the lower-left area of the yard
+  ctx.strokeStyle = isSnow ? 'rgba(130, 154, 184, 0.25)' : 'rgba(233, 238, 244, 0.14)';
   ctx.lineWidth = 1;
-  ctx.strokeRect(52, 210, 26, 26);
+  ctx.strokeRect(52, 240, 26, 26);
   ctx.beginPath();
-  ctx.moveTo(65, 210);
-  ctx.lineTo(65, 236);
-  ctx.moveTo(52, 223);
-  ctx.lineTo(78, 223);
+  ctx.moveTo(65, 240);
+  ctx.lineTo(65, 266);
+  ctx.moveTo(52, 253);
+  ctx.lineTo(78, 253);
   ctx.stroke();
 
   // Center chalk faceoff circle on 66 Bond
-  ctx.strokeStyle = PALETTE.chalkFade;
+  ctx.strokeStyle = isSnow ? '#9ab0c9' : PALETTE.chalkFade;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(court.faceoffX, court.faceoffY, 26, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.fillStyle = PALETTE.chalk;
+  ctx.fillStyle = isSnow ? '#8ba2bd' : PALETTE.chalk;
   ctx.fillRect(court.faceoffX - 2, court.faceoffY - 2, 4, 4);
 
   // =========================================================================
@@ -402,17 +464,28 @@ function drawSchoolyard(ctx, game) {
   ctx.fillStyle = rightDefTeam.ringColor;
   ctx.fillRect(b.right - 3, rightNet.minCoord + 2, 2, rightNet.span - 4);
 
-  // === LEFT & BOTTOM CHAIN-LINK SCHOOLYARD FENCES ===
-  ctx.fillStyle = PALETTE.fencePost;
-  for (let y = b.top; y <= b.bottom; y += 34) {
-    ctx.fillRect(b.left - 5, y - 2, 4, 4);
+  // === LEFT WALL (BODY-CHECK BOARDS!) & BOTTOM CHAIN-LINK FENCE ===
+  // Sturdy left brick/concrete wall along 66 Bond where body checks are legal!
+  ctx.fillStyle = '#3b3e47';
+  ctx.fillRect(0, b.top - 2, b.left, b.bottom - b.top + 6);
+  ctx.fillStyle = '#535866';
+  for (let row = 0; row < Math.ceil((b.bottom - b.top) / 8); row++) {
+    const wy = b.top + row * 8;
+    ctx.fillRect(2 + (row % 2) * 5, wy, b.left - 8, 5);
   }
+  ctx.fillStyle = isSnow ? '#ffffff' : '#7b8394';
+  ctx.fillRect(b.left - 2, b.top, 2, b.bottom - b.top);
+
+  // Bottom chain-link schoolyard fence
+  ctx.fillStyle = PALETTE.fencePost;
   for (let x = b.left; x <= b.right; x += 38) {
     ctx.fillRect(x - 2, b.bottom + 1, 4, 4);
   }
   ctx.fillStyle = PALETTE.fenceWire;
-  ctx.fillRect(b.left - 3, b.top, 1, b.bottom - b.top);
   ctx.fillRect(b.left, b.bottom + 2, b.right - b.left, 1);
+
+  // === TOP-LEFT CORNER BASKETBALL HALF-COURT & HOOP (IN PLAY!) ===
+  drawCornerBasketballCourt(ctx, game.hoops, isSnow);
 
   // === SIDELINE CLASSMATES WATCHING RECESS ===
   const celebrating = game.state === 'GOAL_CELEBRATION';
@@ -458,11 +531,14 @@ function renderHud(ctx, game) {
   ctx.strokeRect(108.5, 2.5, 103, 17);
   drawPixelText(ctx, `${periodShort} ${mm}:${ss}`, 160, 4, '#ffe84d', 1, 'center');
 
-  // Show controlled player name & context prompt (goalie throw, skater hold, or slap-kick wind-up!)
+  // Show controlled player name & context prompt (or DEMO badge during CPU-vs-CPU!)
   const ctrl = game.getControlledPlayer();
   let statusText = `${ctrl.name} #${ctrl.number}`;
   let statusColor = '#9be8ff';
-  if (ctrl.role === 'G' && ctrl.holdingBall) {
+  if (game.isDemo) {
+    statusText = game.ball.owner ? `${game.ball.owner.name} (CPU)` : 'DEMO CPU VS CPU';
+    statusColor = '#ffe84d';
+  } else if (ctrl.role === 'G' && ctrl.holdingBall) {
     statusText = 'THROW! X:PASS Z:BOMB';
     statusColor = '#d9ff2e';
   } else if (ctrl.holdingBall) {
@@ -613,22 +689,21 @@ function renderTitleScreen(ctx, game) {
   drawPixelText(ctx, 'KICK + CATCH & DROP', 96, 158, '#9be8ff', 1, 'center', null);
   drawPixelText(ctx, 'JACKET + GLOVE!', 224, 158, '#ffd84d', 1, 'center', null);
 
-  // Matchup summary + Uniform mode toggle (Default Everyday vs Optional Dress Uniform!)
-  drawPixelText(ctx, `${TEAMS.home.name} (YOU)  VS  ${TEAMS.away.name} (CPU)`, SCREEN_W / 2, 175, '#f4f7ff', 1, 'center');
-  const uniformLabel =
-    game.uniformMode === 'dress'
-      ? 'UNIFORM: DRESS BLAZER  (U / ARROWS)'
-      : 'UNIFORM: DEFAULT SHIRT (U / ARROWS)';
-  drawPixelText(ctx, uniformLabel, SCREEN_W / 2, 188, '#ffd84d', 1, 'center');
+  // Matchup summary + Uniform & Weather toggles!
+  const uniformShort = game.uniformMode === 'dress' ? 'DRESS' : 'DEFAULT';
+  const weatherShort = game.weather === 'snow' ? 'SNOW (CHECKS ALL!)' : 'CLEAR';
+  drawPixelText(ctx, `UNIFORM: ${uniformShort} (U)   WEATHER: ${weatherShort} (W)`, SCREEN_W / 2, 178, '#ffd84d', 1, 'center');
   if (game.gamepadName) {
-    drawPixelText(ctx, 'PAD READY! B/X:SHOOT A:PASS Y/RB:CATCH', SCREEN_W / 2, 201, '#6ef0a4', 1, 'center');
+    drawPixelText(ctx, 'PAD READY! B/X:SHOOT/CHECK A:PASS Y:CATCH', SCREEN_W / 2, 196, '#6ef0a4', 1, 'center');
   } else {
-    drawPixelText(ctx, 'Z:TAP QUICK / HOLD HARD  X:PASS  C:CATCH', SCREEN_W / 2, 201, '#b8c7e6', 1, 'center');
+    drawPixelText(ctx, 'Z:SHOOT/CHECK  X:PASS  C:CATCH  B:SNOW', SCREEN_W / 2, 196, '#b8c7e6', 1, 'center');
   }
 
-  // Blinking arcade prompt
+  // Blinking arcade prompt + Demo Mode shortcut
   if (Math.floor(game.tick / 24) % 2 === 0) {
-    const prompt = game.gamepadName ? 'PRESS START OR A TO PLAY!' : 'PRESS ENTER OR Z TO PLAY!';
+    const prompt = game.gamepadName
+      ? 'START/A: PLAY   D: DEMO (CPU VS CPU)'
+      : 'ENTER/Z: PLAY   D: DEMO (CPU VS CPU)';
     drawPixelText(ctx, prompt, SCREEN_W / 2, 219, '#d9ff2e', 1, 'center');
   }
 }
@@ -707,7 +782,7 @@ function renderStatsModal(ctx, game, { isFinal }) {
     ['SHOTS', String(game.stats.home.shots), String(game.stats.away.shots), '#ffffff'],
     ['PASSES', String(game.stats.home.passes), String(game.stats.away.passes), '#9be8ff'],
     ['CATCHES', String(game.stats.home.catches), String(game.stats.away.catches), '#d9ff2e'],
-    ['STEALS', String(game.stats.home.steals), String(game.stats.away.steals), '#6ef0a4'],
+    ['STEAL/CHK', `${game.stats.home.steals}/${game.stats.home.checks}`, `${game.stats.away.steals}/${game.stats.away.checks}`, '#ff8c42'],
     ['GLOVE SAVES', String(game.stats.home.gloveSaves), String(game.stats.away.gloveSaves), '#ffd84d'],
     ['JACKET BLOCKS', String(game.stats.home.jacketBlocks), String(game.stats.away.jacketBlocks), '#6ef0a4'],
     ['POSSESSION', `${homePossPct}%`, `${awayPossPct}%`, '#ffffff'],
