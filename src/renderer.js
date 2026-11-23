@@ -5,6 +5,7 @@ import {
   drawGoalie,
   drawPassTargetMarker,
   drawPixelText,
+  drawSeatedStairsKid,
   drawSkater,
   drawSpectator,
   drawStarRing,
@@ -114,17 +115,28 @@ export function renderGame(ctx, game) {
     });
   }
 
-  // Depth-sort the live top-left corner basketball kids & orange basketball right in play!
-  if (game.hoops) {
-    for (const k of game.hoops.kids) {
+  // Depth-sort both live corner basketball games (top-left & lower-left) right in play!
+  if (game.hoopsGames) {
+    for (const h of game.hoopsGames) {
+      for (const k of h.kids) {
+        drawables.push({
+          y: k.y,
+          draw: () => drawSkater(ctx, k, HOOPS_TEAM_STYLE, game.tick, game.uniformMode),
+        });
+      }
       drawables.push({
-        y: k.y,
-        draw: () => drawSkater(ctx, k, HOOPS_TEAM_STYLE, game.tick, game.uniformMode),
+        y: h.bball.y + 0.5,
+        draw: () => drawBasketball(ctx, h.bball),
       });
     }
+  }
+
+  // Depth-sort the chubby kid sitting at the foot of the bottom-right stairs!
+  if (game.court.cornerStairs) {
+    const cs = game.court.cornerStairs;
     drawables.push({
-      y: game.hoops.bball.y + 0.5,
-      draw: () => drawBasketball(ctx, game.hoops.bball),
+      y: cs.kidY,
+      draw: () => drawSeatedStairsKid(ctx, cs.kidX, cs.kidY, game.tick, game.uniformMode, game.ball.x),
     });
   }
 
@@ -204,12 +216,28 @@ export function renderGame(ctx, game) {
     const pInfo = game.getCurrentPeriodInfo();
     const atk = game.getAttackNet('home');
     drawBanner(ctx, pInfo.name, `66 BOND - SHOOT AT ${atk.label}`, '#ffe84d');
+  } else if (game.state === 'BASEMENT_56') {
+    const awarded = game.restartTeam === 'home' ? TEAMS.home : TEAMS.away;
+    drawBanner(ctx, 'BASEMENT 56!', `${awarded.name} BALL AT STAIRS!`, '#d9ff2e');
   } else if (game.state === 'RESTART') {
     const isHomeBall = game.restartTeam === 'home';
+    const isStairs = game.restartType === 'basement56';
     drawBanner(
       ctx,
-      isHomeBall ? 'GOALIE BALL!' : `${TEAMS.away.short} GOALIE BALL`,
-      isHomeBall ? 'AIM + X:THROW  Z:BOMB' : `${TEAMS.away.name} GOALIE RESTARTS`,
+      isStairs
+        ? isHomeBall
+          ? 'STAIRS BALL!'
+          : `${TEAMS.away.short} STAIRS BALL`
+        : isHomeBall
+        ? 'GOALIE BALL!'
+        : `${TEAMS.away.short} GOALIE BALL`,
+      isStairs
+        ? isHomeBall
+          ? 'PLAY FROM STAIRCASE ENTRANCE'
+          : `${TEAMS.away.name} PLAYS FROM STAIRS`
+        : isHomeBall
+        ? 'AIM + X:THROW  Z:BOMB'
+        : `${TEAMS.away.name} GOALIE RESTARTS`,
       isHomeBall ? TEAMS.home.ringColor : TEAMS.away.ringColor
     );
   } else if (game.state === 'GOAL_CELEBRATION') {
@@ -476,16 +504,139 @@ function drawSchoolyard(ctx, game) {
   ctx.fillStyle = isSnow ? '#ffffff' : '#7b8394';
   ctx.fillRect(b.left - 2, b.top, 2, b.bottom - b.top);
 
-  // Bottom chain-link schoolyard fence
-  ctx.fillStyle = PALETTE.fencePost;
-  for (let x = b.left; x <= b.right; x += 38) {
-    ctx.fillRect(x - 2, b.bottom + 1, 4, 4);
+  // === BOTTOM WALL: RED BRICK WALL + "BASEMENT 56" DOWNSTAIRS STAIRCASE & GREEN BARRIER! ===
+  // Red brick wall running all along the bottom edge of 66 Bond
+  ctx.fillStyle = '#572019';
+  ctx.fillRect(0, b.bottom, W, H - b.bottom);
+  ctx.fillStyle = '#963f33';
+  for (let row = 0; row < Math.ceil((H - b.bottom) / 6); row++) {
+    const by = b.bottom + 1 + row * 6;
+    for (let bx = (row % 2) * 6; bx < W; bx += 12) {
+      ctx.fillRect(bx, by, 10, 4);
+    }
   }
-  ctx.fillStyle = PALETTE.fenceWire;
-  ctx.fillRect(b.left, b.bottom + 2, b.right - b.left, 1);
+  ctx.fillStyle = isSnow ? '#ffffff' : '#3a1510';
+  ctx.fillRect(b.left, b.bottom, b.right - b.left, 2);
 
-  // === TOP-LEFT CORNER BASKETBALL HALF-COURT & HOOP (IN PLAY!) ===
-  drawCornerBasketballCourt(ctx, game.hoops, isSnow);
+  // Downstairs staircase ("Basement 56!") right in the middle, parallel to the bottom red-brick wall!
+  // Descending steps go RIGHT -> LEFT, with a GREEN SAFETY BARRIER on top & left, and OPEN entrance on the RIGHT!
+  if (court.basementStairs) {
+    const s = court.basementStairs;
+    const sw = s.x2 - s.x1;
+    const sh = s.y2 - s.y1;
+
+    // Deep dark basement stairwell pit
+    ctx.fillStyle = '#0c0f16';
+    ctx.fillRect(s.x1, s.y1, sw, sh);
+
+    // Concrete stairs descending right-to-left (brightest at right entrance, darker down into Basement 56!)
+    const stepShades = ['#7d8594', '#697180', '#545c6a', '#414854', '#2e333d', '#1d2129'];
+    const stepW = 12;
+    for (let i = 0; i < stepShades.length; i++) {
+      const sx = s.x2 - (i + 1) * stepW;
+      if (sx < s.x1) break;
+      ctx.fillStyle = stepShades[i];
+      ctx.fillRect(sx, s.y1 + 2, stepW - 1, sh - 3);
+      // Crisp step riser edge
+      ctx.fillStyle = '#151821';
+      ctx.fillRect(sx, s.y1 + 2, 1, sh - 3);
+    }
+
+    // Subtle concrete curb at the OPEN RIGHT ENTRANCE showing where balls can roll in
+    ctx.fillStyle = isSnow ? '#d4e2f2' : '#9aa3b2';
+    ctx.fillRect(s.x2, s.y1 + 1, 2, sh - 1);
+
+    // === GREEN SAFETY BARRIER (prevents people from falling in; open on the right!) ===
+    // Top horizontal green railing & vertical balusters
+    ctx.fillStyle = '#123d23';
+    ctx.fillRect(s.x1 - 2, s.y1 - 3, sw + 4, 5);
+    ctx.fillStyle = '#259c52';
+    ctx.fillRect(s.x1 - 1, s.y1 - 2, sw + 2, 3);
+    ctx.fillStyle = '#53d683'; // bright top highlight on green rail
+    ctx.fillRect(s.x1 - 1, s.y1 - 2, sw + 2, 1);
+
+    // Green posts along top rail + closed left end barrier
+    ctx.fillStyle = '#123d23';
+    ctx.fillRect(s.x1 - 2, s.y1 - 2, 4, sh + 3);
+    ctx.fillStyle = '#259c52';
+    ctx.fillRect(s.x1 - 1, s.y1 - 1, 2, sh + 1);
+    for (let px = s.x1 + 16; px <= s.x2; px += 18) {
+      ctx.fillStyle = '#19753c';
+      ctx.fillRect(px, s.y1 + 1, 2, 4);
+    }
+  }
+
+  // === BOTTOM-RIGHT CORNER: FOOT OF STAIRS LEADING UP OUT OF VIEW + CAPTION ===
+  if (court.cornerStairs) {
+    const cs = court.cornerStairs;
+    const cw = cs.x2 - cs.x1;
+    const ch = cs.y2 - cs.y1;
+
+    // Subtle ground shadow right in front of the bottom step on the blacktop
+    ctx.fillStyle = 'rgba(10, 12, 20, 0.35)';
+    ctx.fillRect(cs.x1 - 2, cs.y1 - 2, cw + 4, 3);
+
+    // Concrete stairs climbing UPWARD out of view past the bottom red-brick wall!
+    // Each step southward gets brighter with a crisp dark riser facing the yard so elevation reads upward.
+    const stepShades = isSnow
+      ? ['#c3d1e2', '#ccd9e8', '#d5e1ef', '#dee9f5', '#e7f0fa', '#f0f6fc']
+      : ['#838b9c', '#9199aa', '#9fa7b8', '#adb5c6', '#bbc3d4', '#c9d1e0'];
+    const stepH = 7;
+    for (let i = 0; i < stepShades.length; i++) {
+      const sy = cs.y1 + i * stepH;
+      const drawH = Math.min(stepH, cs.y2 - sy);
+      if (drawH <= 0) break;
+      // Riser shadow edge facing the schoolyard
+      ctx.fillStyle = '#383e4a';
+      ctx.fillRect(cs.x1, sy, cw, 2);
+      // Sunlit step tread climbing higher
+      ctx.fillStyle = stepShades[i];
+      ctx.fillRect(cs.x1, sy + 2, cw, Math.max(1, drawH - 2));
+      // Crisp bright lip along the back edge of the tread
+      if (drawH >= 4) {
+        ctx.fillStyle = isSnow ? '#ffffff' : '#dce3f0';
+        ctx.fillRect(cs.x1 + 1, sy + 2, cw - 2, 1);
+      }
+    }
+
+    // Flanking stone cheek walls & dark iron handrails rising up out of view
+    ctx.fillStyle = '#474d5c';
+    ctx.fillRect(cs.x1 - 3, cs.y1 - 1, 4, ch + 1);
+    ctx.fillRect(cs.x2 - 1, cs.y1 - 1, 4, ch + 1);
+    ctx.fillStyle = '#9aa3b5';
+    ctx.fillRect(cs.x1 - 2, cs.y1, 2, ch);
+    ctx.fillRect(cs.x2, cs.y1, 2, ch);
+    // Steel handrail bar
+    ctx.fillStyle = '#202633';
+    ctx.fillRect(cs.x1 - 2, cs.y1 + 2, 1, ch - 2);
+    ctx.fillRect(cs.x2 + 1, cs.y1 + 2, 1, ch - 2);
+
+    // Caption plaque right next to the seated kid on the bottom red-brick wall:
+    // "The Bird That Couldn't Fly."
+    const bx = 298;
+    const by = 432;
+    const bw = 92;
+    const bh = 23;
+    ctx.fillStyle = 'rgba(11, 15, 28, 0.88)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#d4aa52';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+    // Little pointer tab toward the seated kid at the stairs
+    ctx.fillStyle = '#d4aa52';
+    ctx.fillRect(bx + bw, by + 9, 4, 2);
+    ctx.fillRect(bx + bw + 2, by + 8, 2, 4);
+
+    drawPixelText(ctx, cs.captionLines[0], bx + bw / 2, by + 4, '#fff1c4', 1, 'center', null);
+    drawPixelText(ctx, cs.captionLines[1], bx + bw / 2, by + 13, '#ffe07a', 1, 'center', null);
+  }
+
+  // === TOP-LEFT & LOWER-LEFT CORNER BASKETBALL HALF-COURTS & HOOPS (IN PLAY!) ===
+  if (game.hoopsGames) {
+    for (const h of game.hoopsGames) {
+      drawCornerBasketballCourt(ctx, h, isSnow);
+    }
+  }
 
   // === SIDELINE CLASSMATES WATCHING RECESS ===
   const celebrating = game.state === 'GOAL_CELEBRATION';
@@ -749,9 +900,9 @@ function renderStatsModal(ctx, game, { isFinal }) {
   if (isFinal) {
     const verdict =
       game.score.home > game.score.away
-        ? `${TEAMS.home.name} WIN RECESS!`
+        ? `${TEAMS.home.name} WINS RECESS!`
         : game.score.away > game.score.home
-        ? `${TEAMS.away.name} TAKE RECESS!`
+        ? `${TEAMS.away.name} WINS RECESS!`
         : 'RECESS TIE GAME!';
     drawPixelText(ctx, 'FINAL BELL! STATS', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
     drawPixelText(ctx, verdict, SCREEN_W / 2, y + 19, '#48b8ff', 1, 'center');

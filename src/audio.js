@@ -198,6 +198,20 @@ class SoundEngine {
     this.noise(0.11, 520, 'lowpass', 0.28);
   }
 
+  // Descending echo bounces as the tennis ball tumbles down the stairs into Basement 56!
+  playBasement56() {
+    const bounces = [
+      [420, 260, 0.00, 0.16],
+      [340, 210, 0.13, 0.13],
+      [270, 165, 0.27, 0.10],
+      [210, 130, 0.42, 0.08],
+      [165, 100, 0.58, 0.06],
+    ];
+    for (const [f1, f2, delay, vol] of bounces) {
+      this.tone(f1, f2, 0.07, 'triangle', vol, delay);
+    }
+  }
+
   // Classic recess school bell (rapid metallic clapper!)
   playRecessBell() {
     for (let i = 0; i < 10; i++) {

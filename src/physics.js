@@ -354,6 +354,53 @@ export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap =
     }
   }
 
+  // === BASEMENT 56 DOWNSTAIRS STAIRCASE (BOTTOM WALL, GREEN BARRIER, OPEN RIGHT ENTRANCE!) ===
+  if (court && court.basementStairs) {
+    const s = court.basementStairs;
+    const inStairX = ball.x >= s.x1 && ball.x <= s.x2;
+    const inStairY = ball.y >= s.y1 + 1;
+
+    if (inStairX && inStairY) {
+      const enteredFromRight = prevX > s.x2 - 2;
+      const lobbedOverBarrier = ball.z >= 10;
+      if (enteredFromRight || lobbedOverBarrier) {
+        // Tennis ball tumbles down into Basement 56!
+        ball.x = Math.max(s.x1 + 10, Math.min(s.x2 - 8, ball.x));
+        ball.y = (s.y1 + s.y2) / 2;
+        ball.vx = -1.1;
+        ball.vy = 0;
+        ball.vz = 0;
+        return { basement56: true, faultTeam: ball.lastTouchTeam || 'home' };
+      }
+      // Low ball hitting the green barrier from above or the closed left end bounces back into play!
+      if (prevY <= s.y1 + 2) {
+        ball.y = s.y1 - r;
+        ball.vy = -Math.abs(ball.vy) * PHYSICS.fenceRestitution;
+        callbacks.onFenceHit?.();
+      } else if (prevX < s.x1) {
+        ball.x = s.x1 - r;
+        ball.vx = -Math.abs(ball.vx) * PHYSICS.fenceRestitution;
+        callbacks.onFenceHit?.();
+      }
+    }
+  }
+
+  // === BOTTOM-RIGHT CORNER STAIRS (FOOT OF UPWARD STAIRS & SEATED KID) ===
+  if (court && court.cornerStairs) {
+    const cs = court.cornerStairs;
+    if (ball.x >= cs.x1 - r && ball.x <= cs.x2 + r && ball.y >= cs.y1 - r) {
+      if (prevY <= cs.y1) {
+        ball.y = cs.y1 - r;
+        ball.vy = -Math.abs(ball.vy) * PHYSICS.fenceRestitution;
+        callbacks.onFenceHit?.();
+      } else if (prevX < cs.x1) {
+        ball.x = cs.x1 - r;
+        ball.vx = -Math.abs(ball.vx) * PHYSICS.fenceRestitution;
+        callbacks.onFenceHit?.();
+      }
+    }
+  }
+
   // === SCHOOLYARD WALL / WINDOW-GRILL / FENCE BOUNDARY BOUNCES ===
   let hitWall = false;
   let hitGrill = false;
@@ -395,8 +442,8 @@ export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap =
   return null;
 }
 
-// Keep a player inside the schoolyard walls/fence
-export function clampPlayerToCourt(p, bounds = COURT) {
+// Keep a player inside the schoolyard walls/fence and out of the Basement 56 stairwell & corner stairs!
+export function clampPlayerToCourt(p, bounds = COURT, basementStairs = null, cornerStairs = null) {
   const pad = 7;
   if (p.x < bounds.left + pad) {
     p.x = bounds.left + pad;
@@ -411,5 +458,46 @@ export function clampPlayerToCourt(p, bounds = COURT) {
   } else if (p.y > bounds.bottom - pad) {
     p.y = bounds.bottom - pad;
     if (p.vy > 0) p.vy = 0;
+  }
+
+  // Green safety barrier keeps skaters from falling into the Basement 56 staircase!
+  if (basementStairs) {
+    const s = basementStairs;
+    const minX = s.x1 - 6;
+    const maxX = s.x2 + 6;
+    const minY = s.y1 - 6;
+    if (p.x > minX && p.x < maxX && p.y > minY) {
+      const distTop = Math.abs(p.y - minY);
+      const distLeft = Math.abs(p.x - minX);
+      const distRight = Math.abs(p.x - maxX);
+      if (distTop <= distLeft && distTop <= distRight) {
+        p.y = minY;
+        if (p.vy > 0) p.vy = 0;
+      } else if (distLeft <= distRight) {
+        p.x = minX;
+        if (p.vx > 0) p.vx = 0;
+      } else {
+        p.x = maxX;
+        if (p.vx < 0) p.vx = 0;
+      }
+    }
+  }
+
+  // Keep skaters from trampling the kid sitting at the foot of the bottom-right stairs!
+  if (cornerStairs) {
+    const cs = cornerStairs;
+    const minX = cs.x1 - 6;
+    const minY = cs.y1 - 5;
+    if (p.x > minX && p.y > minY) {
+      const distTop = Math.abs(p.y - minY);
+      const distLeft = Math.abs(p.x - minX);
+      if (distTop <= distLeft) {
+        p.y = minY;
+        if (p.vy > 0) p.vy = 0;
+      } else {
+        p.x = minX;
+        if (p.vx > 0) p.vx = 0;
+      }
+    }
   }
 }

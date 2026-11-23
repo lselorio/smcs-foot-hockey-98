@@ -60,6 +60,30 @@ export function createBond66Court() {
     creaseRadius: 26,
   };
 
+  // Bottom-center downstairs staircase ("Basement 56!") parallel to the bottom red-brick wall:
+  // Green safety barrier along top & left prevents kids from falling in; OPEN entrance on the right!
+  const basementStairs = {
+    x1: 188,
+    x2: 288,
+    y1: 404,
+    y2: bounds.bottom,
+    entranceX: 299,
+    entranceY: 414,
+  };
+
+  // Bottom-right corner: foot of stairs on the bottom wall leading UP out of view,
+  // with a chubby kid in St. Mike's maroon uniform sitting at the bottom of the stairs!
+  const cornerStairs = {
+    x1: 396,
+    x2: 444,
+    y1: 416,
+    y2: 460,
+    kidX: 420,
+    kidY: 423,
+    caption: "The Bird That Couldn't Fly.",
+    captionLines: ['THE BIRD THAT', "COULDN'T FLY."],
+  };
+
   return {
     id: 'bond66',
     name: '66 BOND',
@@ -67,6 +91,8 @@ export function createBond66Court() {
     worldH: 460,
     bounds,
     topWindows,
+    basementStairs,
+    cornerStairs,
     nets: [topYellowNet, rightCageNet],
     // Center faceoff / restart point balanced between the two 90-degree nets
     faceoffX: 224,

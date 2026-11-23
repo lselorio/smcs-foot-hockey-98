@@ -646,6 +646,118 @@ export function drawSpectator(ctx, spec, tick, celebrating) {
   }
 }
 
+// Draw the chubby kid in St. Mike's maroon uniform sitting at the foot of the bottom-right stairs
+// ("The Bird That Couldn't Fly.") watching the recess game unfold!
+export function drawSeatedStairsKid(ctx, x, y, tick = 0, uniformMode = 'everyday', lookX = x) {
+  const kx = Math.round(x);
+  const ky = Math.round(y);
+  const isDress = uniformMode === 'dress';
+  const breathe = Math.sin(tick * 0.06) > 0.55 ? 1 : 0;
+  const blinking = tick % 210 > 204;
+  const eyeShift = lookX < kx - 35 ? -1 : lookX > kx + 35 ? 1 : 0;
+
+  // Soft shadow resting on the bottom concrete step
+  ctx.fillStyle = 'rgba(10, 12, 20, 0.42)';
+  ctx.beginPath();
+  ctx.ellipse(kx, ky + 2, 10, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Seated legs & sneakers bent forward on the foot of the stairs (facing up into the yard)
+  const pantsColor = isDress ? UNIFORM_COLORS.dressPants : UNIFORM_COLORS.bluePants;
+  const pantsShade = isDress ? '#272b35' : '#183461';
+  // Left & right thick seated thighs/knees
+  ctx.fillStyle = '#12151f';
+  ctx.fillRect(kx - 8, ky - 5, 16, 7);
+  ctx.fillStyle = pantsColor;
+  ctx.fillRect(kx - 7, ky - 4, 6, 5);
+  ctx.fillRect(kx + 1, ky - 4, 6, 5);
+  ctx.fillStyle = pantsShade;
+  ctx.fillRect(kx - 1, ky - 4, 2, 5);
+
+  // Sneakers resting forward on the step/asphalt
+  ctx.fillStyle = '#12151f';
+  ctx.fillRect(kx - 8, ky, 5, 3);
+  ctx.fillRect(kx + 3, ky, 5, 3);
+  ctx.fillStyle = '#2b3242';
+  ctx.fillRect(kx - 7, ky + 1, 3, 1);
+  ctx.fillRect(kx + 4, ky + 1, 3, 1);
+  ctx.fillStyle = '#e8edf5'; // crisp white rubber soles
+  ctx.fillRect(kx - 7, ky + 2, 3, 1);
+  ctx.fillRect(kx + 4, ky + 2, 3, 1);
+
+  // Wide plump maroon uniform torso!
+  const ty = ky - 14 + breathe;
+  ctx.fillStyle = '#12151f';
+  ctx.fillRect(kx - 8, ty - 1, 16, 11);
+
+  if (isDress) {
+    // Dress Uniform: maroon blazer, white shirt V, darker maroon tie, gold SMCS crest
+    ctx.fillStyle = UNIFORM_COLORS.maroon;
+    ctx.fillRect(kx - 7, ty, 14, 9);
+    ctx.fillStyle = UNIFORM_COLORS.maroonShade;
+    ctx.fillRect(kx - 7, ty + 6, 14, 3);
+    ctx.fillStyle = UNIFORM_COLORS.whiteShirt;
+    ctx.fillRect(kx - 2, ty, 4, 5);
+    ctx.fillStyle = UNIFORM_COLORS.tie;
+    ctx.fillRect(kx - 1, ty + 1, 2, 6);
+    ctx.fillStyle = UNIFORM_COLORS.crest;
+    ctx.fillRect(kx + 3, ty + 2, 2, 2);
+  } else {
+    // Everyday Uniform: maroon shirt + slightly darker maroon tie!
+    ctx.fillStyle = UNIFORM_COLORS.maroonShirt;
+    ctx.fillRect(kx - 7, ty, 14, 9);
+    ctx.fillStyle = UNIFORM_COLORS.maroonShirtShade;
+    ctx.fillRect(kx - 7, ty + 6, 14, 3);
+    ctx.fillRect(kx - 7, ty, 2, 7);
+    ctx.fillRect(kx + 5, ty, 2, 7);
+    // Maroon shirt collar highlight + slightly darker maroon tie down his round belly
+    ctx.fillStyle = '#a12c44';
+    ctx.fillRect(kx - 3, ty, 6, 1);
+    ctx.fillStyle = UNIFORM_COLORS.tie;
+    ctx.fillRect(kx - 1, ty + 1, 2, 7);
+  }
+
+  // Chubby arms resting relaxed on his knees/step
+  const sleeve = isDress ? UNIFORM_COLORS.maroon : UNIFORM_COLORS.maroonShirt;
+  ctx.fillStyle = '#12151f';
+  ctx.fillRect(kx - 10, ty + 1, 3, 7);
+  ctx.fillRect(kx + 7, ty + 1, 3, 7);
+  ctx.fillStyle = sleeve;
+  ctx.fillRect(kx - 9, ty + 2, 2, 5);
+  ctx.fillRect(kx + 7, ty + 2, 2, 5);
+  // Hands resting on knees
+  ctx.fillStyle = '#b97e54';
+  ctx.fillRect(kx - 8, ty + 7, 2, 2);
+  ctx.fillRect(kx + 6, ty + 7, 2, 2);
+
+  // Round head with warm brown Filipino complexion & rosy chubby cheeks watching the game
+  const hy = ty - 7;
+  ctx.fillStyle = '#12151f';
+  ctx.fillRect(kx - 6, hy - 1, 12, 8);
+  ctx.fillStyle = '#b97e54';
+  ctx.fillRect(kx - 5, hy, 10, 6);
+  // Subtle warm cheeks
+  ctx.fillStyle = '#a36442';
+  ctx.fillRect(kx - 4, hy + 4, 2, 1);
+  ctx.fillRect(kx + 2, hy + 4, 2, 1);
+
+  // Jet-black bowl-cut / neat schoolboy hair
+  ctx.fillStyle = '#161417';
+  ctx.fillRect(kx - 5, hy - 2, 10, 3);
+  ctx.fillRect(kx - 6, hy - 1, 2, 3);
+  ctx.fillRect(kx + 4, hy - 1, 2, 3);
+
+  // Eyes tracking the ball (with occasional slow blink)
+  ctx.fillStyle = '#12151f';
+  if (blinking) {
+    ctx.fillRect(kx - 3 + eyeShift, hy + 3, 2, 1);
+    ctx.fillRect(kx + 1 + eyeShift, hy + 3, 2, 1);
+  } else {
+    ctx.fillRect(kx - 2 + eyeShift, hy + 2, 1, 2);
+    ctx.fillRect(kx + 1 + eyeShift, hy + 2, 1, 2);
+  }
+}
+
 // Draw NHL '94 deliberate pass/throw receiver chevron over targeted teammate!
 export function drawPassTargetMarker(ctx, target, tick, isGoalieThrow = false) {
   const x = Math.round(target.x);

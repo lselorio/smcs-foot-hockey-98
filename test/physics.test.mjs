@@ -549,8 +549,15 @@ test('66 Bond top-left corner basketball players stay active and deflect the ten
   game.startNewMatch();
   game.state = 'PLAYING';
 
-  assert.ok(game.hoops, '66 Bond should have a top-left corner basketball game');
+  assert.ok(game.hoopsGames && game.hoopsGames.length === 2, '66 Bond should have two corner basketball games (top-left and lower-left)');
+  assert.equal(game.hoopsGames[0].wall, 'left', 'Top-left basketball hoop should sit on left wall');
+  assert.equal(game.hoopsGames[1].wall, 'bottom', 'Lower-left basketball hoop should sit on bottom red-brick wall');
+  assert.ok(
+    game.hoopsGames[1].zone.right < game.court.basementStairs.x1,
+    'Lower-left basketball court should stay cleanly to the left of Basement 56 stairs'
+  );
   assert.equal(game.hoops.kids.length, 3);
+  assert.equal(game.hoopsGames[1].kids.length, 3);
   assert.ok(game.hoops.zone.hoopX < game.court.bounds.centerX, 'Basketball hoop should sit in top-left corner');
 
   // Fire tennis ball straight at the first basketball kid -> should deflect or get booted away in play!
@@ -626,4 +633,52 @@ test('body checking is legal along the left wall on clear days and legal everywh
   game.attemptSteal(hitter);
   assert.ok(victim.stunTimer > 0, 'Open-court body check should stun opponent during Snow Day');
   assert.equal(game.stats.home.checks, 2);
+});
+
+test('Basement 56 staircase on bottom red-brick wall catches ball from right and awards other team restart at entrance', () => {
+  const game = new FootHockeyGame();
+  game.startNewMatch();
+  game.state = 'PLAYING';
+  const s = game.court.basementStairs;
+  assert.ok(s, '66 Bond should have a Basement 56 staircase along the bottom wall');
+
+  // Low ball hitting the green barrier from above bounces off (does NOT fall in)
+  game.ball.owner = null;
+  game.ball.lastTouchTeam = 'home';
+  game.ball.x = (s.x1 + s.x2) / 2;
+  game.ball.y = s.y1 - 4;
+  game.ball.z = 2;
+  game.ball.vx = 0;
+  game.ball.vy = 6;
+  game.update();
+  assert.equal(game.state, 'PLAYING', 'Green barrier should deflect low balls from above');
+  assert.ok(game.ball.vy < 0, 'Ball should bounce back up off green barrier');
+
+  // Ball rolling into the OPEN RIGHT ENTRANCE falls down into Basement 56!
+  game.ball.owner = null;
+  game.ball.lastTouchTeam = 'home';
+  game.ball.x = s.x2 + 2;
+  game.ball.y = s.y1 + 10;
+  game.ball.z = 2;
+  game.ball.vx = -6;
+  game.ball.vy = 0;
+  game.update();
+  assert.equal(game.state, 'BASEMENT_56', 'Entering staircase from the right should trigger Basement 56');
+  assert.equal(game.restartTeam, 'away', 'Other team should be awarded possession');
+
+  // After Basement 56 timer expires, Away starts with possession right at the staircase entrance!
+  game.stateTimer = 1;
+  game.update();
+  assert.equal(game.state, 'RESTART');
+  assert.equal(game.ball.owner?.team, 'away');
+  assert.ok(
+    Math.hypot(game.ball.owner.x - s.entranceX, game.ball.owner.y - s.entranceY) < 5,
+    'Awarded team should restart play right at the staircase entrance'
+  );
+
+  // Verify bottom-right ascending stairs & seated kid landmark ("The Bird That Couldn't Fly.")
+  const cs = game.court.cornerStairs;
+  assert.ok(cs, '66 Bond should have the bottom-right corner stairs landmark');
+  assert.equal(cs.caption, "The Bird That Couldn't Fly.");
+  assert.ok(cs.x1 > s.x2, 'Bottom-right stairs should sit cleanly to the right of Basement 56');
 });

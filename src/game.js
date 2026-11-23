@@ -1,6 +1,6 @@
 import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { createBond66Court } from './courts.js';
-import { createCornerBasketball, updateCornerBasketball } from './basketball.js';
+import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
 import { TEAMS, draftRecessTeams } from './roster.js';
 import { sound } from './audio.js';
 import {
@@ -62,7 +62,8 @@ export class FootHockeyGame {
     this.particles = [];
     this.callouts = [];
     this.spectators = this.createSpectators();
-    this.hoops = createCornerBasketball(this.court);
+    this.hoopsGames = createCornerBasketballGames(this.court);
+    this.hoops = this.hoopsGames[0];
     this.snowflakes = this.createSnowflakes();
 
     // Input states
@@ -87,25 +88,15 @@ export class FootHockeyGame {
     const skins = ['#f2c6a0', '#dfa47a', '#8f593b', '#c4865b', '#e8b58f'];
     const hairs = ['#231a15', '#693d1e', '#c98e32', '#171412', '#9c4b23'];
 
-    // Left chain-link fence & bottom sidewalk classmates watching recess on 66 Bond
-    for (let i = 0; i < 8; i++) {
+    // Left wall spectators watching recess on 66 Bond
+    for (let i = 0; i < 6; i++) {
       kids.push({
-        x: 12,
-        y: 86 + i * 44,
+        x: 11,
+        y: 170 + i * 42,
         shirt: shirts[i % shirts.length],
         skin: skins[i % skins.length],
         hair: hairs[(i + 2) % hairs.length],
         phase: i * 1.1,
-      });
-    }
-    for (let i = 0; i < 7; i++) {
-      kids.push({
-        x: 72 + i * 54,
-        y: 446,
-        shirt: shirts[(i + 3) % shirts.length],
-        skin: skins[(i + 1) % skins.length],
-        hair: hairs[(i + 4) % hairs.length],
-        phase: i * 1.4 + 0.6,
       });
     }
     return kids;
@@ -233,7 +224,8 @@ export class FootHockeyGame {
     this.restartTeam = null;
     this.particles = [];
     this.callouts = [];
-    this.hoops = createCornerBasketball(this.court);
+    this.hoopsGames = createCornerBasketballGames(this.court);
+    this.hoops = this.hoopsGames[0];
     this.startFaceoff();
     sound.playRecessBell();
   }
@@ -305,8 +297,66 @@ export class FootHockeyGame {
 
     // If Home conceded, hand control immediately to Home's goalie to aim & throw!
     this.controlledId = concedingTeam === 'home' ? 'h_g' : 'h_c';
+    this.restartType = 'goalie';
     this.state = 'RESTART';
     this.stateTimer = 36;
+    sound.playFaceoffDrop();
+  }
+
+  // Basement 56! When the tennis ball falls down the bottom-wall stairs,
+  // the OTHER team plays the ball from the right entrance to the staircase!
+  handleBasement56(faultTeam) {
+    const awardedTeam = faultTeam === 'home' ? 'away' : 'home';
+    this.restartTeam = awardedTeam;
+    this.restartType = 'basement56';
+    this.state = 'BASEMENT_56';
+    this.stateTimer = 85;
+    sound.playBasement56();
+    const s = this.court.basementStairs;
+    this.spawnParticles((s.x1 + s.x2) / 2, s.y1 + 10, '#d9ff2e', 10);
+    this.addCallout((s.x1 + s.x2) / 2, s.y1 - 8, 'BASEMENT 56!', '#d9ff2e');
+  }
+
+  startBasement56Restart(awardedTeam) {
+    const s = this.court.basementStairs;
+    const bounds = this.court.bounds;
+    const clampX = (v) => Math.max(bounds.left + 20, Math.min(bounds.right - 20, v));
+    const clampY = (v) => Math.max(bounds.top + 20, Math.min(bounds.bottom - 20, v));
+
+    this.resetPositionsForFaceoff();
+    this.restartTeam = awardedTeam;
+    this.restartType = 'basement56';
+
+    const aPrefix = awardedTeam === 'home' ? 'h' : 'a';
+    const oPrefix = awardedTeam === 'home' ? 'a' : 'h';
+
+    const setPos = (id, x, y, fx, fy) => {
+      const p = this.players.find((pl) => pl.id === id);
+      if (!p) return;
+      p.x = x;
+      p.y = y;
+      p.facingX = fx;
+      p.facingY = fy;
+    };
+
+    // Awarded team's center plays the ball right at the open RIGHT entrance to the staircase!
+    setPos(`${aPrefix}_c`, s.entranceX, s.entranceY, 0, -1);
+    setPos(`${aPrefix}_lw`, clampX(s.entranceX - 58), clampY(s.entranceY - 46), 0, -1);
+    setPos(`${aPrefix}_rw`, clampX(s.entranceX + 64), clampY(s.entranceY - 44), 0, -1);
+
+    // Faulting team gives respectful spacing upfield from the staircase entrance
+    setPos(`${oPrefix}_c`, clampX(s.entranceX), clampY(s.entranceY - 68), 0, 1);
+    setPos(`${oPrefix}_lw`, clampX(s.entranceX - 66), clampY(s.entranceY - 96), 0, 1);
+    setPos(`${oPrefix}_rw`, clampX(s.entranceX + 66), clampY(s.entranceY - 96), 0, 1);
+
+    const starter = this.players.find((p) => p.id === `${aPrefix}_c`);
+    this.controlledId = 'h_c';
+    this.ball = createBall(starter.x, starter.y - PHYSICS.dribbleDist, 0);
+    this.ball.owner = starter;
+    this.ball.lastTouchTeam = awardedTeam;
+    this.ball.lastTouchPlayer = starter;
+    this.state = 'RESTART';
+    this.stateTimer = 34;
     sound.playFaceoffDrop();
   }
 
@@ -718,6 +768,19 @@ export class FootHockeyGame {
       return;
     }
 
+    if (this.state === 'BASEMENT_56') {
+      this.stateTimer--;
+      // Ball gently rolls deeper down into the dark stairwell
+      if (this.court.basementStairs) {
+        this.ball.x = Math.max(this.court.basementStairs.x1 + 6, this.ball.x - 0.6);
+      }
+      this.updateCamera();
+      if (this.stateTimer <= 0) {
+        this.startBasement56Restart(this.restartTeam || 'home');
+      }
+      return;
+    }
+
     if (this.state === 'GOAL_CELEBRATION') {
       this.stateTimer--;
       // Scorer pumps fists / skates around celebrating!
@@ -817,7 +880,7 @@ export class FootHockeyGame {
       p.y += p.vy;
       p.vx *= skaterFriction;
       p.vy *= skaterFriction;
-      clampPlayerToCourt(p, this.court.bounds);
+      clampPlayerToCourt(p, this.court.bounds, this.court.basementStairs, this.court.cornerStairs);
 
       // Kick up crisp white snow spray when carving hard in Snow Day weather!
       if (isSnow && Math.hypot(p.vx, p.vy) > 1.25 && this.tick % 5 === 0) {
@@ -838,8 +901,10 @@ export class FootHockeyGame {
     // Soft skater-vs-skater body spacing
     this.resolvePlayerCollisions();
 
-    // Update live top-left corner basketball game & check in-play interference!
-    updateCornerBasketball(this.hoops, this);
+    // Update both live corner basketball games (top-left & lower-left) & check in-play interference!
+    for (const h of this.hoopsGames) {
+      updateCornerBasketball(h, this);
+    }
 
     // Step 2.5D tennis ball physics & check goal across 66 Bond's asymmetrical nets!
     const goalEvent = stepBallPhysics(
@@ -870,7 +935,11 @@ export class FootHockeyGame {
     );
 
     if (goalEvent) {
-      this.handleGoalScored(goalEvent.scoredBy, goalEvent.goalSide);
+      if (goalEvent.basement56) {
+        this.handleBasement56(goalEvent.faultTeam);
+      } else {
+        this.handleGoalScored(goalEvent.scoredBy, goalEvent.goalSide);
+      }
       return;
     }
 
