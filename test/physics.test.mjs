@@ -420,6 +420,37 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
   }
   for (const p of awayPlayers) {
     assert.equal(p.wearsJacket, true, 'Away team wears colorful jacket over the maroon uniform');
-    assert.ok(p.coatColor && p.coatColor !== UNIFORM_COLORS.maroon, 'Away jacket color must be distinct from maroon');
+    assert.ok(p.coatColor && p.coatColor !== UNIFORM_COLORS.maroonShirt, 'Away jacket color must be distinct from maroon');
   }
+
+  // Default uniform mode should be everyday uniform ('default'), with optional 'dress' toggle
+  const game = new FootHockeyGame();
+  assert.equal(game.uniformMode, 'default');
+  assert.equal(game.toggleUniformMode(), 'dress');
+  assert.equal(game.toggleUniformMode(), 'default');
+});
+
+test('boot intro spins SMCS crest then automatically transitions to TITLE (or skips on input)', () => {
+  const game = new FootHockeyGame();
+  assert.equal(game.state, 'BOOT');
+  assert.equal(game.bootFrames, 0);
+
+  // Advance full boot animation -> should land on TITLE
+  for (let i = 0; i < 285; i++) game.update();
+  assert.equal(game.state, 'TITLE');
+
+  // Pressing I on TITLE replays the boot intro
+  game.onKeyDown('KeyI');
+  game.update();
+  game.onKeyUp('KeyI');
+  assert.equal(game.state, 'BOOT');
+
+  // Verify skipping on keypress after brief intro
+  const gameSkip = new FootHockeyGame();
+  for (let i = 0; i < 20; i++) gameSkip.update();
+  assert.equal(gameSkip.state, 'BOOT');
+  gameSkip.onKeyDown('Enter');
+  gameSkip.update();
+  gameSkip.onKeyUp('Enter');
+  assert.equal(gameSkip.state, 'TITLE');
 });

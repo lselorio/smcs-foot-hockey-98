@@ -10,6 +10,7 @@ import {
   drawStarRing,
   drawTennisBall,
 } from './sprites.js';
+import { drawSpinningSmcsCrest } from './smcs-crest.js';
 
 // Pre-generate deterministic asphalt cracks & schoolyard pebble texture once!
 const ASPHALT_SPECKS = [];
@@ -28,6 +29,11 @@ for (let i = 0; i < 240; i++) {
 
 export function renderGame(ctx, game) {
   ctx.imageSmoothingEnabled = false;
+
+  if (game.state === 'BOOT') {
+    renderBootIntro(ctx, game);
+    return;
+  }
 
   if (game.state === 'TITLE') {
     renderTitleScreen(ctx, game);
@@ -65,9 +71,9 @@ export function renderGame(ctx, game) {
         }
 
         if (p.role === 'G') {
-          drawGoalie(ctx, p, team, game.tick);
+          drawGoalie(ctx, p, team, game.tick, game.uniformMode);
         } else {
-          drawSkater(ctx, p, team, game.tick);
+          drawSkater(ctx, p, team, game.tick, game.uniformMode);
         }
 
         // Deliberate pass / goalie-throw receiver chevron on highlighted teammate!
@@ -344,6 +350,61 @@ function drawBanner(ctx, title, subtitle, accent) {
   drawPixelText(ctx, subtitle, SCREEN_W / 2, 126, '#f4f7ff', 1, 'center');
 }
 
+// Iconic 16-bit EA Sports-style Boot Splash with 360° spinning SMCS Circular Crest + Latin Motto!
+function renderBootIntro(ctx, game) {
+  const f = game.bootFrames;
+
+  // Classic Genesis sports boot dark cathedral-navy backdrop with subtle gold spotlight
+  ctx.fillStyle = '#070a14';
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // Subtle radial spotlight behind the crest
+  const glowAlpha = Math.min(0.28, (f / 45) * 0.28);
+  const grad = ctx.createRadialGradient(160, 96, 8, 160, 96, 120);
+  grad.addColorStop(0, `rgba(134, 38, 51, ${(glowAlpha * 1.4).toFixed(2)})`);
+  grad.addColorStop(0.55, `rgba(208, 173, 103, ${(glowAlpha * 0.45).toFixed(2)})`);
+  grad.addColorStop(1, 'rgba(7, 10, 20, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // Phase 1 (frames 0..84): Smooth eased 360° horizontal medallion spin + zoom in!
+  const spinDur = 84;
+  const t = Math.min(1, f / spinDur);
+  // Smooth ease-out cubic so the spin whips cleanly and locks into place at exactly 360°!
+  const ease = 1 - Math.pow(1 - t, 3);
+  const angle = ease * Math.PI * 2;
+  const radius = 12 + ease * 36; // zooms from 12px to crisp 48px radius (96px diameter!)
+
+  // Phase 2 (frames 84..116): Bright gold sheen sweeps across the settled crest
+  const sheen = f >= 84 && f <= 116 ? (f - 84) / 32 : -1;
+
+  drawSpinningSmcsCrest(ctx, SCREEN_W / 2, 92, radius, angle, sheen);
+
+  // Phase 3 (frames 98+): Punchy EA Sports-style Latin tagline — "IN LUDO EST!" ("It's in the game!")
+  if (f >= 98) {
+    const a = Math.min(1, (f - 98) / 14);
+    const slide = Math.round((1 - a) * 10);
+    ctx.save();
+    ctx.globalAlpha = a;
+    drawPixelText(ctx, 'IN LUDO EST!', SCREEN_W / 2, 162 + slide, '#ffffff', 2, 'center');
+    ctx.restore();
+  }
+
+  // Gold decorative rule sweeping out right under "IN LUDO EST!"
+  if (f >= 118) {
+    const lineW = Math.min(156, (f - 118) * 10);
+    ctx.fillStyle = '#d0ad67';
+    ctx.fillRect(Math.round(SCREEN_W / 2 - lineW / 2), 184, lineW, 2);
+  }
+
+  // Smooth fade-out into Title Screen during final 28 frames (252..280)
+  if (f > 252) {
+    const fade = Math.min(1, (f - 252) / 28);
+    ctx.fillStyle = `rgba(7, 10, 20, ${fade.toFixed(2)})`;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  }
+}
+
 function renderTitleScreen(ctx, game) {
   // 16-bit Genesis sports cartridge title screen!
   ctx.fillStyle = '#121933';
@@ -393,7 +454,7 @@ function renderTitleScreen(ctx, game) {
     catchAnim: 0,
   };
   drawStarRing(ctx, demoSkater.x, demoSkater.y, TEAMS.home.ringColor, game.tick, demoSkater.holdingBall, 0.7);
-  drawSkater(ctx, demoSkater, TEAMS.home, game.tick);
+  drawSkater(ctx, demoSkater, TEAMS.home, game.tick, game.uniformMode);
 
   // Bouncing neon tennis ball in center
   const demoBounce = Math.abs(Math.sin(game.tick * 0.1)) * 14;
@@ -411,23 +472,28 @@ function renderTitleScreen(ctx, game) {
     gloveTimer: Math.floor(game.tick / 50) % 2 === 1 ? 10 : 0,
     holdingBall: false,
   };
-  drawGoalie(ctx, demoGoalie, TEAMS.away, game.tick);
+  drawGoalie(ctx, demoGoalie, TEAMS.away, game.tick, game.uniformMode);
 
   drawPixelText(ctx, 'KICK + CATCH & DROP', 96, 158, '#9be8ff', 1, 'center', null);
   drawPixelText(ctx, 'JACKET + GLOVE!', 224, 158, '#ffd84d', 1, 'center', null);
 
-  // Matchup summary
-  drawPixelText(ctx, `${TEAMS.home.name} (YOU)  VS  ${TEAMS.away.name} (CPU)`, SCREEN_W / 2, 180, '#f4f7ff', 1, 'center');
+  // Matchup summary + Uniform mode toggle (Default Everyday vs Optional Dress Uniform!)
+  drawPixelText(ctx, `${TEAMS.home.name} (YOU)  VS  ${TEAMS.away.name} (CPU)`, SCREEN_W / 2, 175, '#f4f7ff', 1, 'center');
+  const uniformLabel =
+    game.uniformMode === 'dress'
+      ? 'UNIFORM: DRESS BLAZER  (U / ARROWS)'
+      : 'UNIFORM: DEFAULT SHIRT (U / ARROWS)';
+  drawPixelText(ctx, uniformLabel, SCREEN_W / 2, 188, '#ffd84d', 1, 'center');
   if (game.gamepadName) {
-    drawPixelText(ctx, 'PAD READY! B/X:SHOOT A:PASS Y/RB:CATCH', SCREEN_W / 2, 194, '#6ef0a4', 1, 'center');
+    drawPixelText(ctx, 'PAD READY! B/X:SHOOT A:PASS Y/RB:CATCH', SCREEN_W / 2, 201, '#6ef0a4', 1, 'center');
   } else {
-    drawPixelText(ctx, 'Z:TAP QUICK / HOLD HARD  X:PASS  C:CATCH', SCREEN_W / 2, 194, '#b8c7e6', 1, 'center');
+    drawPixelText(ctx, 'Z:TAP QUICK / HOLD HARD  X:PASS  C:CATCH', SCREEN_W / 2, 201, '#b8c7e6', 1, 'center');
   }
 
   // Blinking arcade prompt
   if (Math.floor(game.tick / 24) % 2 === 0) {
     const prompt = game.gamepadName ? 'PRESS START OR A TO PLAY!' : 'PRESS ENTER OR Z TO PLAY!';
-    drawPixelText(ctx, prompt, SCREEN_W / 2, 216, '#d9ff2e', 1, 'center');
+    drawPixelText(ctx, prompt, SCREEN_W / 2, 219, '#d9ff2e', 1, 'center');
   }
 }
 

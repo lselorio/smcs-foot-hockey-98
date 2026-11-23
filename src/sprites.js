@@ -260,7 +260,8 @@ function drawCone(ctx, x, y) {
 }
 
 // Draw a 16-bit pixel-art schoolkid skater!
-export function drawSkater(ctx, p, team, tick) {
+// uniformMode: 'default' (maroon shirt, darker maroon tie, blue pants) | 'dress' (maroon blazer, white shirt, tie, grey trousers)
+export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   const x = Math.round(p.x);
   const y = Math.round(p.y);
   const speed = Math.hypot(p.vx, p.vy);
@@ -268,6 +269,7 @@ export function drawSkater(ctx, p, team, tick) {
   const bob = speed > 0.2 ? Math.abs(Math.round(stride)) : 0;
   const facingUp = p.facingY < -0.3;
   const flipX = p.facingX < -0.25 ? -1 : 1;
+  const isDress = uniformMode === 'dress';
 
   // Ground shadow
   ctx.fillStyle = PALETTE.shadow;
@@ -281,8 +283,8 @@ export function drawSkater(ctx, p, team, tick) {
   const isWindup = p.windupFrames >= 10;
   const kickExt = p.kickTimer > 0 ? 4 : isWindup ? -4 : 0;
 
-  // Charcoal school uniform trousers (both teams wear the uniform!)
-  ctx.fillStyle = UNIFORM_COLORS.pants;
+  // School uniform pants: blue pants by default, charcoal trousers on dress uniform days!
+  ctx.fillStyle = isDress ? UNIFORM_COLORS.dressPants : UNIFORM_COLORS.bluePants;
   ctx.fillRect(x - 4, y - 5 - bob, 3, 4);
   ctx.fillRect(x + 1, y - 5 - bob, 3, 4);
 
@@ -303,45 +305,69 @@ export function drawSkater(ctx, p, team, tick) {
   }
 
   // Torso:
-  // - Home team: Maroon school uniform blazer + white collar + slightly darker maroon tie!
-  // - Away team: Random colorful recess jacket worn OVER the maroon uniform & tie!
+  // - Default Everyday Uniform: maroon collared shirt + slightly darker maroon tie (NO blazer!)
+  // - Dress Uniform (optional): maroon blazer + gold crest + white shirt collar + darker maroon tie
+  // - Away Team ('JACKETS'): casual colorful outdoor jacket (parka/windbreaker/bomber, NOT blazer) over the uniform & tie!
   const ty = y - 12 - bob;
-  const sleeveColor = p.wearsJacket && p.coatColor ? p.coatColor : UNIFORM_COLORS.maroon;
+  const homeBase = isDress ? UNIFORM_COLORS.maroon : UNIFORM_COLORS.maroonShirt;
+  const sleeveColor = p.wearsJacket && p.coatColor ? p.coatColor : homeBase;
   ctx.fillStyle = '#12151f'; // crisp 16-bit outline
   ctx.fillRect(x - 6, ty - 1, 12, 9);
 
   if (p.wearsJacket && p.coatColor) {
-    // Colorful recess jacket worn over the uniform
+    // Casual colorful recess jacket (puffy/zippered outerwear, NOT a blazer!)
     ctx.fillStyle = p.coatColor;
     ctx.fillRect(x - 5, ty, 10, 7);
+    // Ribbed elastic jacket waist & sporty side stripe/collar
     ctx.fillStyle = p.coatTrim || '#1a2233';
-    ctx.fillRect(x - 5, ty + 6, 10, 1); // jacket waist hem
+    ctx.fillRect(x - 5, ty + 6, 10, 1);
+    ctx.fillRect(x - 5, ty, 2, 1);
+    ctx.fillRect(x + 3, ty, 2, 1);
     if (!facingUp) {
-      // Open jacket collar reveals the maroon uniform, white shirt & slightly darker maroon tie underneath!
-      ctx.fillStyle = UNIFORM_COLORS.maroon;
-      ctx.fillRect(x - 2, ty, 4, 6);
-      ctx.fillStyle = UNIFORM_COLORS.shirt;
-      ctx.fillRect(x - 2, ty, 4, 2);
+      // Open zipped jacket reveals the school uniform shirt + slightly darker maroon tie underneath!
+      ctx.fillStyle = isDress ? UNIFORM_COLORS.whiteShirt : UNIFORM_COLORS.maroonShirt;
+      ctx.fillRect(x - 2, ty, 4, 5);
+      // Zipper edge flecks
+      ctx.fillStyle = '#d8e2f0';
+      ctx.fillRect(x - 2, ty + 2, 1, 3);
+      ctx.fillRect(x + 2, ty + 2, 1, 3);
+      // Slightly darker maroon tie peeking cleanly through the open jacket!
       ctx.fillStyle = UNIFORM_COLORS.tie;
-      ctx.fillRect(x - 1, ty + 1, 2, 5);
+      ctx.fillRect(x - 1, ty, 2, 5);
+    } else {
+      // Hood/collar seam across back of casual recess jacket
+      ctx.fillStyle = p.coatTrim || '#1a2233';
+      ctx.fillRect(x - 4, ty + 1, 8, 2);
     }
-  } else {
-    // Classic Maroon St. Michael's school uniform + slightly darker maroon tie!
+  } else if (isDress) {
+    // Optional Dress Uniform: Maroon blazer + white shirt collar + darker maroon tie + gold crest
     ctx.fillStyle = UNIFORM_COLORS.maroon;
     ctx.fillRect(x - 5, ty, 10, 7);
     ctx.fillStyle = UNIFORM_COLORS.maroonShade;
     ctx.fillRect(x - 5, ty + 6, 10, 1);
     if (!facingUp) {
-      // Crisp white collared shirt V-neck
-      ctx.fillStyle = UNIFORM_COLORS.shirt;
+      ctx.fillStyle = UNIFORM_COLORS.whiteShirt;
       ctx.fillRect(x - 2, ty, 4, 2);
-      // Slightly darker maroon school tie right down the center!
       ctx.fillStyle = UNIFORM_COLORS.tie;
       ctx.fillRect(x - 1, ty + 1, 2, 4);
       ctx.fillRect(x - 1, ty + 5, 1, 1);
-      // Tiny gold school crest on blazer chest
       ctx.fillStyle = UNIFORM_COLORS.crest;
       ctx.fillRect(x + 2, ty + 2, 1, 1);
+    }
+  } else {
+    // Default Everyday Uniform: Maroon collared shirt + slightly darker maroon tie!
+    ctx.fillStyle = UNIFORM_COLORS.maroonShirt;
+    ctx.fillRect(x - 5, ty, 10, 7);
+    // Subtle tucked shirt belt/waist line
+    ctx.fillStyle = '#1d2230';
+    ctx.fillRect(x - 5, ty + 6, 10, 1);
+    if (!facingUp) {
+      // Slightly darker maroon collar fold + tie down the center of the maroon shirt
+      ctx.fillStyle = UNIFORM_COLORS.maroonShirtShade;
+      ctx.fillRect(x - 3, ty, 6, 1);
+      ctx.fillStyle = UNIFORM_COLORS.tie;
+      ctx.fillRect(x - 1, ty, 2, 5);
+      ctx.fillRect(x - 1, ty + 5, 1, 1);
     }
   }
 
@@ -419,13 +445,14 @@ export function drawSkater(ctx, p, team, tick) {
 }
 
 // Draw a 16-bit pixel-art SCHOOLYARD GOALIE wielding an outstretched JACKET + BASEBALL GLOVE!
-export function drawGoalie(ctx, g, team, tick) {
+export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
   const x = Math.round(g.x);
   const y = Math.round(g.y);
   const diveX = g.diveTimer > 0 ? Math.round(g.diveDir * 5) : 0;
   const jacketFlare = g.jacketTimer > 0 ? 4 : Math.round(Math.sin(tick * 0.16) * 1);
   const gloveReach = g.gloveTimer > 0 ? 5 : 0;
   const facingDown = g.team === 'away'; // Top goalie faces down; bottom goalie faces up
+  const isDress = uniformMode === 'dress';
 
   // Wide goalie shadow
   ctx.fillStyle = PALETTE.shadow;
@@ -452,8 +479,8 @@ export function drawGoalie(ctx, g, team, tick) {
   ctx.fillStyle = '#e6edf5'; // shiny jacket zipper!
   ctx.fillRect(jx + jw - 2, jy + 1, 1, jh - 3);
 
-  // Legs & crouched goalie stance (uniform charcoal trousers!)
-  ctx.fillStyle = UNIFORM_COLORS.pants;
+  // Legs & crouched goalie stance (blue uniform pants by default, charcoal on dress days!)
+  ctx.fillStyle = isDress ? UNIFORM_COLORS.dressPants : UNIFORM_COLORS.bluePants;
   ctx.fillRect(gx - 5, gy - 5, 4, 4);
   ctx.fillRect(gx + 1, gy - 5, 4, 4);
   ctx.fillStyle = '#151822';
@@ -463,9 +490,10 @@ export function drawGoalie(ctx, g, team, tick) {
   ctx.fillRect(gx - 5, gy, 3, 2);
   ctx.fillRect(gx + 2, gy, 3, 2);
 
-  // Torso (Maroon uniform + darker maroon tie, or colorful jacket worn OVER the uniform!)
+  // Torso (Default maroon shirt + tie, optional dress blazer, or casual jacket worn OVER uniform!)
   const ty = gy - 12;
-  const gSleeve = g.wearsJacket && g.coatColor ? g.coatColor : UNIFORM_COLORS.maroon;
+  const homeBase = isDress ? UNIFORM_COLORS.maroon : UNIFORM_COLORS.maroonShirt;
+  const gSleeve = g.wearsJacket && g.coatColor ? g.coatColor : homeBase;
   ctx.fillStyle = '#12151f';
   ctx.fillRect(gx - 6, ty - 1, 12, 9);
   if (g.wearsJacket && g.coatColor) {
@@ -474,21 +502,36 @@ export function drawGoalie(ctx, g, team, tick) {
     ctx.fillStyle = g.coatTrim || '#1a2233';
     ctx.fillRect(gx - 5, ty + 6, 10, 1);
     if (facingDown) {
-      ctx.fillStyle = UNIFORM_COLORS.maroon;
-      ctx.fillRect(gx - 2, ty, 4, 6);
-      ctx.fillStyle = UNIFORM_COLORS.shirt;
-      ctx.fillRect(gx - 2, ty, 4, 2);
+      ctx.fillStyle = isDress ? UNIFORM_COLORS.whiteShirt : UNIFORM_COLORS.maroonShirt;
+      ctx.fillRect(gx - 2, ty, 4, 5);
+      ctx.fillStyle = '#d8e2f0';
+      ctx.fillRect(gx - 2, ty + 2, 1, 3);
+      ctx.fillRect(gx + 2, ty + 2, 1, 3);
       ctx.fillStyle = UNIFORM_COLORS.tie;
-      ctx.fillRect(gx - 1, ty + 1, 2, 5);
+      ctx.fillRect(gx - 1, ty, 2, 5);
+    } else {
+      ctx.fillStyle = g.coatTrim || '#1a2233';
+      ctx.fillRect(gx - 4, ty + 1, 8, 2);
     }
-  } else {
+  } else if (isDress) {
     ctx.fillStyle = UNIFORM_COLORS.maroon;
     ctx.fillRect(gx - 5, ty, 10, 7);
     if (facingDown) {
-      ctx.fillStyle = UNIFORM_COLORS.shirt;
+      ctx.fillStyle = UNIFORM_COLORS.whiteShirt;
       ctx.fillRect(gx - 2, ty, 4, 2);
       ctx.fillStyle = UNIFORM_COLORS.tie;
       ctx.fillRect(gx - 1, ty + 1, 2, 5);
+      ctx.fillStyle = UNIFORM_COLORS.crest;
+      ctx.fillRect(gx + 2, ty + 2, 1, 1);
+    }
+  } else {
+    ctx.fillStyle = UNIFORM_COLORS.maroonShirt;
+    ctx.fillRect(gx - 5, ty, 10, 7);
+    ctx.fillStyle = '#1d2230';
+    ctx.fillRect(gx - 5, ty + 6, 10, 1);
+    if (facingDown) {
+      ctx.fillStyle = UNIFORM_COLORS.tie;
+      ctx.fillRect(gx - 1, ty, 2, 5);
     }
   }
 

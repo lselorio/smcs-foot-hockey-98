@@ -27,9 +27,10 @@ function createEmptyTeamStats() {
 
 export class FootHockeyGame {
   constructor() {
-    this.state = 'TITLE'; // TITLE | FACEOFF | PLAYING | GOAL_CELEBRATION | PERIOD_END | GAME_OVER | PAUSED
+    this.state = 'BOOT'; // BOOT | TITLE | FACEOFF | RESTART | PLAYING | GOAL_CELEBRATION | PERIOD_END | GAME_OVER | PAUSED
     this.prevState = 'PLAYING';
     this.tick = 0;
+    this.bootFrames = 0;
 
     this.score = { home: 0, away: 0 };
     this.stats = {
@@ -63,6 +64,7 @@ export class FootHockeyGame {
     this.kickCharge = 0;
     this.passTarget = null; // Highlighted teammate for deliberate passes & goalie throws
     this.gamepadName = null;
+    this.uniformMode = 'default'; // 'default' (maroon shirt, tie, blue pants) | 'dress' (optional blazer dress uniform)
     this.crtEnabled = true;
 
     this.initRoster();
@@ -287,12 +289,22 @@ export class FootHockeyGame {
     } else if (code === 'KeyN') {
       const musicOn = sound.toggleMusic();
       this.addCallout(COURT.centerX, this.cameraY + 40, musicOn ? 'MUSIC ON' : 'MUSIC OFF', '#9be8ff');
+    } else if (code === 'KeyU') {
+      this.toggleUniformMode();
     } else if (code === 'KeyT') {
       this.toggleCrt();
     } else {
       // Unlock Web Audio cleanly on first user keypress so Sicut Cervus starts immediately!
       sound.ensureContext();
     }
+  }
+
+  toggleUniformMode() {
+    this.uniformMode = this.uniformMode === 'default' ? 'dress' : 'default';
+    sound.playMenuSelect();
+    const label = this.uniformMode === 'dress' ? 'DRESS UNIFORM' : 'DEFAULT UNIFORM';
+    this.addCallout(COURT.centerX, this.cameraY + 40, label, '#ffd84d');
+    return this.uniformMode;
   }
 
   onKeyUp(code) {
@@ -411,6 +423,12 @@ export class FootHockeyGame {
       this.justPressed.has('Escape');
 
     const restartPressed = this.justPressed.has('KeyR');
+    const replayIntroPressed = this.justPressed.has('KeyI');
+    const menuTogglePressed =
+      this.justPressed.has('ArrowLeft') ||
+      this.justPressed.has('ArrowRight') ||
+      this.justPressed.has('KeyA') ||
+      this.justPressed.has('KeyD');
 
     const selectPressed = Boolean(gp?.selectDown && !this._prevGpSelect);
     if (selectPressed) {
@@ -440,6 +458,8 @@ export class FootHockeyGame {
       startPressed,
       pausePressed,
       restartPressed,
+      replayIntroPressed,
+      menuTogglePressed,
     };
   }
 
@@ -466,7 +486,37 @@ export class FootHockeyGame {
     // Update particles & floating arcade text when not paused
     this.updateEffects();
 
+    if (this.state === 'BOOT') {
+      this.bootFrames++;
+      if (this.bootFrames === 1) {
+        sound.preloadBootVoice();
+      }
+      if (this.bootFrames === 82) {
+        sound.playBootSting();
+      }
+      if (this.bootFrames === 96) {
+        sound.playBootVoice();
+      }
+      const skip =
+        this.bootFrames > 14 &&
+        (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed);
+      if (skip || this.bootFrames >= 280) {
+        if (skip) sound.stopBootVoice();
+        this.state = 'TITLE';
+      }
+      return;
+    }
+
     if (this.state === 'TITLE') {
+      if (input.replayIntroPressed) {
+        sound.ensureContext();
+        this.bootFrames = 0;
+        this.state = 'BOOT';
+        return;
+      }
+      if (input.menuTogglePressed) {
+        this.toggleUniformMode();
+      }
       if (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed) {
         sound.playMenuSelect();
         this.startNewMatch();

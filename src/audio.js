@@ -10,6 +10,9 @@ class SoundEngine {
     this.muted = false;
     this.noiseBuffer = null;
     this.music = new ChiptuneChoirPlayer(SICUT_CERVUS_SCORE);
+    this.bootVoiceBuffer = null;
+    this.bootVoiceChecked = false;
+    this.bootVoiceSource = null;
   }
 
   ensureContext() {
@@ -39,6 +42,7 @@ class SoundEngine {
   toggleMute() {
     this.muted = !this.muted;
     this.music.setMuted(this.muted);
+    if (this.muted) this.stopBootVoice();
     return this.muted;
   }
 
@@ -50,6 +54,7 @@ class SoundEngine {
 
   updateMusic(state, isFinalSeconds = false) {
     if (this.muted || !this.music.enabled) return;
+    if (state === 'BOOT') return;
     if (!this.ctx || this.ctx.state !== 'running') return;
 
     if (state === 'PAUSED') {
@@ -222,6 +227,122 @@ class SoundEngine {
 
   playFaceoffDrop() {
     this.tone(440, 660, 0.08, 'square', 0.09);
+  }
+
+  // Iconic 16-bit EA Sports-style brass/choral boot sting as the SMCS crest locks in!
+  playBootSting() {
+    const chord = [
+      [293.66, 0.0, 0.22], // D4
+      [369.99, 0.06, 0.24], // F#4
+      [440.0, 0.12, 0.28], // A4
+      [587.33, 0.20, 0.55], // D5 triumphant brass/organ finish!
+    ];
+    for (const [f, d, dur] of chord) {
+      this.tone(f, f, dur, 'sawtooth', 0.09, d);
+      this.tone(f * 0.5, f * 0.5, dur, 'triangle', 0.09, d);
+    }
+  }
+
+  // Silently check if a custom recorded boot announcer file exists in assets/audio/
+  async preloadBootVoice() {
+    if (this.bootVoiceChecked || typeof fetch === 'undefined') return;
+    this.bootVoiceChecked = true;
+    const candidates = [
+      './assets/audio/boot-voice.ogg',
+      './assets/audio/boot-voice.mp3',
+      './assets/audio/boot-voice.wav',
+    ];
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const arr = await res.arrayBuffer();
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        this.bootVoiceBuffer = await ctx.decodeAudioData(arr);
+        return;
+      } catch {
+        // Optional custom clip not present; fallback to built-in baritone announcer
+      }
+    }
+  }
+
+  stopBootVoice() {
+    if (this.bootVoiceSource) {
+      try {
+        this.bootVoiceSource.stop();
+      } catch {
+        // already stopped
+      }
+      this.bootVoiceSource = null;
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+  }
+
+  // Booming EA Sports-style deep announcer: "Si in ludo est, in ludo est!"
+  // Uses custom assets/audio/boot-voice.{ogg,mp3,wav} (with 1994 Genesis crunch + arena echo) if present,
+  // otherwise falls back to browser Web Speech API pitched down into a deep baritone!
+  playBootVoice() {
+    if (this.muted) return;
+    this.stopBootVoice();
+
+    // Path 1: Mastered neural/recorded voice sample (assets/audio/boot-voice.ogg) — clean & punchy!
+    if (this.bootVoiceBuffer) {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const src = ctx.createBufferSource();
+      src.buffer = this.bootVoiceBuffer;
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(1.0, ctx.currentTime);
+
+      src.connect(gain);
+      gain.connect(ctx.destination);
+
+      this.bootVoiceSource = src;
+      src.onended = () => {
+        if (this.bootVoiceSource === src) this.bootVoiceSource = null;
+      };
+      src.start();
+      return;
+    }
+
+    // Path 2: Built-in Web Speech API — deep badass North American bass announcer!
+    if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+      return;
+    }
+
+    // Subtle dramatic sub-bass trailer boom underneath the announcer's voice!
+    this.tone(72, 46, 0.75, 'sine', 0.24, 0.0);
+    this.tone(110, 73, 0.55, 'triangle', 0.10, 0.05);
+
+    const voices = window.speechSynthesis.getVoices() || [];
+    // Prefer deep English/North American male voices (never Italian accent!)
+    const badassMale =
+      voices.find(
+        (v) =>
+          /^en(-US|-CA|-GB)?/i.test(v.lang) &&
+          /david|guy|christopher|eric|andrew|brian|mark|daniel|alex|george|fred|male/i.test(v.name)
+      ) ||
+      voices.find((v) => /^en-US/i.test(v.lang)) ||
+      voices.find((v) => /^en/i.test(v.lang));
+
+    const utter = new SpeechSynthesisUtterance('In loo-doh est!');
+    if (badassMale) {
+      utter.voice = badassMale;
+      utter.lang = badassMale.lang;
+    }
+    utter.pitch = 0.28; // Rumbling badass bass register!
+    utter.rate = 0.80;  // Deliberate EA Sports announcer cadence
+    utter.volume = 1.0;
+
+    window.speechSynthesis.speak(utter);
+  }
+
+  isAudioUnlocked() {
+    return Boolean(this.ctx && this.ctx.state === 'running');
   }
 }
 

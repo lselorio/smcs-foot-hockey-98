@@ -44,10 +44,19 @@ window.addEventListener('keyup', (e) => {
   game.onKeyUp(e.code);
 });
 
-// Clicking the canvas also unlocks Web Audio cleanly so music begins right away
-canvas.addEventListener('pointerdown', () => {
+// Immediately initialize audio on boot so sound plays automatically whenever browser allows it
+sound.ensureContext();
+sound.preloadBootVoice();
+
+// Fallback unlock on first gesture if the browser's autoplay policy initially suspended audio
+window.addEventListener('pointerdown', () => {
   sound.ensureContext();
 });
+
+// Warm up browser speech synthesis voices asynchronously so the boot announcer has voices ready
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  window.speechSynthesis.getVoices();
+}
 
 // Fixed 60Hz simulation step so physics feel identically crisp on 60Hz/120Hz/144Hz monitors
 const STEP_MS = 1000 / 60;

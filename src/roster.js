@@ -3,12 +3,18 @@
 // Away Team: Same Uniform worn UNDER a random set of colorful 80s/90s recess jackets!
 
 export const UNIFORM_COLORS = {
-  maroon: '#7c1c2e',      // Classic school uniform maroon blazer/sweater
-  maroonShade: '#611322', // Subtle lapel shading
-  tie: '#460a16',         // Slightly darker maroon school tie!
-  shirt: '#f4f7fc',       // Crisp white dress shirt collar
-  crest: '#e0b84c',       // Gold school crest dot
-  pants: '#3a3f4b',       // Charcoal uniform trousers
+  // Default everyday uniform: maroon shirt, slightly darker maroon tie, blue pants
+  maroonShirt: '#872035',
+  maroonShirtShade: '#6b1627',
+  tie: '#4a0b17',           // Slightly darker maroon tie
+  bluePants: '#234a85',     // Classic school uniform blue pants!
+
+  // Optional Dress Uniform (Mass / concert days): maroon blazer, white shirt, tie, charcoal pants
+  maroon: '#75182a',
+  maroonShade: '#59101f',
+  whiteShirt: '#f4f7fc',
+  crest: '#e0b84c',
+  dressPants: '#3a3f4b',
 };
 
 // Vibrant non-maroon 80s/90s schoolyard jackets (guaranteed distinct from maroon uniforms!)
@@ -186,9 +192,9 @@ export const TEAMS = {
     id: 'home',
     name: 'MAROONS',
     short: 'MARN',
-    primary: UNIFORM_COLORS.maroon,      // Maroon school uniform!
+    primary: UNIFORM_COLORS.maroonShirt, // Everyday maroon uniform shirt!
     tieColor: UNIFORM_COLORS.tie,        // Slightly darker maroon tie
-    secondary: UNIFORM_COLORS.shirt,
+    secondary: UNIFORM_COLORS.whiteShirt,
     trim: UNIFORM_COLORS.crest,
     ringColor: '#ff7090',
     wearsJacket: false,
@@ -200,7 +206,7 @@ export const TEAMS = {
     short: 'JCKT',
     primary: '#1f78d1',                  // HUD accent color (on-court kids wear random jacket colors!)
     tieColor: UNIFORM_COLORS.tie,        // Uniform & darker maroon tie peeking out underneath!
-    secondary: UNIFORM_COLORS.shirt,
+    secondary: UNIFORM_COLORS.whiteShirt,
     trim: '#ffd84d',
     ringColor: '#48c6ff',
     wearsJacket: true,
