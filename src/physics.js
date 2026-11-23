@@ -16,6 +16,7 @@ export function createBall(x = COURT.centerX, y = COURT.centerY, z = 14) {
     passTimer: 0,
     shotPower: 0,       // Helps trail visuals & goalie save detection
     isThrow: false,     // True when flying from a goalie overhand throw
+    throwGrace: 0,      // Protects goalie clears from instant point-blank opponent steals
     trail: [],          // Recent positions for hard-shot / long-throw arcade trail
   };
 }
@@ -58,22 +59,23 @@ export function launchThrow(ball, thrower, targetX, targetY, options = {}) {
   const ny = dy / dist;
 
   const isBomb = Boolean(options.isBomb);
-  const startZ = 10;
+  // High overhand baseball release so the throw clears skaters standing near the crease!
+  const startZ = 14;
   const landZ = options.landZ ?? 5;
 
   // Choose flight time proportional to distance so both short outlets and full-court bombs feel crisp!
   const baseFrames = isBomb
-    ? Math.max(20, Math.min(44, dist * 0.13 + 10))
-    : Math.max(18, Math.min(48, dist * 0.155 + 10));
+    ? Math.max(22, Math.min(44, dist * 0.13 + 10))
+    : Math.max(20, Math.min(48, dist * 0.155 + 10));
   const T = Math.round(baseFrames);
 
   // Exact drag-compensated horizontal speed for airDrag^T geometric sum
   const drag = PHYSICS.airDrag;
   const dragSum = (1 - Math.pow(drag, T)) / (1 - drag);
-  const speed = Math.min(isBomb ? 9.4 : 8.4, Math.max(3.2, dist / dragSum));
+  const speed = Math.min(isBomb ? 9.4 : 8.4, Math.max(3.4, dist / dragSum));
 
-  // Exact parabolic vertical launch speed so ball arcs smoothly overhead and drops to receiver!
-  const vz = Math.min(6.4, Math.max(1.5, (0.5 * PHYSICS.gravity * T * T + (landZ - startZ)) / T));
+  // Exact parabolic vertical launch speed (minimum 2.5 so even short clears arc safely overhead!)
+  const vz = Math.min(6.4, Math.max(2.5, (0.5 * PHYSICS.gravity * T * T + (landZ - startZ)) / T));
 
   ball.owner = null;
   ball.x = thrower.x + nx * 8;
@@ -89,6 +91,7 @@ export function launchThrow(ball, thrower, targetX, targetY, options = {}) {
   ball.passTimer = options.passTargetId ? T + 22 : 0;
   ball.shotPower = isBomb ? speed : 0;
   ball.isThrow = true;
+  ball.throwGrace = 18; // ~0.3s protection so opponents near the crease can't insta-snag clears
 
   thrower.holdingBall = false;
   thrower.holdFrames = 0;
@@ -114,6 +117,7 @@ export function catchBall(ball, player) {
   ball.passTimer = 0;
   ball.shotPower = 0;
   ball.isThrow = false;
+  ball.throwGrace = 0;
   ball.trail = [];
 
   player.holdingBall = true;
@@ -143,6 +147,7 @@ export function dropHeldBall(ball, player, nudgeSpeed = 0.65) {
 // Step 2.5D tennis ball physics and check fence/post/goal collisions
 export function stepBallPhysics(ball, callbacks = {}) {
   if (ball.pickupCooldown > 0) ball.pickupCooldown--;
+  if (ball.throwGrace > 0) ball.throwGrace--;
   if (ball.passTimer > 0) {
     ball.passTimer--;
     if (ball.passTimer === 0) ball.passTargetId = null;

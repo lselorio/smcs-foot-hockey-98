@@ -7,7 +7,7 @@ Saved ideas and planned features for future sessions (not yet implemented):
 1. **Classmate Roster & Player Attributes**
    - Distinct playable classmates with individualized player attributes (speed, kick power, ball control, catching/hands, goalie reflexes, looks/gear).
 
-2. **Chiptune Sacred / Liturgical Soundtrack**
+2. **Chiptune Sacred / Liturgical Soundtrack** *(In progress — live 4-voice Palestrina Sicut Cervus prototype added; can refine timbre or add Gregorian Missa XVIII Gloria later)*
    - Play a chiptune rendition of **Palestrina's *Sicut Cervus*** or **Gregorian *Missa XVIII* Gloria** during gameplay.
 
 3. **Two Play Surfaces: "66 Bond" & "67 Bond"**
@@ -17,11 +17,8 @@ Saved ideas and planned features for future sessions (not yet implemented):
    - A basketball court situated in one corner of the yard with kids actively playing basketball.
    - The basketball players (and/or basketball) are **in play** and can interfere with the foot hockey game.
 
-5. **Three Recess Periods**
-   - Replace the 2-half structure with **3 periods**:
-     1. **Morning Recess**
-     2. **Lunch Recess** *(twice as long as morning and afternoon recess)*
-     3. **Afternoon Recess**
+5. ~~**Three Recess Periods**~~ *(Done)*
+   - 3 periods: **Morning Recess** (1:00), **Lunch Recess** (2:00 — 2× length), and **Afternoon Recess** (1:00).
 
-6. **Post-Goal Possession Rule**
+6. ~~**Post-Goal Possession Rule**~~ *(Done)*
    - After a goal is scored, the team that **gave up the goal** gets possession to restart play (instead of a neutral faceoff).

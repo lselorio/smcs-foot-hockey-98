@@ -62,10 +62,16 @@ export const SHOT = {
   hardLoft: 2.25,
 };
 
-// Match rules
+// Match rules: Three schoolyard recess periods (Lunch Recess is 2x length!)
+export const RECESS_PERIODS = [
+  { num: 1, name: 'MORNING RECESS', short: 'AM', seconds: 60 },
+  { num: 2, name: 'LUNCH RECESS', short: 'LUNCH', seconds: 120 },
+  { num: 3, name: 'AFTERNOON RECESS', short: 'PM', seconds: 60 },
+];
+
 export const MATCH = {
-  periods: 2,                // First half & second half of recess
-  periodSeconds: 90,         // 1:30 per recess half (fast arcade action)
+  periods: RECESS_PERIODS.length,
+  periodSeconds: RECESS_PERIODS[0].seconds,
 };
 
 // Classic 16-bit Genesis/SNES schoolyard palette

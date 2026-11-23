@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COURT, GOAL } from '../src/constants.js';
+import { COURT, GOAL, RECESS_PERIODS } from '../src/constants.js';
 import {
   catchBall,
   createBall,
@@ -10,6 +10,9 @@ import {
   stepBallPhysics,
 } from '../src/physics.js';
 import { FootHockeyGame } from '../src/game.js';
+import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams } from '../src/roster.js';
+import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
+import { ChiptuneChoirPlayer } from '../src/music-player.js';
 
 test('tennis ball bounces realistically on asphalt under gravity', () => {
   const ball = createBall(COURT.centerX, COURT.centerY, 16);
@@ -268,4 +271,155 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   game.update();
   game.onKeyUp('Escape');
   assert.equal(game.state, 'PLAYING');
+});
+
+test('Sicut Cervus 4-voice SATB score has valid register ordering and choir player toggles cleanly', () => {
+  assert.equal(SICUT_CERVUS_SCORE.tracks.length, 4, 'Expected 4 SATB vocal tracks');
+  assert.ok(SICUT_CERVUS_SCORE.duration > 100, 'Expected full motet duration > 100s');
+
+  const medians = {};
+  for (const tr of SICUT_CERVUS_SCORE.tracks) {
+    assert.ok(tr.notes.length > 50, `Expected >50 notes in ${tr.role}`);
+    const sorted = tr.notes.map((n) => n[2]).sort((a, b) => a - b);
+    medians[tr.role] = sorted[Math.floor(sorted.length / 2)];
+  }
+  // Verify true Palestrina vocal pitch hierarchy: Soprano > Alto > Tenor > Bass
+  assert.ok(medians.soprano > medians.alto, 'Soprano should sit above Alto');
+  assert.ok(medians.alto > medians.tenor, 'Alto should sit above Tenor');
+  assert.ok(medians.tenor > medians.bass, 'Tenor should sit above Bass');
+
+  const player = new ChiptuneChoirPlayer(SICUT_CERVUS_SCORE);
+  assert.equal(player.enabled, true);
+  assert.equal(player.toggleEnabled(), false);
+  assert.equal(player.toggleEnabled(), true);
+});
+
+test('three recess periods: Morning, double-length Lunch, and Afternoon', () => {
+  assert.equal(RECESS_PERIODS.length, 3);
+  assert.equal(RECESS_PERIODS[0].name, 'MORNING RECESS');
+  assert.equal(RECESS_PERIODS[1].name, 'LUNCH RECESS');
+  assert.equal(RECESS_PERIODS[2].name, 'AFTERNOON RECESS');
+  assert.equal(
+    RECESS_PERIODS[1].seconds,
+    RECESS_PERIODS[0].seconds * 2,
+    'Lunch recess must be twice as long as Morning recess'
+  );
+  assert.equal(
+    RECESS_PERIODS[1].seconds,
+    RECESS_PERIODS[2].seconds * 2,
+    'Lunch recess must be twice as long as Afternoon recess'
+  );
+
+  const game = new FootHockeyGame();
+  game.startNewMatch();
+  game.state = 'PLAYING';
+  assert.equal(game.period, 1);
+  assert.equal(game.clockFrames, RECESS_PERIODS[0].seconds * 60);
+
+  // End Period 1 -> transitions to Period 2 (Lunch Recess, 2x duration)
+  game.clockFrames = 1;
+  game.update();
+  assert.equal(game.state, 'PERIOD_END');
+  game.stateTimer = 0;
+  game.onKeyDown('Enter');
+  game.update();
+  game.onKeyUp('Enter');
+  assert.equal(game.period, 2);
+  assert.equal(game.clockFrames, RECESS_PERIODS[1].seconds * 60);
+
+  // End Period 2 -> transitions to Period 3 (Afternoon Recess)
+  game.state = 'PLAYING';
+  game.clockFrames = 1;
+  game.update();
+  assert.equal(game.state, 'PERIOD_END');
+  game.stateTimer = 0;
+  game.onKeyDown('Enter');
+  game.update();
+  game.onKeyUp('Enter');
+  assert.equal(game.period, 3);
+  assert.equal(game.clockFrames, RECESS_PERIODS[2].seconds * 60);
+
+  // End Period 3 -> GAME_OVER
+  game.state = 'PLAYING';
+  game.clockFrames = 1;
+  game.update();
+  assert.equal(game.state, 'GAME_OVER');
+});
+
+test('post-goal possession gives the ball to the team that conceded the goal', () => {
+  const game = new FootHockeyGame();
+  game.startNewMatch();
+  game.state = 'PLAYING';
+
+  // Home scores -> Away gave up the goal -> Away should restart with possession!
+  game.handleGoalScored('home', 'top');
+  game.stateTimer = 1;
+  game.update();
+  assert.equal(game.state, 'RESTART');
+  assert.equal(game.restartTeam, 'away');
+  assert.equal(game.ball.owner?.team, 'away');
+
+  // Away scores -> Home gave up the goal -> Home should restart with possession!
+  game.state = 'PLAYING';
+  game.handleGoalScored('away', 'bottom');
+  game.stateTimer = 1;
+  game.update();
+  assert.equal(game.state, 'RESTART');
+  assert.equal(game.restartTeam, 'home');
+  assert.equal(game.ball.owner?.team, 'home');
+});
+
+test('goalie clear throw is protected from immediate point-blank opponent interception', () => {
+  const game = new FootHockeyGame();
+  game.startNewMatch();
+  game.state = 'PLAYING';
+
+  const goalie = game.players.find((p) => p.id === 'h_g');
+  const receiver = game.players.find((p) => p.id === 'h_lw');
+  const opponent = game.players.find((p) => p.id === 'a_c');
+
+  // Place opponent directly in front of the home goalie trying to smother the clear
+  opponent.x = goalie.x;
+  opponent.y = goalie.y - 12;
+  receiver.x = 80;
+  receiver.y = 140;
+
+  catchBall(game.ball, goalie);
+  game.executeGoalieThrow(goalie, receiver, false);
+  assert.ok(game.ball.z >= 14, 'Goalie overhand clear should release above head height');
+  assert.ok(game.ball.throwGrace >= 12, 'Goalie clear should have launch grace protection');
+
+  // Step 6 frames — opponent right in front of crease must NOT steal/intercept the clear!
+  for (let i = 0; i < 6; i++) {
+    game.update();
+    assert.notEqual(
+      game.ball.owner?.team,
+      'away',
+      'Opposing skater should not instantly intercept goalie clear right out of the crease'
+    );
+  }
+});
+
+test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Colorful Jackets', () => {
+  const expectedNames = ['PAES', 'KWONG', 'MASANGKAY', 'STEVE', 'BLAIR', 'SEAN', 'DANIEL', 'ADAM', 'FIZZ', 'LOWELL'];
+  assert.deepEqual(
+    CLASSMATES.map((c) => c.name),
+    expectedNames,
+    'Master classmate roster should contain all 10 classmates'
+  );
+
+  const { homePlayers, awayPlayers } = draftRecessTeams();
+  assert.equal(homePlayers.length, 4);
+  assert.equal(awayPlayers.length, 4);
+
+  const allNames = [...homePlayers, ...awayPlayers].map((p) => p.name);
+  assert.equal(new Set(allNames).size, 8, 'All 8 drafted players in a match must be unique');
+
+  for (const p of homePlayers) {
+    assert.equal(p.wearsJacket, false, 'Home team wears maroon school uniform without jacket');
+  }
+  for (const p of awayPlayers) {
+    assert.equal(p.wearsJacket, true, 'Away team wears colorful jacket over the maroon uniform');
+    assert.ok(p.coatColor && p.coatColor !== UNIFORM_COLORS.maroon, 'Away jacket color must be distinct from maroon');
+  }
 });

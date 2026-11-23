@@ -1,5 +1,5 @@
-import { COURT, GOAL, MATCH, PHYSICS, SHOT, VIEW_H, WORLD_H } from './constants.js';
-import { TEAMS } from './roster.js';
+import { COURT, GOAL, MATCH, PHYSICS, RECESS_PERIODS, SHOT, VIEW_H, WORLD_H } from './constants.js';
+import { TEAMS, draftRecessTeams } from './roster.js';
 import { sound } from './audio.js';
 import {
   catchBall,
@@ -39,10 +39,11 @@ export class FootHockeyGame {
     this.goalLog = [];
 
     this.period = 1;
-    this.clockFrames = MATCH.periodSeconds * 60;
+    this.clockFrames = RECESS_PERIODS[0].seconds * 60;
     this.stateTimer = 0;
     this.lastScorer = null;
     this.lastGoalTeam = null;
+    this.restartTeam = null;
 
     this.cameraY = COURT.centerY - VIEW_H / 2;
     this.goalShake = { top: 0, bottom: 0 };
@@ -97,7 +98,12 @@ export class FootHockeyGame {
     return kids;
   }
 
-  initRoster() {
+  initRoster(redraft = false) {
+    if (redraft) {
+      const { homePlayers, awayPlayers } = draftRecessTeams();
+      TEAMS.home.players = homePlayers;
+      TEAMS.away.players = awayPlayers;
+    }
     this.players = [];
     for (const teamKey of ['home', 'away']) {
       const team = TEAMS[teamKey];
@@ -131,7 +137,13 @@ export class FootHockeyGame {
     this.controlledId = 'h_c';
   }
 
+  getCurrentPeriodInfo() {
+    return RECESS_PERIODS[this.period - 1] || RECESS_PERIODS[0];
+  }
+
   startNewMatch() {
+    // Draft a fresh collection of classmates & random jacket colors each recess game!
+    this.initRoster(true);
     this.score = { home: 0, away: 0 };
     this.stats = {
       home: createEmptyTeamStats(),
@@ -139,7 +151,8 @@ export class FootHockeyGame {
     };
     this.goalLog = [];
     this.period = 1;
-    this.clockFrames = MATCH.periodSeconds * 60;
+    this.clockFrames = this.getCurrentPeriodInfo().seconds * 60;
+    this.restartTeam = null;
     this.particles = [];
     this.callouts = [];
     this.startFaceoff();
@@ -148,8 +161,56 @@ export class FootHockeyGame {
 
   startFaceoff() {
     this.resetPositionsForFaceoff();
+    this.restartTeam = null;
     this.state = 'FACEOFF';
     this.stateTimer = 58;
+    sound.playFaceoffDrop();
+  }
+
+  // Post-goal possession rule: the team that gave up the goal gets clean possession to restart play!
+  startPostGoalRestart(concedingTeam) {
+    this.resetPositionsForFaceoff();
+    this.restartTeam = concedingTeam;
+
+    const homeHasBall = concedingTeam === 'home';
+    const spots = homeHasBall
+      ? {
+          h_c: [COURT.centerX, COURT.centerY + 6, 0, -1],
+          h_lw: [COURT.centerX - 64, COURT.centerY + 26, 0, -1],
+          h_rw: [COURT.centerX + 64, COURT.centerY + 26, 0, -1],
+          h_g: [COURT.centerX, GOAL.bottomLineY - 12, 0, -1],
+          a_c: [COURT.centerX, COURT.centerY - 54, 0, 1],
+          a_lw: [COURT.centerX - 66, COURT.centerY - 64, 0, 1],
+          a_rw: [COURT.centerX + 66, COURT.centerY - 64, 0, 1],
+          a_g: [COURT.centerX, GOAL.topLineY + 12, 0, 1],
+        }
+      : {
+          a_c: [COURT.centerX, COURT.centerY - 6, 0, 1],
+          a_lw: [COURT.centerX - 64, COURT.centerY - 26, 0, 1],
+          a_rw: [COURT.centerX + 64, COURT.centerY - 26, 0, 1],
+          a_g: [COURT.centerX, GOAL.topLineY + 12, 0, 1],
+          h_c: [COURT.centerX, COURT.centerY + 54, 0, -1],
+          h_lw: [COURT.centerX - 66, COURT.centerY + 64, 0, -1],
+          h_rw: [COURT.centerX + 66, COURT.centerY + 64, 0, -1],
+          h_g: [COURT.centerX, GOAL.bottomLineY - 12, 0, -1],
+        };
+
+    for (const p of this.players) {
+      const [x, y, fx, fy] = spots[p.id];
+      p.x = x;
+      p.y = y;
+      p.facingX = fx;
+      p.facingY = fy;
+    }
+
+    const starter = this.players.find((p) => p.id === (homeHasBall ? 'h_c' : 'a_c'));
+    this.controlledId = 'h_c';
+    this.ball = createBall(starter.x, starter.y + starter.facingY * PHYSICS.dribbleDist, 0);
+    this.ball.owner = starter;
+    this.ball.lastTouchTeam = concedingTeam;
+    this.ball.lastTouchPlayer = starter;
+    this.state = 'RESTART';
+    this.stateTimer = 40;
     sound.playFaceoffDrop();
   }
 
@@ -223,10 +284,14 @@ export class FootHockeyGame {
     if (code === 'KeyM') {
       const muted = sound.toggleMute();
       this.addCallout(COURT.centerX, this.cameraY + 40, muted ? 'AUDIO OFF' : 'AUDIO ON', '#ffe84d');
+    } else if (code === 'KeyN') {
+      const musicOn = sound.toggleMusic();
+      this.addCallout(COURT.centerX, this.cameraY + 40, musicOn ? 'MUSIC ON' : 'MUSIC OFF', '#9be8ff');
     } else if (code === 'KeyT') {
-      this.crtEnabled = !this.crtEnabled;
-      const overlay = document.getElementById('crt-overlay');
-      if (overlay) overlay.classList.toggle('active', this.crtEnabled);
+      this.toggleCrt();
+    } else {
+      // Unlock Web Audio cleanly on first user keypress so Sicut Cervus starts immediately!
+      sound.ensureContext();
     }
   }
 
@@ -384,6 +449,9 @@ export class FootHockeyGame {
     const input = this.readInput();
     this.justPressed.clear();
 
+    // Keep live 4-voice chiptune Sicut Cervus synced with match state & final-seconds rush!
+    sound.updateMusic(this.state, this.state === 'PLAYING' && this.clockFrames <= 15 * 60);
+
     if (this.state === 'PAUSED') {
       if (input.pausePressed) {
         this.state = this.prevState;
@@ -408,7 +476,10 @@ export class FootHockeyGame {
 
     if (
       input.pausePressed &&
-      (this.state === 'PLAYING' || this.state === 'FACEOFF' || this.state === 'GOAL_CELEBRATION')
+      (this.state === 'PLAYING' ||
+        this.state === 'FACEOFF' ||
+        this.state === 'RESTART' ||
+        this.state === 'GOAL_CELEBRATION')
     ) {
       this.prevState = this.state;
       this.state = 'PAUSED';
@@ -434,6 +505,18 @@ export class FootHockeyGame {
       return;
     }
 
+    if (this.state === 'RESTART') {
+      this.stateTimer--;
+      this.updateCamera();
+      const playerReady =
+        this.restartTeam === 'home' &&
+        (input.mx !== 0 || input.my !== 0 || input.passPressed || input.kickPressed);
+      if (this.stateTimer <= 0 || (this.stateTimer < 26 && playerReady)) {
+        this.state = 'PLAYING';
+      }
+      return;
+    }
+
     if (this.state === 'GOAL_CELEBRATION') {
       this.stateTimer--;
       // Scorer pumps fists / skates around celebrating!
@@ -443,16 +526,18 @@ export class FootHockeyGame {
       stepBallPhysics(this.ball, {});
       this.updateCamera();
       if (this.stateTimer <= 0) {
-        this.startFaceoff();
+        // Post-goal possession rule: team that gave up the goal restarts with the ball!
+        const concedingTeam = this.lastGoalTeam === 'home' ? 'away' : 'home';
+        this.startPostGoalRestart(concedingTeam);
       }
       return;
     }
 
     if (this.state === 'PERIOD_END') {
       this.stateTimer--;
-      if (this.stateTimer <= 0 && (input.startPressed || input.kickPressed || this.stateTimer < -90)) {
+      if (this.stateTimer <= 0 && (input.startPressed || input.kickPressed || input.passPressed || this.stateTimer < -90)) {
         this.period++;
-        this.clockFrames = MATCH.periodSeconds * 60;
+        this.clockFrames = this.getCurrentPeriodInfo().seconds * 60;
         this.startFaceoff();
         sound.playRecessBell();
       }
@@ -740,8 +825,9 @@ export class FootHockeyGame {
     if (input.catchPressed) {
       p.catchAnim = 12;
       const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
+      const isOppGoalieClear = ball.isThrow && ball.lastTouchTeam !== p.team && ball.throwGrace > 0;
       const catchRadius = ball.passTargetId === p.id ? PHYSICS.catchReach + 9 : PHYSICS.catchReach + 4;
-      if (!ball.owner && dist <= catchRadius && ball.z <= PHYSICS.catchMaxZ) {
+      if (!ball.owner && !isOppGoalieClear && dist <= catchRadius && ball.z <= PHYSICS.catchMaxZ) {
         catchBall(ball, p);
         this.stats.home.catches++;
         this.onCatchEffect(p);
@@ -900,6 +986,8 @@ export class FootHockeyGame {
       if (p.role === 'G') continue;
       if (p.stealCooldown > 10) continue;
       if (ball.pickupCooldown > 0 && ball.lastTouchPlayer?.id === p.id) continue;
+      // Protect goalie clears from instant opponent steals right as the throw leaves the crease!
+      if (ball.throwGrace > 0 && ball.lastTouchTeam !== p.team) continue;
 
       const isIntendedTarget = ball.passTargetId === p.id && ball.passTimer > 0;
       const maxZ = isIntendedTarget ? 12.5 : 7.5;

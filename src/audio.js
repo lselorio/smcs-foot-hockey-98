@@ -1,11 +1,15 @@
-// 16-bit Retro Web Audio Synthesizer (zero external assets required)
-// Synthesizes authentic Sega Genesis / SNES arcade sound effects + recess school bell.
+// 16-bit Retro Web Audio Synthesizer + Live 4-Voice Chiptune Choir Music Engine
+// Synthesizes Sega Genesis / SNES arcade SFX + Palestrina's Sicut Cervus in 16-bit chiptune!
+
+import { SICUT_CERVUS_SCORE } from './music/sicut-cervus.js';
+import { ChiptuneChoirPlayer } from './music-player.js';
 
 class SoundEngine {
   constructor() {
     this.ctx = null;
     this.muted = false;
     this.noiseBuffer = null;
+    this.music = new ChiptuneChoirPlayer(SICUT_CERVUS_SCORE);
   }
 
   ensureContext() {
@@ -34,7 +38,34 @@ class SoundEngine {
 
   toggleMute() {
     this.muted = !this.muted;
+    this.music.setMuted(this.muted);
     return this.muted;
+  }
+
+  toggleMusic() {
+    const enabled = this.music.toggleEnabled();
+    if (enabled) this.ensureContext();
+    return enabled;
+  }
+
+  updateMusic(state, isFinalSeconds = false) {
+    if (this.muted || !this.music.enabled) return;
+    if (!this.ctx || this.ctx.state !== 'running') return;
+
+    if (state === 'PAUSED') {
+      this.music.setMood({ tempoRate: 0.92, volume: 0.26 });
+    } else if (state === 'GOAL_CELEBRATION') {
+      this.music.setMood({ tempoRate: 1.0, volume: 0.22 });
+    } else if (state === 'TITLE' || state === 'GAME_OVER' || state === 'PERIOD_END') {
+      this.music.setMood({ tempoRate: 1.0, volume: 0.72 });
+    } else if (isFinalSeconds) {
+      // Classic 16-bit hurry-up tempo in the last 15 seconds before the recess bell!
+      this.music.setMood({ tempoRate: 1.34, volume: 0.76 });
+    } else {
+      this.music.setMood({ tempoRate: 1.18, volume: 0.68 });
+    }
+
+    this.music.tick(this.ctx);
   }
 
   tone(freqStart, freqEnd, duration, type = 'square', volume = 0.14, delay = 0) {

@@ -1,5 +1,6 @@
 import { FootHockeyGame } from './game.js';
 import { renderGame } from './renderer.js';
+import { sound } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -41,6 +42,11 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => {
   game.onKeyUp(e.code);
+});
+
+// Clicking the canvas also unlocks Web Audio cleanly so music begins right away
+canvas.addEventListener('pointerdown', () => {
+  sound.ensureContext();
 });
 
 // Fixed 60Hz simulation step so physics feel identically crisp on 60Hz/120Hz/144Hz monitors

@@ -1,4 +1,4 @@
-import { COURT, GOAL, HUD_H, PALETTE, PHYSICS, SCREEN_H, SCREEN_W, SHOT, VIEW_H, WORLD_H } from './constants.js';
+import { COURT, GOAL, HUD_H, PALETTE, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H, WORLD_H } from './constants.js';
 import { TEAMS } from './roster.js';
 import {
   drawGoalie,
@@ -140,7 +140,16 @@ export function renderGame(ctx, game) {
 
   // === STATE OVERLAYS ===
   if (game.state === 'FACEOFF') {
-    drawBanner(ctx, 'FACEOFF!', 'GET READY TO KICK!', '#ffe84d');
+    const pInfo = game.getCurrentPeriodInfo();
+    drawBanner(ctx, pInfo.name, 'FACEOFF - GET READY!', '#ffe84d');
+  } else if (game.state === 'RESTART') {
+    const isHomeBall = game.restartTeam === 'home';
+    drawBanner(
+      ctx,
+      isHomeBall ? 'YOUR BALL!' : `${TEAMS.away.short} BALL!`,
+      isHomeBall ? 'MOVE OR PASS TO RESTART' : `${TEAMS.away.name} RESTARTS PLAY`,
+      isHomeBall ? TEAMS.home.ringColor : TEAMS.away.ringColor
+    );
   } else if (game.state === 'GOAL_CELEBRATION') {
     const team = TEAMS[game.lastGoalTeam];
     const scorerLabel = game.lastScorer
@@ -148,7 +157,12 @@ export function renderGame(ctx, game) {
       : `${team.name} SCORES!`;
     drawBanner(ctx, 'GOAL!!', scorerLabel, team.ringColor);
   } else if (game.state === 'PERIOD_END') {
-    drawBanner(ctx, 'HALF-TIME BELL!', 'SWITCHING SIDES - PRESS ENTER', '#ffe84d');
+    const nextPeriod = RECESS_PERIODS[game.period];
+    const endTitle = game.period === 1 ? 'MORNING BELL!' : 'LUNCH BELL!';
+    const nextSub = nextPeriod
+      ? `NEXT: ${nextPeriod.name}${nextPeriod.num === 2 ? ' (2X!)' : ''}`
+      : 'PRESS ENTER TO CONTINUE';
+    drawBanner(ctx, endTitle, nextSub, '#ffe84d');
   } else if (game.state === 'PAUSED') {
     renderStatsModal(ctx, game, { isFinal: false });
   } else if (game.state === 'GAME_OVER') {
@@ -290,17 +304,17 @@ function renderHud(ctx, game) {
   drawPixelText(ctx, TEAMS.away.short, SCREEN_W - 56, 8, '#ffffff', 1, 'left');
   drawPixelText(ctx, String(game.score.away), SCREEN_W - 8, 8, '#ffe84d', 1, 'right');
 
-  // Center: RECESS HALF + CLOCK + ACTIVE PLAYER NAMEPLATE!
+  // Center: RECESS PERIOD + CLOCK + ACTIVE PLAYER NAMEPLATE!
   const secs = Math.max(0, Math.ceil(game.clockFrames / 60));
   const mm = Math.floor(secs / 60);
   const ss = String(secs % 60).padStart(2, '0');
-  const halfLabel = game.period === 1 ? '1ST' : '2ND';
+  const periodShort = game.getCurrentPeriodInfo().short;
 
   ctx.fillStyle = '#090d18';
-  ctx.fillRect(114, 2, 92, 18);
+  ctx.fillRect(108, 2, 104, 18);
   ctx.strokeStyle = '#3b4a73';
-  ctx.strokeRect(114.5, 2.5, 91, 17);
-  drawPixelText(ctx, `${halfLabel}  ${mm}:${ss}`, 160, 4, '#ffe84d', 1, 'center');
+  ctx.strokeRect(108.5, 2.5, 103, 17);
+  drawPixelText(ctx, `${periodShort} ${mm}:${ss}`, 160, 4, '#ffe84d', 1, 'center');
 
   // Show controlled player name & context prompt (goalie throw, skater hold, or slap-kick wind-up!)
   const ctrl = game.getControlledPlayer();
@@ -403,7 +417,7 @@ function renderTitleScreen(ctx, game) {
   drawPixelText(ctx, 'JACKET + GLOVE!', 224, 158, '#ffd84d', 1, 'center', null);
 
   // Matchup summary
-  drawPixelText(ctx, 'ROOM 12 (YOU)  VS  ROOM 14 (CPU)', SCREEN_W / 2, 180, '#f4f7ff', 1, 'center');
+  drawPixelText(ctx, `${TEAMS.home.name} (YOU)  VS  ${TEAMS.away.name} (CPU)`, SCREEN_W / 2, 180, '#f4f7ff', 1, 'center');
   if (game.gamepadName) {
     drawPixelText(ctx, 'PAD READY! B/X:SHOOT A:PASS Y/RB:CATCH', SCREEN_W / 2, 194, '#6ef0a4', 1, 'center');
   } else {
@@ -453,20 +467,20 @@ function renderStatsModal(ctx, game, { isFinal }) {
   const secs = Math.max(0, Math.ceil(game.clockFrames / 60));
   const mm = Math.floor(secs / 60);
   const ss = String(secs % 60).padStart(2, '0');
-  const halfLabel = game.period === 1 ? '1ST' : '2ND';
+  const periodName = game.getCurrentPeriodInfo().name;
 
   if (isFinal) {
     const verdict =
       game.score.home > game.score.away
-        ? 'ROOM 12 WINS RECESS!'
+        ? `${TEAMS.home.name} WIN RECESS!`
         : game.score.away > game.score.home
-        ? 'ROOM 14 TAKES RECESS!'
+        ? `${TEAMS.away.name} TAKE RECESS!`
         : 'RECESS TIE GAME!';
-    drawPixelText(ctx, 'BELL RANG! FINAL STATS', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
+    drawPixelText(ctx, 'FINAL BELL! STATS', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
     drawPixelText(ctx, verdict, SCREEN_W / 2, y + 19, '#48b8ff', 1, 'center');
   } else {
     drawPixelText(ctx, 'PAUSED - STATS TO DATE', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
-    drawPixelText(ctx, `${halfLabel} HALF  ${mm}:${ss} LEFT`, SCREEN_W / 2, y + 19, '#9be8ff', 1, 'center');
+    drawPixelText(ctx, `${periodName}  ${mm}:${ss} LEFT`, SCREEN_W / 2, y + 19, '#9be8ff', 1, 'center');
   }
 
   // Team banners & current score

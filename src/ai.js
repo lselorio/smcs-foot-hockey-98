@@ -275,9 +275,35 @@ export function updateSkaterAI(p, game) {
   const distToBall = Math.hypot(ball.x - p.x, ball.y - p.y);
   const isClosestMate = game.findNearestPlayer(ball.x, ball.y, p.team, true)?.id === p.id;
 
+  // Respect the opposing goalie's crease while they hold the ball — back off & cover passing lanes!
+  if (ball.owner && ball.owner.role === 'G' && ball.owner.team !== p.team) {
+    const goalie = ball.owner;
+    const laneX =
+      p.role === 'LW'
+        ? COURT.left + 58
+        : p.role === 'RW'
+        ? COURT.right - 58
+        : COURT.centerX;
+    // Stay outside ~56px from the opposing goalie so clears aren't smothered at point-blank range
+    const safeY = goalie.team === 'home' ? Math.min(goalie.y - 60, COURT.centerY + 46) : Math.max(goalie.y + 60, COURT.centerY - 46);
+    steerToward(p, laneX, safeY, 0.82);
+    return;
+  }
+
   // Opportunity to CATCH a bouncing/airborne tennis ball!
-  if (!ball.owner && ball.z > 4 && ball.z < PHYSICS.catchMaxZ && distToBall < 14 && p.aiDecisionCooldown <= 0) {
-    if (Math.random() < p.stats.hands * 0.16) {
+  // Opponents cannot insta-snag a goalie's throw during launch grace or while it's soaring high overhead.
+  const isOppThrow = ball.isThrow && ball.lastTouchTeam !== p.team;
+  const blockedByGrace = isOppThrow && (ball.throwGrace > 0 || ball.vz > 0 || ball.z > 14);
+  if (
+    !ball.owner &&
+    !blockedByGrace &&
+    ball.z > 4 &&
+    ball.z < PHYSICS.catchMaxZ &&
+    distToBall < 14 &&
+    p.aiDecisionCooldown <= 0
+  ) {
+    const catchProb = isOppThrow ? p.stats.hands * 0.05 : p.stats.hands * 0.16;
+    if (Math.random() < catchProb) {
       catchBall(ball, p);
       p.aiDecisionCooldown = 45;
       game.stats[p.team].catches++;
