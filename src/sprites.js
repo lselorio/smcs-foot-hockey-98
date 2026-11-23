@@ -50,6 +50,9 @@ const FONT_5X7 = {
   '(': ['00010', '00100', '01000', '01000', '01000', '00100', '00010'],
   ')': ['01000', '00100', '00010', '00010', '00010', '00100', '01000'],
   ',': ['00000', '00000', '00000', '00000', '00100', '00100', '01000'],
+  '>': ['10000', '01000', '00100', '00010', '00100', '01000', '10000'],
+  '<': ['00001', '00010', '00100', '01000', '00100', '00010', '00001'],
+  '^': ['00100', '01010', '10001', '00000', '00000', '00000', '00000'],
   ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
 };
 
@@ -451,7 +454,7 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
   const diveX = g.diveTimer > 0 ? Math.round(g.diveDir * 5) : 0;
   const jacketFlare = g.jacketTimer > 0 ? 4 : Math.round(Math.sin(tick * 0.16) * 1);
   const gloveReach = g.gloveTimer > 0 ? 5 : 0;
-  const facingDown = g.team === 'away'; // Top goalie faces down; bottom goalie faces up
+  const facingDown = g.facingY >= -0.25; // Show eyes & tie when facing down or left/right into court
   const isDress = uniformMode === 'dress';
 
   // Wide goalie shadow

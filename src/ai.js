@@ -1,4 +1,4 @@
-import { COURT, GOAL, PHYSICS } from './constants.js';
+import { PHYSICS } from './constants.js';
 import { catchBall, dropHeldBall, launchBall, launchThrow } from './physics.js';
 
 function steerToward(p, tx, ty, speedScale = 1) {
@@ -20,18 +20,23 @@ function steerToward(p, tx, ty, speedScale = 1) {
   p.facingY = ny;
 }
 
-// Goalie AI + Save Detection (Baseball Glove Catch vs. Jacket Shield Block!)
+// Goalie AI + Save Detection — supports ANY wall orientation (top yellow-brick rectangle, right square cage, etc.)!
 export function updateGoalie(g, game) {
   const { ball } = game;
-  const isTop = g.team === 'away';
-  const goalLineY = isTop ? GOAL.topLineY : GOAL.bottomLineY;
-  const homeCreaseY = isTop ? goalLineY + 11 : goalLineY - 11;
-  g.facingX = 0;
-  g.facingY = isTop ? 1 : -1;
+  const net = game.getDefendNet(g.team);
+  const isVerticalWall = net.wall === 'left' || net.wall === 'right';
+  const nx = net.normalX;
+  const ny = net.normalY;
+  // Tangent unit vector along the goal mouth
+  const tx = -ny;
+  const ty = nx;
+
+  g.facingX = nx;
+  g.facingY = ny;
 
   // If goalie caught the tennis ball in their baseball glove:
-  // - Home goalie is controlled by the player to aim & THROW across the yard! (Auto-throws only at timeout.)
-  // - Away CPU goalie scans teammates and launches an overhand throw (outlet OR full-field bomb!).
+  // - Home goalie is controlled by the player to aim & THROW across the yard!
+  // - Away CPU goalie scans teammates and launches an overhand throw!
   if (g.holdingBall && ball.owner === g) {
     g.holdFrames++;
     g.vx *= 0.7;
@@ -45,14 +50,19 @@ export function updateGoalie(g, game) {
     }
 
     if (g.holdFrames >= 38) {
+      const attackNet = game.getAttackNet(g.team);
       const mates = game.players.filter((p) => p.team === g.team && p.role !== 'G');
-      // Sort furthest downfield first so CPU goalie can throw full-field passes too!
-      mates.sort((a, b) => (isTop ? b.y - a.y : a.y - b.y));
+      // Sort closest to opponent's net first for deep full-court throws!
+      mates.sort(
+        (a, b) =>
+          Math.hypot(a.x - attackNet.centerX, a.y - attackNet.centerY) -
+          Math.hypot(b.x - attackNet.centerX, b.y - attackNet.centerY)
+      );
       const pickDeep = Math.random() < 0.55;
       const target = pickDeep ? mates[0] : mates[mates.length - 1];
-      const tx = target ? target.x + target.vx * 12 : COURT.centerX + (Math.random() - 0.5) * 90;
-      const ty = target ? target.y + target.vy * 12 : (isTop ? COURT.centerY + 80 : COURT.centerY - 80);
-      const info = launchThrow(ball, g, tx, ty, {
+      const aimX = target ? target.x + target.vx * 12 : game.court.bounds.centerX;
+      const aimY = target ? target.y + target.vy * 12 : game.court.bounds.centerY;
+      const info = launchThrow(ball, g, aimX, aimY, {
         passTargetId: target?.id ?? null,
         isBomb: pickDeep,
       });
@@ -62,29 +72,39 @@ export function updateGoalie(g, game) {
     return;
   }
 
-  // Track the ball along the goal mouth, cutting down the angle like an NHL '94 tender
-  const clampLeft = GOAL.leftX + 9;
-  const clampRight = GOAL.rightX - 9;
-  let targetX = Math.max(clampLeft, Math.min(clampRight, ball.x));
-  // Predict shot trajectory slightly when ball is flying toward the net
-  const movingTowardGoal = isTop ? ball.vy < -1.1 : ball.vy > 1.1;
-  if (!ball.owner && movingTowardGoal) {
-    const framesToLine = Math.abs((homeCreaseY - ball.y) / (ball.vy || 0.01));
+  // Track the ball along the goal mouth (horizontally for top/bottom walls, vertically for right/left walls!)
+  const clampMin = net.minCoord + 8;
+  const clampMax = net.maxCoord - 8;
+  const baseDepth = 13;
+
+  // Velocity toward the goal line (dot product with -normal)
+  const velTowardGoal = -(ball.vx * nx + ball.vy * ny);
+  const movingTowardGoal = !ball.owner && velTowardGoal > 1.0;
+
+  let trackCoord = isVerticalWall ? ball.y : ball.x;
+  if (movingTowardGoal) {
+    const distFromCrease = Math.abs((ball.x - (net.centerX + nx * baseDepth)) * nx + (ball.y - (net.centerY + ny * baseDepth)) * ny);
+    const framesToLine = distFromCrease / (velTowardGoal || 0.01);
     if (framesToLine < 26) {
       const predX = ball.x + ball.vx * framesToLine * 0.78;
-      targetX = Math.max(clampLeft - 4, Math.min(clampRight + 4, predX));
+      const predY = ball.y + ball.vy * framesToLine * 0.78;
+      trackCoord = isVerticalWall ? predY : predX;
     }
   }
+  const clampedCoord = Math.max(clampMin, Math.min(clampMax, trackCoord));
 
-  const distToNet = Math.abs(ball.y - goalLineY);
-  const stepOut = distToNet < 120 ? (isTop ? 4 : -4) : 0;
-  const targetY = homeCreaseY + stepOut;
+  const distToNet = Math.hypot(ball.x - net.centerX, ball.y - net.centerY);
+  const stepOut = distToNet < 140 ? 4 : 0;
+  const depth = baseDepth + stepOut;
+
+  const targetX = isVerticalWall ? net.lineCoord + nx * depth : clampedCoord;
+  const targetY = isVerticalWall ? clampedCoord : net.lineCoord + ny * depth;
 
   const dx = targetX - g.x;
   const dy = targetY - g.y;
-  const maxSpd = g.stats.speed * (movingTowardGoal ? 1.12 : 0.85);
-  g.vx = Math.max(-maxSpd, Math.min(maxSpd, dx * 0.22));
-  g.vy = Math.max(-maxSpd, Math.min(maxSpd, dy * 0.22));
+  const maxSpd = g.stats.speed * (movingTowardGoal ? 1.14 : 0.88);
+  g.vx = Math.max(-maxSpd, Math.min(maxSpd, dx * 0.24));
+  g.vy = Math.max(-maxSpd, Math.min(maxSpd, dy * 0.24));
   g.x += g.vx;
   g.y += g.vy;
 
@@ -93,15 +113,17 @@ export function updateGoalie(g, game) {
 
   const relX = ball.x - g.x;
   const relY = ball.y - g.y;
+  // Project relative ball position into goalie's local (along-mouth tangent, out-of-net normal) coordinates!
+  const alongMouth = relX * tx + relY * ty;
+  const outFromNet = relX * nx + relY * ny;
   const ballSpeed = Math.hypot(ball.vx, ball.vy);
 
-  // Reach zone covers jacket on left (-17..0) and baseball glove on right (0..+16)
-  const inY = Math.abs(relY) < 11;
-  const inX = relX > -17 && relX < 17;
-  if (!inY || !inX || ball.z > GOAL.height + 2) return;
+  const inDepth = Math.abs(outFromNet) < 11.5;
+  const inReach = Math.abs(alongMouth) < 17;
+  if (!inDepth || !inReach || ball.z > net.maxZ + 2) return;
 
   // Hard Shots (slap-kicks) & wicked corners are tougher for the goalie to stop!
-  const edgeDistance = Math.abs(relX);
+  const edgeDistance = Math.abs(alongMouth);
   const isHardShot = ball.shotPower >= 6.4 || ballSpeed >= 6.2;
   let saveChance = g.stats.reflex * 0.94;
   if (isHardShot && edgeDistance > 9) {
@@ -113,34 +135,30 @@ export function updateGoalie(g, game) {
   }
 
   if (Math.random() > saveChance) {
-    // Goalie dives heroically but misses!
-    g.diveDir = relX >= 0 ? 1 : -1;
+    g.diveDir = alongMouth >= 0 ? 1 : -1;
     g.diveTimer = 14;
     return;
   }
 
-  // Decide Baseball Glove Catch vs. Jacket Block based on side, ball height, or slow crease scoop!
   const isSlowCreaseScoop = ballSpeed < 2.4 && Math.hypot(relX, relY) < 13;
-  const isGloveSide = isSlowCreaseScoop || relX >= 0 || ball.z >= 7;
+  const isGloveSide = isSlowCreaseScoop || alongMouth >= 0 || ball.z >= 7;
   if (isGloveSide) {
-    // BASEBALL GLOVE SNATCH!
     catchBall(ball, g);
     g.gloveTimer = 22;
     g.diveDir = 1;
     g.diveTimer = 10;
     game.onGoalieSave(g, 'glove');
-    // Hand control to the player immediately so they can aim & throw the tennis ball across the yard!
     if (g.team === 'home') {
       game.controlledId = g.id;
     }
   } else {
-    // JACKET SHIELD BLOCK! Swings puffy coat out to deaden the shot into a rebound
     g.jacketTimer = 20;
     g.diveDir = -1;
     g.diveTimer = 10;
-    const clearDirY = isTop ? 1 : -1;
-    ball.vx = (relX * 0.14) + (Math.random() - 0.5) * 1.4;
-    ball.vy = clearDirY * Math.max(1.6, Math.min(2.8, ballSpeed * 0.42));
+    const rebSpeed = Math.max(1.7, Math.min(3.0, ballSpeed * 0.44));
+    const spread = (alongMouth * 0.14) + (Math.random() - 0.5) * 1.4;
+    ball.vx = nx * rebSpeed + tx * spread;
+    ball.vy = ny * rebSpeed + ty * spread;
     ball.vz = 1.6 + Math.random() * 0.8;
     ball.pickupCooldown = 10;
     ball.lastTouchTeam = g.team;
@@ -149,32 +167,43 @@ export function updateGoalie(g, game) {
   }
 }
 
-// Skater AI (Both Home AI teammates and Away CPU opponents!)
+// Skater AI — fully general for 90-degree / diagonal asymmetrical courts like 66 Bond!
 export function updateSkaterAI(p, game) {
-  const { ball } = game;
-  const isHome = p.team === 'home';
-  const attackGoalY = isHome ? GOAL.topLineY : GOAL.bottomLineY;
-  const defendGoalY = isHome ? GOAL.bottomLineY : GOAL.topLineY;
-  const attackDir = isHome ? -1 : 1;
+  const { ball, court } = game;
+  const bounds = court.bounds;
+  const attackNet = game.getAttackNet(p.team);
+  const defendNet = game.getDefendNet(p.team);
+
+  // Unit attack axis from defendNet -> attackNet + perpendicular wing axis
+  const axRaw = attackNet.centerX - defendNet.centerX;
+  const ayRaw = attackNet.centerY - defendNet.centerY;
+  const aMag = Math.hypot(axRaw, ayRaw) || 1;
+  const ax = axRaw / aMag;
+  const ay = ayRaw / aMag;
+  const wx = -ay; // Perpendicular left/right wing axis
+  const wy = ax;
+
+  const clampX = (v) => Math.max(bounds.left + 22, Math.min(bounds.right - 22, v));
+  const clampY = (v) => Math.max(bounds.top + 22, Math.min(bounds.bottom - 22, v));
 
   // === CASE 1: THIS AI SKATER IS HOLDING A CAUGHT BALL ===
   if (p.holdingBall && ball.owner === p) {
     p.holdFrames++;
-    // Aim toward goal or open teammate, then drop-kick or drop to feet!
-    const distToGoal = Math.hypot(COURT.centerX - p.x, attackGoalY - p.y);
-    p.facingX = (COURT.centerX - p.x) / (distToGoal || 1);
-    p.facingY = (attackGoalY - p.y) / (distToGoal || 1);
+    const distToGoal = Math.hypot(attackNet.centerX - p.x, attackNet.centerY - p.y);
+    p.facingX = (attackNet.centerX - p.x) / (distToGoal || 1);
+    p.facingY = (attackNet.centerY - p.y) / (distToGoal || 1);
 
     if (p.holdFrames > 22) {
-      if (distToGoal < 165) {
-        // Drop-kick volley at the net!
-        const aimX = COURT.centerX + (Math.random() - 0.5) * 48 - p.x;
-        const aimY = attackGoalY - p.y;
-        launchBall(ball, p, aimX, aimY, p.stats.kick * 1.04, 2.9, { startZ: 5 });
+      if (distToGoal < 175) {
+        // Drop-kick volley at the net (aim slightly higher on tall square cage, lower on top rectangle!)
+        const spread = (Math.random() - 0.5) * (attackNet.span * 0.65);
+        const aimX = attackNet.centerX + (-attackNet.normalY) * spread - p.x;
+        const aimY = attackNet.centerY + attackNet.normalX * spread - p.y;
+        const loft = attackNet.maxZ > 22 ? 3.2 : 2.1;
+        launchBall(ball, p, aimX, aimY, p.stats.kick * 1.04, loft, { startZ: 5 });
         game.stats[p.team].shots++;
         game.onKickEffect(p.x, p.y, 'DROP-KICK!', '#d9ff2e', true);
       } else {
-        // Drop to feet to dribble forward!
         dropHeldBall(ball, p);
         game.onDropEffect(p);
       }
@@ -184,16 +213,16 @@ export function updateSkaterAI(p, game) {
 
   // === CASE 2: THIS AI SKATER HAS THE BALL AT THEIR FEET ===
   if (ball.owner === p) {
-    const goalDx = COURT.centerX - p.x;
-    const goalDy = attackGoalY - p.y;
+    const goalDx = attackNet.centerX - p.x;
+    const goalDy = attackNet.centerY - p.y;
     const distToGoal = Math.hypot(goalDx, goalDy);
 
     // Shoot if in prime schoolyard range!
-    if (distToGoal < 128 && p.aiDecisionCooldown <= 0) {
-      const cornerOffset = (Math.random() > 0.5 ? 1 : -1) * (16 + Math.random() * 14);
-      const aimX = COURT.centerX + cornerOffset - p.x;
-      const aimY = attackGoalY - p.y;
-      const loft = Math.random() > 0.45 ? 2.4 : 1.1;
+    if (distToGoal < 142 && p.aiDecisionCooldown <= 0) {
+      const cornerOffset = (Math.random() > 0.5 ? 1 : -1) * (attackNet.span * 0.28 + Math.random() * 6);
+      const aimX = attackNet.centerX + (-attackNet.normalY) * cornerOffset - p.x;
+      const aimY = attackNet.centerY + attackNet.normalX * cornerOffset - p.y;
+      const loft = attackNet.maxZ > 22 ? (Math.random() > 0.35 ? 2.7 : 1.4) : (Math.random() > 0.55 ? 1.8 : 0.9);
       launchBall(ball, p, aimX, aimY, p.stats.kick * (0.94 + Math.random() * 0.14), loft);
       p.aiDecisionCooldown = 35;
       game.stats[p.team].shots++;
@@ -201,19 +230,20 @@ export function updateSkaterAI(p, game) {
       return;
     }
 
-    // Look for an open pass up-court if pressured
-    const nearestOpp = game.findNearestPlayer(p.x, p.y, isHome ? 'away' : 'home', true);
-    const pressured = nearestOpp && Math.hypot(nearestOpp.x - p.x, nearestOpp.y - p.y) < 26;
+    // Look for an open pass closer to the attack net if pressured
+    const oppTeam = p.team === 'home' ? 'away' : 'home';
+    const nearestOpp = game.findNearestPlayer(p.x, p.y, oppTeam, true);
+    const pressured = nearestOpp && Math.hypot(nearestOpp.x - p.x, nearestOpp.y - p.y) < 28;
     if (pressured && p.aiDecisionCooldown <= 0 && Math.random() < 0.08) {
       const openMate = game.players.find(
         (m) =>
           m.team === p.team &&
           m.id !== p.id &&
           m.role !== 'G' &&
-          (isHome ? m.y < p.y - 10 : m.y > p.y + 10)
+          Math.hypot(m.x - attackNet.centerX, m.y - attackNet.centerY) < distToGoal + 18
       );
       if (openMate) {
-        launchBall(ball, p, openMate.x - p.x, openMate.y - p.y, 4.2, 0.9, {
+        launchBall(ball, p, openMate.x - p.x, openMate.y - p.y, 4.4, 0.9, {
           passTargetId: openMate.id,
         });
         p.aiDecisionCooldown = 35;
@@ -223,11 +253,14 @@ export function updateSkaterAI(p, game) {
       }
     }
 
-    // Drive toward the net while weaving slightly away from defender
-    let tx = COURT.centerX + (p.role === 'LW' ? -28 : p.role === 'RW' ? 28 : 0);
-    let ty = attackGoalY - attackDir * 58;
+    // Drive toward the shooting slot in front of attackNet
+    const slotX = attackNet.centerX + attackNet.normalX * 72 + (p.role === 'LW' ? -24 * wx : p.role === 'RW' ? 24 * wx : 0);
+    const slotY = attackNet.centerY + attackNet.normalY * 72 + (p.role === 'LW' ? -24 * wy : p.role === 'RW' ? 24 * wy : 0);
+    let tx = clampX(slotX);
+    let ty = clampY(slotY);
     if (nearestOpp && Math.hypot(nearestOpp.x - p.x, nearestOpp.y - p.y) < 34) {
-      tx += p.x > nearestOpp.x ? 26 : -26;
+      tx = clampX(tx + (p.x > nearestOpp.x ? 24 : -24));
+      ty = clampY(ty + (p.y > nearestOpp.y ? 24 : -24));
     }
     steerToward(p, tx, ty, 0.92);
     return;
@@ -235,39 +268,28 @@ export function updateSkaterAI(p, game) {
 
   // === CASE 3: TEAMMATE HAS THE BALL -> GET OPEN FOR PASS / ONE-TIMER / FULL-FIELD THROW! ===
   if (ball.owner && ball.owner.team === p.team) {
-    // If our GOALIE has the ball, spread out across the whole schoolyard so they can throw short, mid, OR full-field!
     if (ball.owner.role === 'G') {
-      let tx = COURT.centerX;
-      let ty = COURT.centerY;
+      // Spread out across the yard toward attackNet for short, mid, and full-field goalie throws!
+      let tx = bounds.centerX;
+      let ty = bounds.centerY;
       if (p.role === 'LW') {
-        // Streak DEEP across half-court for a full-field goalie throw!
-        tx = COURT.left + 44;
-        ty = isHome ? COURT.top + 64 : COURT.bottom - 64;
+        tx = clampX(attackNet.centerX + attackNet.normalX * 74 - wx * 48);
+        ty = clampY(attackNet.centerY + attackNet.normalY * 74 - wy * 48);
       } else if (p.role === 'RW') {
-        // Mid-deep right wing outlet!
-        tx = COURT.right - 44;
-        ty = isHome ? COURT.centerY - 36 : COURT.centerY + 36;
+        tx = clampX(bounds.centerX + wx * 70 + ax * 28);
+        ty = clampY(bounds.centerY + wy * 70 + ay * 28);
       } else {
-        // Center safe outlet near own blue line
-        tx = COURT.centerX;
-        ty = isHome ? COURT.centerY + 52 : COURT.centerY - 52;
+        tx = clampX(defendNet.centerX + defendNet.normalX * 92 + wx * 18);
+        ty = clampY(defendNet.centerY + defendNet.normalY * 92 + wy * 18);
       }
       steerToward(p, tx, ty, 0.98);
       return;
     }
 
-    const laneX =
-      p.role === 'LW'
-        ? COURT.left + 44
-        : p.role === 'RW'
-        ? COURT.right - 44
-        : COURT.centerX;
-    // Push ahead into the slot for juicy NHL '94 cross-crease one-timers!
-    const idealY = Math.max(
-      COURT.top + 46,
-      Math.min(COURT.bottom - 46, ball.owner.y + attackDir * 58)
-    );
-    steerToward(p, laneX, idealY, 0.9);
+    const wingOffset = p.role === 'LW' ? -58 : p.role === 'RW' ? 58 : 0;
+    const idealX = clampX(ball.owner.x + ax * 68 + wx * wingOffset);
+    const idealY = clampY(ball.owner.y + ay * 68 + wy * wingOffset);
+    steerToward(p, idealX, idealY, 0.9);
     return;
   }
 
@@ -277,21 +299,15 @@ export function updateSkaterAI(p, game) {
 
   // Respect the opposing goalie's crease while they hold the ball — back off & cover passing lanes!
   if (ball.owner && ball.owner.role === 'G' && ball.owner.team !== p.team) {
-    const goalie = ball.owner;
-    const laneX =
-      p.role === 'LW'
-        ? COURT.left + 58
-        : p.role === 'RW'
-        ? COURT.right - 58
-        : COURT.centerX;
-    // Stay outside ~56px from the opposing goalie so clears aren't smothered at point-blank range
-    const safeY = goalie.team === 'home' ? Math.min(goalie.y - 60, COURT.centerY + 46) : Math.max(goalie.y + 60, COURT.centerY - 46);
-    steerToward(p, laneX, safeY, 0.82);
+    const oppNet = game.getDefendNet(ball.owner.team);
+    const wingShift = p.role === 'LW' ? -64 : p.role === 'RW' ? 64 : 0;
+    const safeX = clampX(oppNet.centerX + oppNet.normalX * 86 + (-oppNet.normalY) * wingShift);
+    const safeY = clampY(oppNet.centerY + oppNet.normalY * 86 + oppNet.normalX * wingShift);
+    steerToward(p, safeX, safeY, 0.84);
     return;
   }
 
   // Opportunity to CATCH a bouncing/airborne tennis ball!
-  // Opponents cannot insta-snag a goalie's throw during launch grace or while it's soaring high overhead.
   const isOppThrow = ball.isThrow && ball.lastTouchTeam !== p.team;
   const blockedByGrace = isOppThrow && (ball.throwGrace > 0 || ball.vz > 0 || ball.z > 14);
   if (
@@ -313,10 +329,8 @@ export function updateSkaterAI(p, game) {
   }
 
   if (isClosestMate) {
-    // Forecheck / chase the tennis ball!
     steerToward(p, ball.x, ball.y, 0.96);
 
-    // Attempt poke-steal if opponent is dribbling right in front
     if (
       ball.owner &&
       ball.owner.team !== p.team &&
@@ -329,14 +343,10 @@ export function updateSkaterAI(p, game) {
       }
     }
   } else {
-    // Support / defensive shape between ball and own goal
-    const laneX =
-      p.role === 'LW'
-        ? COURT.left + 56
-        : p.role === 'RW'
-        ? COURT.right - 56
-        : COURT.centerX;
-    const supportY = (ball.y * 0.55 + defendGoalY * 0.45);
-    steerToward(p, (laneX + ball.x) * 0.5, supportY, 0.82);
+    // Support / defensive shape between ball and own net
+    const wingShift = p.role === 'LW' ? -48 : p.role === 'RW' ? 48 : 0;
+    const supportX = clampX(ball.x * 0.55 + defendNet.centerX * 0.45 + wx * wingShift * 0.6);
+    const supportY = clampY(ball.y * 0.55 + defendNet.centerY * 0.45 + wy * wingShift * 0.6);
+    steerToward(p, supportX, supportY, 0.84);
   }
 }

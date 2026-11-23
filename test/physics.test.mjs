@@ -346,27 +346,32 @@ test('three recess periods: Morning, double-length Lunch, and Afternoon', () => 
   assert.equal(game.state, 'GAME_OVER');
 });
 
-test('post-goal possession gives the ball to the team that conceded the goal', () => {
+test('post-goal possession gives the ball to the conceding team goalie in their crease', () => {
   const game = new FootHockeyGame();
   game.startNewMatch();
   game.state = 'PLAYING';
 
-  // Home scores -> Away gave up the goal -> Away should restart with possession!
-  game.handleGoalScored('home', 'top');
+  // Home scores -> Away gave up the goal -> Away GOALIE restarts with ball in their crease!
+  game.handleGoalScored('home', 'top_yellow');
   game.stateTimer = 1;
   game.update();
   assert.equal(game.state, 'RESTART');
   assert.equal(game.restartTeam, 'away');
   assert.equal(game.ball.owner?.team, 'away');
+  assert.equal(game.ball.owner?.role, 'G', 'Conceding goalie should have post-goal possession');
+  assert.equal(game.ball.owner?.holdingBall, true);
 
-  // Away scores -> Home gave up the goal -> Home should restart with possession!
+  // Away scores -> Home gave up the goal -> Home GOALIE restarts with possession & player control!
   game.state = 'PLAYING';
-  game.handleGoalScored('away', 'bottom');
+  game.handleGoalScored('away', 'right_cage');
   game.stateTimer = 1;
   game.update();
   assert.equal(game.state, 'RESTART');
   assert.equal(game.restartTeam, 'home');
   assert.equal(game.ball.owner?.team, 'home');
+  assert.equal(game.ball.owner?.role, 'G', 'Home goalie should have post-goal possession');
+  assert.equal(game.ball.owner?.holdingBall, true);
+  assert.equal(game.controlledId, 'h_g', 'Control should switch to Home goalie to throw out');
 });
 
 test('goalie clear throw is protected from immediate point-blank opponent interception', () => {
@@ -453,4 +458,48 @@ test('boot intro spins SMCS crest then automatically transitions to TITLE (or sk
   gameSkip.update();
   gameSkip.onKeyUp('Enter');
   assert.equal(gameSkip.state, 'TITLE');
+});
+
+test('66 Bond court has larger blacktop, asymmetrical 90-degree nets, and swaps nets between recesses', () => {
+  const game = new FootHockeyGame();
+  game.startNewMatch();
+  game.state = 'PLAYING';
+
+  assert.equal(game.court.name, '66 BOND');
+  assert.ok(game.court.worldW > 320, '66 Bond should be wider than the original 320px court');
+  assert.equal(game.court.topWindows.length, 5, 'Top black brick wall should have 5 equally spaced windows');
+
+  const topNet = game.court.nets[0];
+  const rightNet = game.court.nets[1];
+  assert.equal(topNet.wall, 'top');
+  assert.equal(rightNet.wall, 'right');
+  assert.ok(topNet.centerX > game.court.bounds.centerX, 'Top yellow-brick net should be right of center (2nd gap from right)');
+  assert.ok(rightNet.centerY > game.court.bounds.centerY, 'Right square cage net should be lower-middle');
+  assert.ok(rightNet.span < topNet.span, 'Right square cage should be slightly thinner than top rectangle');
+  assert.ok(rightNet.maxZ > topNet.maxZ, 'Right square cage should be taller than top rectangle');
+
+  // Period 1 (Morning): Home attacks Top Yellow Bricks, defends Right Square Cage
+  assert.equal(game.getAttackNet('home').id, 'top_yellow');
+  assert.equal(game.getDefendNet('home').id, 'right_cage');
+
+  // High shot at z=23 misses over top rectangle (maxZ=18) but SCORES on taller right square cage (maxZ=28)!
+  const highTopBall = createBall(topNet.centerX, topNet.lineCoord + 8, 23);
+  highTopBall.vy = -6;
+  const topHighEvent = stepBallPhysics(highTopBall, {}, game.court, game.getTeamNetMap());
+  assert.equal(topHighEvent, null, 'Shot above top rectangle height (z=23 > 18) should not score');
+
+  const lowTopBall = createBall(topNet.centerX, topNet.lineCoord + 8, 10);
+  lowTopBall.vy = -6;
+  const topLowEvent = stepBallPhysics(lowTopBall, {}, game.court, game.getTeamNetMap());
+  assert.equal(topLowEvent?.scoredBy, 'home', 'Low shot into yellow-brick gap should score for home');
+
+  const highRightBall = createBall(rightNet.lineCoord - 8, rightNet.centerY, 23);
+  highRightBall.vx = 6;
+  const rightHighEvent = stepBallPhysics(highRightBall, {}, game.court, game.getTeamNetMap());
+  assert.equal(rightHighEvent?.scoredBy, 'away', 'Taller right square cage (maxZ=28) should allow z=23 goal');
+
+  // Period 2 (Lunch): Teams swap nets!
+  game.period = 2;
+  assert.equal(game.getAttackNet('home').id, 'right_cage', 'Teams should swap nets for Lunch Recess');
+  assert.equal(game.getDefendNet('home').id, 'top_yellow');
 });

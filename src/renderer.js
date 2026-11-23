@@ -1,10 +1,10 @@
-import { COURT, GOAL, HUD_H, PALETTE, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H, WORLD_H } from './constants.js';
+import { HUD_H, PALETTE, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
+import { DEFAULT_COURT } from './courts.js';
 import { TEAMS } from './roster.js';
 import {
   drawGoalie,
   drawPassTargetMarker,
   drawPixelText,
-  drawRecessGoal,
   drawSkater,
   drawSpectator,
   drawStarRing,
@@ -12,17 +12,18 @@ import {
 } from './sprites.js';
 import { drawSpinningSmcsCrest } from './smcs-crest.js';
 
-// Pre-generate deterministic asphalt cracks & schoolyard pebble texture once!
+// Pre-generate deterministic asphalt grit specks across the larger 66 Bond blacktop!
 const ASPHALT_SPECKS = [];
 let seed = 1998;
 function rand() {
   seed = (seed * 1664525 + 1013904223) % 4294967296;
   return seed / 4294967296;
 }
-for (let i = 0; i < 240; i++) {
+for (let i = 0; i < 380; i++) {
+  const b = DEFAULT_COURT.bounds;
   ASPHALT_SPECKS.push({
-    x: Math.floor(COURT.left + 4 + rand() * (COURT.right - COURT.left - 8)),
-    y: Math.floor(COURT.top + 4 + rand() * (COURT.bottom - COURT.top - 8)),
+    x: Math.floor(b.left + 4 + rand() * (b.right - b.left - 8)),
+    y: Math.floor(b.top + 4 + rand() * (b.bottom - b.top - 8)),
     light: rand() > 0.5,
   });
 }
@@ -48,7 +49,7 @@ export function renderGame(ctx, game) {
 
   const shakeX = game.screenShake > 0 ? Math.round((Math.random() - 0.5) * 4) : 0;
   const shakeY = game.screenShake > 0 ? Math.round((Math.random() - 0.5) * 4) : 0;
-  ctx.translate(shakeX, HUD_H - Math.round(game.cameraY) + shakeY);
+  ctx.translate(-Math.round(game.cameraX) + shakeX, HUD_H - Math.round(game.cameraY) + shakeY);
 
   drawSchoolyard(ctx, game);
 
@@ -124,20 +125,37 @@ export function renderGame(ctx, game) {
 
   ctx.restore();
 
-  // If the targeted teammate (e.g. during a full-field goalie throw!) is off-screen upfield, draw a top-edge arrow + name!
+  // Off-screen indicators on the larger 66 Bond blacktop:
+  // 1) Targeted pass/throw teammate arrow (any edge!)
   if (game.passTarget && game.state === 'PLAYING') {
-    const tyScreen = HUD_H + (game.passTarget.y - game.cameraY);
-    if (tyScreen < HUD_H + 8) {
-      const ax = Math.max(36, Math.min(SCREEN_W - 36, Math.round(game.passTarget.x)));
+    const sx = game.passTarget.x - game.cameraX;
+    const sy = HUD_H + (game.passTarget.y - game.cameraY);
+    if (sx < 8 || sx > SCREEN_W - 8 || sy < HUD_H + 8 || sy > SCREEN_H - 8) {
+      const ax = Math.max(36, Math.min(SCREEN_W - 36, Math.round(sx)));
+      const ay = Math.max(HUD_H + 10, Math.min(SCREEN_H - 12, Math.round(sy)));
       const ctrl = game.getControlledPlayer();
       const col = ctrl.role === 'G' ? '#d9ff2e' : '#7ae8ff';
+      ctx.fillStyle = 'rgba(10, 14, 26, 0.84)';
+      ctx.fillRect(ax - 28, ay - 6, 56, 12);
+      drawPixelText(ctx, `${game.passTarget.name} #${game.passTarget.number}`, ax, ay - 3, col, 1, 'center', null);
+    }
+  }
+
+  // 2) Off-screen Attack Net indicator so you always know where to shoot on 66 Bond!
+  if (game.state === 'PLAYING' || game.state === 'RESTART') {
+    const atk = game.getAttackNet('home');
+    const nx = atk.centerX - game.cameraX;
+    const ny = HUD_H + (atk.centerY - game.cameraY);
+    const offscreen = nx < 10 || nx > SCREEN_W - 10 || ny < HUD_H + 10 || ny > SCREEN_H - 10;
+    if (offscreen) {
+      const ix = Math.max(40, Math.min(SCREEN_W - 40, Math.round(nx)));
+      const iy = Math.max(HUD_H + 10, Math.min(SCREEN_H - 12, Math.round(ny)));
       ctx.fillStyle = 'rgba(10, 14, 26, 0.82)';
-      ctx.fillRect(ax - 26, HUD_H + 3, 52, 13);
-      ctx.fillStyle = col;
-      ctx.fillRect(ax - 3, HUD_H + 4, 7, 1);
-      ctx.fillRect(ax - 2, HUD_H + 3, 5, 1);
-      ctx.fillRect(ax - 1, HUD_H + 2, 3, 1);
-      drawPixelText(ctx, `${game.passTarget.name} #${game.passTarget.number}`, ax, HUD_H + 7, col, 1, 'center', null);
+      ctx.fillRect(ix - 34, iy - 6, 68, 12);
+      ctx.strokeStyle = '#ffd84d';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(ix - 33.5, iy - 5.5, 67, 11);
+      drawPixelText(ctx, atk.wall === 'right' ? 'NET ->' : 'NET ^', ix, iy - 3, '#ffd84d', 1, 'center', null);
     }
   }
 
@@ -147,13 +165,14 @@ export function renderGame(ctx, game) {
   // === STATE OVERLAYS ===
   if (game.state === 'FACEOFF') {
     const pInfo = game.getCurrentPeriodInfo();
-    drawBanner(ctx, pInfo.name, 'FACEOFF - GET READY!', '#ffe84d');
+    const atk = game.getAttackNet('home');
+    drawBanner(ctx, pInfo.name, `66 BOND - SHOOT AT ${atk.label}`, '#ffe84d');
   } else if (game.state === 'RESTART') {
     const isHomeBall = game.restartTeam === 'home';
     drawBanner(
       ctx,
-      isHomeBall ? 'YOUR BALL!' : `${TEAMS.away.short} BALL!`,
-      isHomeBall ? 'MOVE OR PASS TO RESTART' : `${TEAMS.away.name} RESTARTS PLAY`,
+      isHomeBall ? 'GOALIE BALL!' : `${TEAMS.away.short} GOALIE BALL`,
+      isHomeBall ? 'AIM + X:THROW  Z:BOMB' : `${TEAMS.away.name} GOALIE RESTARTS`,
       isHomeBall ? TEAMS.home.ringColor : TEAMS.away.ringColor
     );
   } else if (game.state === 'GOAL_CELEBRATION') {
@@ -166,7 +185,7 @@ export function renderGame(ctx, game) {
     const nextPeriod = RECESS_PERIODS[game.period];
     const endTitle = game.period === 1 ? 'MORNING BELL!' : 'LUNCH BELL!';
     const nextSub = nextPeriod
-      ? `NEXT: ${nextPeriod.name}${nextPeriod.num === 2 ? ' (2X!)' : ''}`
+      ? `SWAP NETS! NEXT: ${nextPeriod.name}${nextPeriod.num === 2 ? ' (2X!)' : ''}`
       : 'PRESS ENTER TO CONTINUE';
     drawBanner(ctx, endTitle, nextSub, '#ffe84d');
   } else if (game.state === 'PAUSED') {
@@ -177,43 +196,28 @@ export function renderGame(ctx, game) {
 }
 
 function drawSchoolyard(ctx, game) {
-  // Recess grass surrounding the blacktop court
+  const { court } = game;
+  const b = court.bounds;
+  const W = court.worldW;
+  const H = court.worldH;
+
+  // Outer recess grass / concrete border
   ctx.fillStyle = PALETTE.grassDark;
-  ctx.fillRect(0, 0, SCREEN_W, WORLD_H);
-  // Subtle mowed grass stripes
+  ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = PALETTE.grassLight;
-  for (let y = 0; y < WORLD_H; y += 24) {
-    ctx.fillRect(0, y, SCREEN_W, 12);
+  for (let y = 0; y < H; y += 24) {
+    ctx.fillRect(0, y, W, 12);
   }
 
-  // Elementary school red-brick building facade at very top of yard!
-  ctx.fillStyle = PALETTE.brickDark;
-  ctx.fillRect(0, 0, SCREEN_W, COURT.top - 10);
-  ctx.fillStyle = PALETTE.brickLight;
-  for (let row = 0; row < 5; row++) {
-    for (let x = (row % 2) * 8; x < SCREEN_W; x += 16) {
-      ctx.fillRect(x, row * 6 + 2, 13, 4);
-    }
-  }
-  // School windows + "RECESS" chalk sign on brick wall
-  for (let x = 24; x < SCREEN_W - 24; x += 56) {
-    ctx.fillStyle = '#232e42';
-    ctx.fillRect(x, 6, 26, 18);
-    ctx.fillStyle = '#6da6cf';
-    ctx.fillRect(x + 2, 8, 10, 6);
-    ctx.fillRect(x + 14, 8, 10, 6);
-    ctx.fillRect(x + 2, 16, 10, 6);
-    ctx.fillRect(x + 14, 16, 10, 6);
-  }
-  // Schoolyard sidewalk curb
+  // Sidewalk curb around left & bottom of blacktop
   ctx.fillStyle = '#9aa3b2';
-  ctx.fillRect(COURT.left - 4, COURT.top - 4, COURT.right - COURT.left + 8, COURT.bottom - COURT.top + 8);
+  ctx.fillRect(b.left - 4, b.top - 4, b.right - b.left + 8, b.bottom - b.top + 8);
 
-  // Main blacktop asphalt surface
+  // Main 66 Bond blacktop asphalt surface
   ctx.fillStyle = PALETTE.asphaltMid;
-  ctx.fillRect(COURT.left, COURT.top, COURT.right - COURT.left, COURT.bottom - COURT.top);
+  ctx.fillRect(b.left, b.top, b.right - b.left, b.bottom - b.top);
 
-  // Subtle asphalt grit specks
+  // Asphalt grit texture
   for (const s of ASPHALT_SPECKS) {
     ctx.fillStyle = s.light ? PALETTE.asphaltLight : PALETTE.asphaltDark;
     ctx.fillRect(s.x, s.y, 2, 1);
@@ -221,62 +225,194 @@ function drawSchoolyard(ctx, game) {
 
   // Charming schoolyard asphalt cracks
   ctx.fillStyle = PALETTE.asphaltCrack;
-  ctx.fillRect(62, 134, 18, 1);
-  ctx.fillRect(79, 135, 11, 1);
-  ctx.fillRect(218, 286, 24, 1);
-  ctx.fillRect(210, 287, 9, 1);
-  ctx.fillRect(102, 330, 14, 1);
+  ctx.fillRect(88, 152, 24, 1);
+  ctx.fillRect(110, 153, 14, 1);
+  ctx.fillRect(298, 322, 28, 1);
+  ctx.fillRect(286, 323, 13, 1);
+  ctx.fillRect(142, 358, 18, 1);
 
-  // Faded four-square / hopscotch chalk doodles in the corner for recess nostalgia!
-  ctx.strokeStyle = 'rgba(233, 238, 244, 0.16)';
+  // Subtle faded four-square chalk in the quiet left side of the yard
+  ctx.strokeStyle = 'rgba(233, 238, 244, 0.14)';
   ctx.lineWidth = 1;
-  ctx.strokeRect(36, 170, 22, 22);
+  ctx.strokeRect(52, 210, 26, 26);
   ctx.beginPath();
-  ctx.moveTo(47, 170);
-  ctx.lineTo(47, 192);
-  ctx.moveTo(36, 181);
-  ctx.lineTo(58, 181);
+  ctx.moveTo(65, 210);
+  ctx.lineTo(65, 236);
+  ctx.moveTo(52, 223);
+  ctx.lineTo(78, 223);
   ctx.stroke();
 
-  // === HAND-DRAWN CHALK COURT MARKINGS ===
-  // Outer chalk boundary
+  // Center chalk faceoff circle on 66 Bond
   ctx.strokeStyle = PALETTE.chalkFade;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(COURT.left + 4, COURT.top + 4, COURT.right - COURT.left - 8, COURT.bottom - COURT.top - 8);
-
-  // Center chalk line (red-ish faded playground paint / chalk)
-  ctx.fillStyle = '#d46666';
-  ctx.fillRect(COURT.left + 5, COURT.centerY - 1, COURT.right - COURT.left - 10, 3);
-
-  // Blue-ish schoolyard zone lines (NHL '94 homage!)
-  ctx.fillStyle = 'rgba(79, 140, 220, 0.55)';
-  ctx.fillRect(COURT.left + 5, COURT.centerY - 76, COURT.right - COURT.left - 10, 2);
-  ctx.fillRect(COURT.left + 5, COURT.centerY + 76, COURT.right - COURT.left - 10, 2);
-
-  // Center chalk faceoff circle
-  ctx.strokeStyle = PALETTE.chalk;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.arc(COURT.centerX, COURT.centerY, 26, 0, Math.PI * 2);
+  ctx.arc(court.faceoffX, court.faceoffY, 26, 0, Math.PI * 2);
   ctx.stroke();
   ctx.fillStyle = PALETTE.chalk;
-  ctx.fillRect(COURT.centerX - 2, COURT.centerY - 2, 4, 4);
+  ctx.fillRect(court.faceoffX - 2, court.faceoffY - 2, 4, 4);
 
-  // === CHAIN-LINK FENCE POSTS ALONG SIDELINES ===
+  // =========================================================================
+  // TOP WALL: BLACK BRICK WALL + 5 VERTICALLY-GRILLED WINDOWS + YELLOW BRICK NET!
+  // =========================================================================
+  const topNet = court.nets[0]; // top_yellow (x: 255..309, gap #3 / 2nd from right)
+  const topShake = game.goalShake[topNet.id] > 0 ? Math.round(Math.sin(game.tick * 1.4) * 2) : 0;
+
+  // Black brick wall mortar base
+  ctx.fillStyle = '#171920';
+  ctx.fillRect(0, 0, W, b.top);
+  // Black brick masonry courses
+  ctx.fillStyle = '#282c36';
+  for (let row = 0; row < 8; row++) {
+    const by = row * 6 + 1;
+    for (let bx = (row % 2) * 7; bx < W; bx += 14) {
+      ctx.fillRect(bx, by, 12, 4);
+    }
+  }
+  // Subtle brick highlight edge along top wall base
+  ctx.fillStyle = '#3a404f';
+  ctx.fillRect(0, b.top - 2, W, 2);
+
+  // === YELLOW BRICK RECTANGLE NET (Gap #3, 2nd from right, just right of center!) ===
+  const yx = topNet.minCoord + topShake;
+  const yw = topNet.span;
+  // Yellow brick mortar background
+  ctx.fillStyle = '#8c691c';
+  ctx.fillRect(yx, 10, yw, b.top - 10);
+  // Crisp golden-yellow brick courses!
+  for (let row = 0; row < 7; row++) {
+    const by = 11 + row * 6;
+    ctx.fillStyle = row % 2 === 0 ? '#e3bd52' : '#d1a73b';
+    for (let bx = yx + (row % 2) * 5; bx < yx + yw - 2; bx += 11) {
+      const clipW = Math.min(9, yx + yw - bx);
+      if (clipW > 0) ctx.fillRect(bx, by, clipW, 4);
+    }
+  }
+  // Clear rectangle top height ledge / shadow so the wide lower rectangle silhouette pops!
+  ctx.fillStyle = '#12141a';
+  ctx.fillRect(yx - 1, 9, yw + 2, 2);
+  ctx.fillStyle = '#ffe27a';
+  ctx.fillRect(yx, b.top - 2, yw, 2);
+
+  // === 5 EQUALLY SPACED GROUND WINDOWS WITH VERTICAL METAL GRILLS ===
+  for (const win of court.topWindows) {
+    const wx = win.x1;
+    const ww = win.x2 - win.x1;
+    const wy = 16;
+    const wh = b.top - 18;
+    // Stone window frame + sill right along the ground
+    ctx.fillStyle = '#4e5563';
+    ctx.fillRect(wx - 1, wy - 2, ww + 2, wh + 3);
+    // Dark recessed basement glass
+    ctx.fillStyle = '#131d2b';
+    ctx.fillRect(wx + 1, wy, ww - 2, wh - 2);
+    // Faint glass sheen
+    ctx.fillStyle = '#253952';
+    ctx.fillRect(wx + 3, wy + 2, 6, 4);
+    ctx.fillRect(wx + ww - 10, wy + 8, 5, 4);
+    // Vertical steel security grill bars protecting the glass!
+    ctx.fillStyle = '#9aa6b8';
+    for (let gx = wx + 3; gx < wx + ww - 2; gx += 4) {
+      ctx.fillRect(gx, wy, 1, wh - 1);
+    }
+    // Horizontal brace bar across the vertical grill
+    ctx.fillStyle = '#7b8799';
+    ctx.fillRect(wx + 1, wy + Math.floor(wh / 2), ww - 2, 1);
+    // Concrete ground sill
+    ctx.fillStyle = '#7b8391';
+    ctx.fillRect(wx - 1, b.top - 3, ww + 2, 3);
+  }
+
+  // Chalk goalie crease semi-circle in front of the Top Yellow Brick Net
+  const topDefTeam = game.getDefendNet('home').id === topNet.id ? TEAMS.home : TEAMS.away;
+  ctx.save();
+  ctx.strokeStyle = PALETTE.chalkFade;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(topNet.centerX, b.top, topNet.creaseRadius, 0, Math.PI, false);
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = topDefTeam.ringColor;
+  ctx.fillRect(topNet.minCoord + 2, b.top + 1, topNet.span - 4, 2);
+
+  // =========================================================================
+  // RIGHT WALL: RED BRICK WALL + LOWER-MIDDLE SQUARE PROTECTIVE WINDOW CAGE NET!
+  // =========================================================================
+  const rightNet = court.nets[1]; // right_cage (y: 266..312, narrower span, taller height!)
+  const rightShake = game.goalShake[rightNet.id] > 0 ? Math.round(Math.sin(game.tick * 1.4) * 2) : 0;
+
+  // Red brick wall mortar & masonry courses running vertically along the right side
+  ctx.fillStyle = '#572019';
+  ctx.fillRect(b.right, b.top - 2, W - b.right, H - b.top + 2);
+  ctx.fillStyle = '#963f33';
+  for (let row = 0; row < Math.ceil((H - b.top) / 6); row++) {
+    const by = b.top + row * 6;
+    for (let bx = b.right + 1 + (row % 2) * 6; bx < W; bx += 12) {
+      ctx.fillRect(bx, by, 10, 4);
+    }
+  }
+  // Crisp curb shadow along base of right red brick wall
+  ctx.fillStyle = 'rgba(10, 12, 18, 0.45)';
+  ctx.fillRect(b.right - 3, b.top, 3, b.bottom - b.top);
+
+  // === SQUARE CAGE PROTECTING A WINDOW (THE RIGHT NET!) ===
+  const cy1 = rightNet.minCoord + rightShake;
+  const ch = rightNet.span; // 46px (slightly thinner than the 54px top yellow rectangle!)
+  const cx1 = b.right - 7;  // Protrudes 7px out from the red brick wall like a real 3D wire cage!
+  const cw = 21;
+
+  // Ground shadow cast left by the tall square cage
+  ctx.fillStyle = 'rgba(10, 14, 22, 0.42)';
+  ctx.fillRect(cx1 - 4, cy1 + 2, 5, ch);
+
+  // Recessed dark window in the red brick behind the cage
+  ctx.fillStyle = '#141e2e';
+  ctx.fillRect(b.right + 1, cy1 + 2, 12, ch - 4);
+  ctx.fillStyle = '#2c4461';
+  ctx.fillRect(b.right + 3, cy1 + 6, 4, 10);
+  ctx.fillRect(b.right + 3, cy1 + 22, 4, 12);
+
+  // Metallic square protective wire/bar cage mesh over the window!
+  ctx.fillStyle = 'rgba(195, 208, 224, 0.16)';
+  ctx.fillRect(cx1, cy1, cw, ch);
+  ctx.strokeStyle = '#c4d0e0';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(cx1 + 0.5, cy1 + 0.5, cw - 1, ch - 1);
+
+  // Horizontal & vertical square cage bars
+  ctx.fillStyle = '#9aa8ba';
+  for (let gy = cy1 + 6; gy < cy1 + ch - 3; gy += 6) {
+    ctx.fillRect(cx1 + 1, gy, cw - 2, 1);
+  }
+  for (let gx = cx1 + 5; gx < cx1 + cw - 2; gx += 5) {
+    ctx.fillRect(gx, cy1 + 1, 1, ch - 2);
+  }
+  // Bright front cage corner edge
+  ctx.fillStyle = '#eef4fc';
+  ctx.fillRect(cx1, cy1, 1, ch);
+
+  // Chalk goalie crease semi-circle extending LEFT from the right square cage!
+  const rightDefTeam = game.getDefendNet('home').id === rightNet.id ? TEAMS.home : TEAMS.away;
+  ctx.save();
+  ctx.strokeStyle = PALETTE.chalkFade;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(b.right, rightNet.centerY, rightNet.creaseRadius, Math.PI / 2, Math.PI * 1.5, false);
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = rightDefTeam.ringColor;
+  ctx.fillRect(b.right - 3, rightNet.minCoord + 2, 2, rightNet.span - 4);
+
+  // === LEFT & BOTTOM CHAIN-LINK SCHOOLYARD FENCES ===
   ctx.fillStyle = PALETTE.fencePost;
-  for (let y = COURT.top; y <= COURT.bottom; y += 32) {
-    ctx.fillRect(COURT.left - 5, y - 2, 4, 4);
-    ctx.fillRect(COURT.right + 1, y - 2, 4, 4);
+  for (let y = b.top; y <= b.bottom; y += 34) {
+    ctx.fillRect(b.left - 5, y - 2, 4, 4);
+  }
+  for (let x = b.left; x <= b.right; x += 38) {
+    ctx.fillRect(x - 2, b.bottom + 1, 4, 4);
   }
   ctx.fillStyle = PALETTE.fenceWire;
-  ctx.fillRect(COURT.left - 3, COURT.top, 1, COURT.bottom - COURT.top);
-  ctx.fillRect(COURT.right + 2, COURT.top, 1, COURT.bottom - COURT.top);
-
-  // === MAKESHIFT RECESS GOALS (BACKPACKS & CONES) ===
-  const topShake = game.goalShake.top > 0 ? Math.sin(game.tick * 1.4) * 2 : 0;
-  const botShake = game.goalShake.bottom > 0 ? Math.sin(game.tick * 1.4) * 2 : 0;
-  drawRecessGoal(ctx, true, topShake);
-  drawRecessGoal(ctx, false, botShake);
+  ctx.fillRect(b.left - 3, b.top, 1, b.bottom - b.top);
+  ctx.fillRect(b.left, b.bottom + 2, b.right - b.left, 1);
 
   // === SIDELINE CLASSMATES WATCHING RECESS ===
   const celebrating = game.state === 'GOAL_CELEBRATION';
@@ -429,8 +565,8 @@ function renderTitleScreen(ctx, game) {
   ctx.lineWidth = 2;
   ctx.strokeRect(19, 21, SCREEN_W - 38, 64);
 
-  drawPixelText(ctx, 'FOOT HOCKEY 98', SCREEN_W / 2, 40, '#ffe84d', 2, 'center');
-  drawPixelText(ctx, '16-BIT ARCADE', SCREEN_W / 2, 66, '#48b8ff', 1, 'center');
+  drawPixelText(ctx, 'FOOT HOCKEY 98', SCREEN_W / 2, 36, '#ffe84d', 2, 'center');
+  drawPixelText(ctx, `COURT: ${game.court.name}  -  16-BIT ARCADE`, SCREEN_W / 2, 64, '#48b8ff', 1, 'center');
 
   // Showcase animated sprite preview: Skater + Tennis Ball + Jacket/Glove Goalie!
   const previewY = 148;

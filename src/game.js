@@ -1,4 +1,5 @@
-import { COURT, GOAL, MATCH, PHYSICS, RECESS_PERIODS, SHOT, VIEW_H, WORLD_H } from './constants.js';
+import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_W, SHOT, VIEW_H } from './constants.js';
+import { createBond66Court } from './courts.js';
 import { TEAMS, draftRecessTeams } from './roster.js';
 import { sound } from './audio.js';
 import {
@@ -39,6 +40,7 @@ export class FootHockeyGame {
     };
     this.goalLog = [];
 
+    this.court = createBond66Court();
     this.period = 1;
     this.clockFrames = RECESS_PERIODS[0].seconds * 60;
     this.stateTimer = 0;
@@ -46,8 +48,9 @@ export class FootHockeyGame {
     this.lastGoalTeam = null;
     this.restartTeam = null;
 
-    this.cameraY = COURT.centerY - VIEW_H / 2;
-    this.goalShake = { top: 0, bottom: 0 };
+    this.cameraX = this.court.faceoffX - SCREEN_W / 2;
+    this.cameraY = this.court.faceoffY - VIEW_H / 2;
+    this.goalShake = {};
     this.screenShake = 0;
 
     this.players = [];
@@ -77,27 +80,61 @@ export class FootHockeyGame {
     const skins = ['#f2c6a0', '#dfa47a', '#8f593b', '#c4865b', '#e8b58f'];
     const hairs = ['#231a15', '#693d1e', '#c98e32', '#171412', '#9c4b23'];
 
-    // Left & right recess sidelines watching the game
+    // Left chain-link fence & bottom sidewalk classmates watching recess on 66 Bond
     for (let i = 0; i < 8; i++) {
-      const y = 78 + i * 42;
       kids.push({
-        x: 11,
-        y,
+        x: 12,
+        y: 86 + i * 44,
         shirt: shirts[i % shirts.length],
         skin: skins[i % skins.length],
         hair: hairs[(i + 2) % hairs.length],
         phase: i * 1.1,
       });
+    }
+    for (let i = 0; i < 7; i++) {
       kids.push({
-        x: 309,
-        y: y + 14,
+        x: 72 + i * 54,
+        y: 446,
         shirt: shirts[(i + 3) % shirts.length],
         skin: skins[(i + 1) % skins.length],
         hair: hairs[(i + 4) % hairs.length],
-        phase: i * 1.5 + 0.6,
+        phase: i * 1.4 + 0.6,
       });
     }
     return kids;
+  }
+
+  // Odd periods (Morning, Afternoon): Home attacks Top Yellow Bricks & defends Right Window Cage.
+  // Even periods (Lunch Recess): Teams SWAP nets so both sides play both asymmetrical nets!
+  getTeamNetMap() {
+    const swapped = this.period % 2 === 0;
+    const net0 = this.court.nets[0]; // top_yellow
+    const net1 = this.court.nets[1]; // right_cage
+    return swapped
+      ? {
+          homeAttackId: net1.id,
+          homeDefendId: net0.id,
+          awayAttackId: net0.id,
+          awayDefendId: net1.id,
+        }
+      : {
+          homeAttackId: net0.id,
+          homeDefendId: net1.id,
+          awayAttackId: net1.id,
+          awayDefendId: net0.id,
+        };
+  }
+
+  getAttackNet(team) {
+    const map = this.getTeamNetMap();
+    const id = team === 'home' ? map.homeAttackId : map.awayAttackId;
+    return this.court.nets.find((n) => n.id === id) || this.court.nets[0];
+  }
+
+  getDefendNet(team) {
+    const map = this.getTeamNetMap();
+    const id = team === 'home' ? map.homeDefendId : map.awayDefendId;
+    return this.court.nets.find((n) => n.id === id) || this.court.nets[1];
   }
 
   initRoster(redraft = false) {
@@ -113,8 +150,8 @@ export class FootHockeyGame {
         this.players.push({
           ...tmpl,
           team: teamKey,
-          x: COURT.centerX,
-          y: COURT.centerY,
+          x: this.court.faceoffX,
+          y: this.court.faceoffY,
           vx: 0,
           vy: 0,
           facingX: 0,
@@ -169,63 +206,94 @@ export class FootHockeyGame {
     sound.playFaceoffDrop();
   }
 
-  // Post-goal possession rule: the team that gave up the goal gets clean possession to restart play!
+  // Post-goal possession rule: the conceding team's GOALIE gets possession right in their crease to throw/restart play!
   startPostGoalRestart(concedingTeam) {
     this.resetPositionsForFaceoff();
     this.restartTeam = concedingTeam;
 
-    const homeHasBall = concedingTeam === 'home';
-    const spots = homeHasBall
-      ? {
-          h_c: [COURT.centerX, COURT.centerY + 6, 0, -1],
-          h_lw: [COURT.centerX - 64, COURT.centerY + 26, 0, -1],
-          h_rw: [COURT.centerX + 64, COURT.centerY + 26, 0, -1],
-          h_g: [COURT.centerX, GOAL.bottomLineY - 12, 0, -1],
-          a_c: [COURT.centerX, COURT.centerY - 54, 0, 1],
-          a_lw: [COURT.centerX - 66, COURT.centerY - 64, 0, 1],
-          a_rw: [COURT.centerX + 66, COURT.centerY - 64, 0, 1],
-          a_g: [COURT.centerX, GOAL.topLineY + 12, 0, 1],
-        }
-      : {
-          a_c: [COURT.centerX, COURT.centerY - 6, 0, 1],
-          a_lw: [COURT.centerX - 64, COURT.centerY - 26, 0, 1],
-          a_rw: [COURT.centerX + 64, COURT.centerY - 26, 0, 1],
-          a_g: [COURT.centerX, GOAL.topLineY + 12, 0, 1],
-          h_c: [COURT.centerX, COURT.centerY + 54, 0, -1],
-          h_lw: [COURT.centerX - 66, COURT.centerY + 64, 0, -1],
-          h_rw: [COURT.centerX + 66, COURT.centerY + 64, 0, -1],
-          h_g: [COURT.centerX, GOAL.bottomLineY - 12, 0, -1],
-        };
+    const bounds = this.court.bounds;
+    const clampX = (v) => Math.max(bounds.left + 20, Math.min(bounds.right - 20, v));
+    const clampY = (v) => Math.max(bounds.top + 20, Math.min(bounds.bottom - 20, v));
 
-    for (const p of this.players) {
-      const [x, y, fx, fy] = spots[p.id];
+    const homeNet = this.getDefendNet('home');
+    const awayNet = this.getDefendNet('away');
+    const concedingNet = concedingTeam === 'home' ? homeNet : awayNet;
+    const scoringNet = concedingTeam === 'home' ? awayNet : homeNet;
+
+    // Direction from conceding net toward opponent's net + perpendicular wing axis
+    const dx = scoringNet.centerX - concedingNet.centerX;
+    const dy = scoringNet.centerY - concedingNet.centerY;
+    const mag = Math.hypot(dx, dy) || 1;
+    const ax = dx / mag;
+    const ay = dy / mag;
+    const wx = -ay;
+    const wy = ax;
+
+    const setPos = (id, x, y, fx, fy) => {
+      const p = this.players.find((pl) => pl.id === id);
+      if (!p) return;
       p.x = x;
       p.y = y;
       p.facingX = fx;
       p.facingY = fy;
-    }
+    };
 
-    const starter = this.players.find((p) => p.id === (homeHasBall ? 'h_c' : 'a_c'));
-    this.controlledId = 'h_c';
-    this.ball = createBall(starter.x, starter.y + starter.facingY * PHYSICS.dribbleDist, 0);
-    this.ball.owner = starter;
-    this.ball.lastTouchTeam = concedingTeam;
-    this.ball.lastTouchPlayer = starter;
+    // Place both goalies cleanly in their own creases
+    setPos('h_g', homeNet.centerX + homeNet.normalX * 13, homeNet.centerY + homeNet.normalY * 13, homeNet.normalX, homeNet.normalY);
+    setPos('a_g', awayNet.centerX + awayNet.normalX * 13, awayNet.centerY + awayNet.normalY * 13, awayNet.normalX, awayNet.normalY);
+
+    // Conceding team skaters fan out cleanly to receive their goalie's restart throw (short, mid, deep)
+    const cPrefix = concedingTeam === 'home' ? 'h' : 'a';
+    setPos(`${cPrefix}_c`, clampX(concedingNet.centerX + concedingNet.normalX * 72 + wx * 10), clampY(concedingNet.centerY + concedingNet.normalY * 72 + wy * 10), ax, ay);
+    setPos(`${cPrefix}_lw`, clampX(concedingNet.centerX + ax * 135 - wx * 58), clampY(concedingNet.centerY + ay * 135 - wy * 58), ax, ay);
+    setPos(`${cPrefix}_rw`, clampX(concedingNet.centerX + ax * 110 + wx * 62), clampY(concedingNet.centerY + ay * 110 + wy * 62), ax, ay);
+
+    // Scoring team backs off toward midfield / own end to give the goalie clean room to restart
+    const sPrefix = concedingTeam === 'home' ? 'a' : 'h';
+    setPos(`${sPrefix}_c`, clampX(this.court.faceoffX + ax * 48), clampY(this.court.faceoffY + ay * 48), -ax, -ay);
+    setPos(`${sPrefix}_lw`, clampX(this.court.faceoffX + ax * 64 - wx * 64), clampY(this.court.faceoffY + ay * 64 - wy * 64), -ax, -ay);
+    setPos(`${sPrefix}_rw`, clampX(this.court.faceoffX + ax * 64 + wx * 64), clampY(this.court.faceoffY + ay * 64 + wy * 64), -ax, -ay);
+
+    // Conceding goalie holds the ball in their glove right in the crease!
+    const goalie = this.players.find((p) => p.id === `${cPrefix}_g`);
+    this.ball = createBall(goalie.x, goalie.y, 8);
+    catchBall(this.ball, goalie);
+
+    // If Home conceded, hand control immediately to Home's goalie to aim & throw!
+    this.controlledId = concedingTeam === 'home' ? 'h_g' : 'h_c';
     this.state = 'RESTART';
-    this.stateTimer = 40;
+    this.stateTimer = 36;
     sound.playFaceoffDrop();
   }
 
   resetPositionsForFaceoff() {
+    const cx = this.court.faceoffX;
+    const cy = this.court.faceoffY;
+    const homeNet = this.getDefendNet('home');
+    const awayNet = this.getDefendNet('away');
+
+    // Align faceoff symmetrically along the axis connecting the two nets (90-degree diagonal on 66 Bond!)
+    const dx = awayNet.centerX - homeNet.centerX;
+    const dy = awayNet.centerY - homeNet.centerY;
+    const mag = Math.hypot(dx, dy) || 1;
+    const ax = dx / mag;
+    const ay = dy / mag;
+    const wx = -ay;
+    const wy = ax;
+
+    const bounds = this.court.bounds;
+    const clampX = (v) => Math.max(bounds.left + 20, Math.min(bounds.right - 20, v));
+    const clampY = (v) => Math.max(bounds.top + 20, Math.min(bounds.bottom - 20, v));
+
     const spots = {
-      h_c: [COURT.centerX, COURT.centerY + 18, 0, -1],
-      h_lw: [COURT.centerX - 66, COURT.centerY + 42, 0, -1],
-      h_rw: [COURT.centerX + 66, COURT.centerY + 42, 0, -1],
-      h_g: [COURT.centerX, GOAL.bottomLineY - 12, 0, -1],
-      a_c: [COURT.centerX, COURT.centerY - 18, 0, 1],
-      a_lw: [COURT.centerX - 66, COURT.centerY - 42, 0, 1],
-      a_rw: [COURT.centerX + 66, COURT.centerY - 42, 0, 1],
-      a_g: [COURT.centerX, GOAL.topLineY + 12, 0, 1],
+      h_c: [clampX(cx - ax * 20), clampY(cy - ay * 20), ax, ay],
+      h_lw: [clampX(cx - ax * 42 - wx * 64), clampY(cy - ay * 42 - wy * 64), ax, ay],
+      h_rw: [clampX(cx - ax * 42 + wx * 64), clampY(cy - ay * 42 + wy * 64), ax, ay],
+      h_g: [homeNet.centerX + homeNet.normalX * 13, homeNet.centerY + homeNet.normalY * 13, homeNet.normalX, homeNet.normalY],
+      a_c: [clampX(cx + ax * 20), clampY(cy + ay * 20), -ax, -ay],
+      a_lw: [clampX(cx + ax * 42 + wx * 64), clampY(cy + ay * 42 + wy * 64), -ax, -ay],
+      a_rw: [clampX(cx + ax * 42 - wx * 64), clampY(cy + ay * 42 - wy * 64), -ax, -ay],
+      a_g: [awayNet.centerX + awayNet.normalX * 13, awayNet.centerY + awayNet.normalY * 13, awayNet.normalX, awayNet.normalY],
     };
 
     for (const p of this.players) {
@@ -250,7 +318,7 @@ export class FootHockeyGame {
     }
 
     this.controlledId = 'h_c';
-    this.ball = createBall(COURT.centerX, COURT.centerY, 26);
+    this.ball = createBall(cx, cy, 26);
     this.ball.vz = -0.3;
     this.kickCharge = 0;
     this.passTarget = null;
@@ -285,10 +353,10 @@ export class FootHockeyGame {
 
     if (code === 'KeyM') {
       const muted = sound.toggleMute();
-      this.addCallout(COURT.centerX, this.cameraY + 40, muted ? 'AUDIO OFF' : 'AUDIO ON', '#ffe84d');
+      this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, muted ? 'AUDIO OFF' : 'AUDIO ON', '#ffe84d');
     } else if (code === 'KeyN') {
       const musicOn = sound.toggleMusic();
-      this.addCallout(COURT.centerX, this.cameraY + 40, musicOn ? 'MUSIC ON' : 'MUSIC OFF', '#9be8ff');
+      this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, musicOn ? 'MUSIC ON' : 'MUSIC OFF', '#9be8ff');
     } else if (code === 'KeyU') {
       this.toggleUniformMode();
     } else if (code === 'KeyT') {
@@ -303,7 +371,7 @@ export class FootHockeyGame {
     this.uniformMode = this.uniformMode === 'default' ? 'dress' : 'default';
     sound.playMenuSelect();
     const label = this.uniformMode === 'dress' ? 'DRESS UNIFORM' : 'DEFAULT UNIFORM';
-    this.addCallout(COURT.centerX, this.cameraY + 40, label, '#ffd84d');
+    this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, label, '#ffd84d');
     return this.uniformMode;
   }
 
@@ -541,12 +609,16 @@ export class FootHockeyGame {
       this.stateTimer--;
       // Let tennis ball drop and bounce dramatically at center chalk circle!
       if (this.stateTimer < 38) {
-        stepBallPhysics(this.ball, {
-          onBounce: (v) => {
-            sound.playBounce(v);
-            this.spawnParticles(this.ball.x, this.ball.y, '#e9eef4', 4);
+        stepBallPhysics(
+          this.ball,
+          {
+            onBounce: (v) => {
+              sound.playBounce(v);
+              this.spawnParticles(this.ball.x, this.ball.y, '#e9eef4', 4);
+            },
           },
-        });
+          this.court
+        );
       }
       this.updateCamera();
       if (this.stateTimer <= 0) {
@@ -573,7 +645,7 @@ export class FootHockeyGame {
       if (this.lastScorer) {
         this.lastScorer.catchAnim = 10;
       }
-      stepBallPhysics(this.ball, {});
+      stepBallPhysics(this.ball, {}, this.court);
       this.updateCamera();
       if (this.stateTimer <= 0) {
         // Post-goal possession rule: team that gave up the goal restarts with the ball!
@@ -647,7 +719,7 @@ export class FootHockeyGame {
       p.y += p.vy;
       p.vx *= PHYSICS.playerFriction;
       p.vy *= PHYSICS.playerFriction;
-      clampPlayerToCourt(p);
+      clampPlayerToCourt(p, this.court.bounds);
 
       // Enforce recess catch-and-drop rule: can't run across the yard holding the ball!
       if (p.holdingBall && this.ball.owner === p) {
@@ -663,22 +735,32 @@ export class FootHockeyGame {
     // Soft skater-vs-skater body spacing
     this.resolvePlayerCollisions();
 
-    // Step 2.5D tennis ball physics & check goal!
-    const goalEvent = stepBallPhysics(this.ball, {
-      onBounce: (v) => {
-        sound.playBounce(v);
-        this.spawnParticles(this.ball.x, this.ball.y, '#e9eef4', 3);
+    // Step 2.5D tennis ball physics & check goal across 66 Bond's asymmetrical nets!
+    const goalEvent = stepBallPhysics(
+      this.ball,
+      {
+        onBounce: (v) => {
+          sound.playBounce(v);
+          this.spawnParticles(this.ball.x, this.ball.y, '#e9eef4', 3);
+        },
+        onFenceHit: () => {
+          sound.playFenceHit();
+          this.spawnParticles(this.ball.x, this.ball.y, '#b9c4d0', 4);
+        },
+        onGrillHit: () => {
+          sound.playPostHit();
+          this.spawnParticles(this.ball.x, this.ball.y, '#d6dee8', 6);
+          this.addCallout(this.ball.x, this.ball.y + 10, 'GRILL!', '#9be8ff');
+        },
+        onPostHit: (netId) => {
+          sound.playPostHit();
+          this.goalShake[netId] = 10;
+          this.addCallout(this.ball.x, this.ball.y - 10, 'POST!', '#ffbe3b');
+        },
       },
-      onFenceHit: () => {
-        sound.playFenceHit();
-        this.spawnParticles(this.ball.x, this.ball.y, '#b9c4d0', 4);
-      },
-      onPostHit: (side) => {
-        sound.playPostHit();
-        this.goalShake[side] = 10;
-        this.addCallout(this.ball.x, this.ball.y - 10, 'POST!', '#ffbe3b');
-      },
-    });
+      this.court,
+      this.getTeamNetMap()
+    );
 
     if (goalEvent) {
       this.handleGoalScored(goalEvent.scoredBy, goalEvent.goalSide);
@@ -734,9 +816,10 @@ export class FootHockeyGame {
         return;
       }
       if (input.catchPressed) {
-        // Quick short underhand toss just outside the crease
-        const tx = p.x + (input.mx * 34);
-        const ty = p.y - 42;
+        // Quick short underhand toss just out from the crease
+        const net = this.getDefendNet('home');
+        const tx = p.x + net.normalX * 42 + input.mx * 24;
+        const ty = p.y + net.normalY * 42 + input.my * 24;
         const info = launchThrow(ball, p, tx, ty, { isBomb: false, landZ: 2 });
         const next = this.findNearestPlayer(tx, ty, 'home', true);
         if (next) this.controlledId = next.id;
@@ -862,10 +945,11 @@ export class FootHockeyGame {
       ball.passTargetId === p.id &&
       Math.hypot(ball.x - p.x, ball.y - p.y) < 34
     ) {
-      const aimX = COURT.centerX + (input.mx * 26) - p.x;
-      const aimY = GOAL.topLineY - p.y;
+      const targetNet = this.getAttackNet('home');
+      const aimX = targetNet.centerX + (-targetNet.normalY) * (input.mx * 20) - p.x;
+      const aimY = targetNet.centerY + targetNet.normalX * (input.my * 20) - p.y;
       const speed = p.stats.kick * 1.38;
-      launchBall(ball, p, aimX, aimY, speed, 2.3, { startZ: 3, shotPower: speed });
+      launchBall(ball, p, aimX, aimY, speed, targetNet.maxZ > 22 ? 2.5 : 1.7, { startZ: 3, shotPower: speed });
       this.stats.home.shots++;
       this.onKickEffect(p.x, p.y, 'ONE-TIMER!', '#ff8c2e', true);
       return;
@@ -903,13 +987,14 @@ export class FootHockeyGame {
 
   executeDeliberatePass(p, target, input) {
     const { ball } = this;
+    const bounds = this.court.bounds;
     if (target) {
       const rawDist = Math.hypot(target.x - p.x, target.y - p.y);
       // Scale pass speed smoothly with distance so both crisp short passes and cross-yard feeds land on the tape!
-      const speed = Math.max(4.2, Math.min(6.4, rawDist * 0.022 + 3.4));
+      const speed = Math.max(4.2, Math.min(6.6, rawDist * 0.022 + 3.4));
       const leadFrames = Math.min(18, rawDist / speed);
-      const tx = Math.max(COURT.left + 12, Math.min(COURT.right - 12, target.x + target.vx * leadFrames * 0.7));
-      const ty = Math.max(COURT.top + 12, Math.min(COURT.bottom - 12, target.y + target.vy * leadFrames * 0.7));
+      const tx = Math.max(bounds.left + 12, Math.min(bounds.right - 12, target.x + target.vx * leadFrames * 0.7));
+      const ty = Math.max(bounds.top + 12, Math.min(bounds.bottom - 12, target.y + target.vy * leadFrames * 0.7));
       const dx = tx - p.x;
       const dy = ty - p.y;
       const loft = rawDist > 130 ? 1.5 : 0.7;
@@ -932,6 +1017,7 @@ export class FootHockeyGame {
 
   executeGoalieThrow(g, target, isBomb = false) {
     const { ball } = this;
+    const bounds = this.court.bounds;
     const mates = this.players.filter((m) => m.team === g.team && m.role !== 'G');
     const receiver = target || mates[0];
     if (!receiver) return;
@@ -939,8 +1025,8 @@ export class FootHockeyGame {
     // Predict where receiver is heading so full-field throws lead them cleanly in stride!
     const approxDist = Math.hypot(receiver.x - g.x, receiver.y - g.y);
     const leadFrames = Math.min(26, approxDist * 0.09);
-    const tx = Math.max(COURT.left + 14, Math.min(COURT.right - 14, receiver.x + receiver.vx * leadFrames * 0.55));
-    const ty = Math.max(COURT.top + 18, Math.min(COURT.bottom - 18, receiver.y + receiver.vy * leadFrames * 0.55));
+    const tx = Math.max(bounds.left + 14, Math.min(bounds.right - 14, receiver.x + receiver.vx * leadFrames * 0.55));
+    const ty = Math.max(bounds.top + 18, Math.min(bounds.bottom - 18, receiver.y + receiver.vy * leadFrames * 0.55));
 
     const info = launchThrow(ball, g, tx, ty, {
       passTargetId: receiver.id,
@@ -959,9 +1045,14 @@ export class FootHockeyGame {
     if (input.mx !== 0 || input.my !== 0) {
       return { x: input.mx, y: input.my };
     }
-    // Slight aim assist toward opponent's makeshift net if facing generally up
-    if (p.facingY < -0.25) {
-      return { x: (COURT.centerX - p.x) * 0.4 + p.facingX * 80, y: GOAL.topLineY - p.y };
+    // Slight aim assist toward the team's current attack net if facing generally toward it
+    const targetNet = this.getAttackNet(p.team);
+    const toNetX = targetNet.centerX - p.x;
+    const toNetY = targetNet.centerY - p.y;
+    const dist = Math.hypot(toNetX, toNetY) || 1;
+    const align = (toNetX / dist) * p.facingX + (toNetY / dist) * p.facingY;
+    if (align > 0.35) {
+      return { x: toNetX, y: toNetY };
     }
     return { x: p.facingX, y: p.facingY };
   }
@@ -1109,8 +1200,14 @@ export class FootHockeyGame {
 
     sound.playGoalHorn();
     this.spawnParticles(this.ball.x, this.ball.y, '#ffe84d', 18);
-    this.spawnParticles(this.ball.x, this.ball.y, team === 'home' ? '#48b8ff' : '#ff4f5e', 14);
-    this.addCallout(COURT.centerX, goalSide === 'top' ? GOAL.topLineY + 26 : GOAL.bottomLineY - 26, 'GOAL!!', '#ffe84d');
+    this.spawnParticles(this.ball.x, this.ball.y, team === 'home' ? '#ff7090' : '#48c6ff', 14);
+    const scoredNet = this.court.nets.find((n) => n.id === goalSide) || this.getAttackNet(team);
+    this.addCallout(
+      scoredNet.centerX + scoredNet.normalX * 26,
+      scoredNet.centerY + scoredNet.normalY * 26,
+      'GOAL!!',
+      '#ffe84d'
+    );
   }
 
   // === FEEDBACK HOOKS ===
@@ -1180,9 +1277,10 @@ export class FootHockeyGame {
   }
 
   addCallout(x, y, text, color) {
+    const bounds = this.court.bounds;
     this.callouts.push({
-      x: Math.max(46, Math.min(274, x)),
-      y,
+      x: Math.max(bounds.left + 26, Math.min(bounds.right - 26, x)),
+      y: Math.max(bounds.top + 12, Math.min(bounds.bottom - 12, y)),
       text,
       color,
       life: 44,
@@ -1190,8 +1288,9 @@ export class FootHockeyGame {
   }
 
   updateEffects() {
-    if (this.goalShake.top > 0) this.goalShake.top--;
-    if (this.goalShake.bottom > 0) this.goalShake.bottom--;
+    for (const k of Object.keys(this.goalShake)) {
+      if (this.goalShake[k] > 0) this.goalShake[k]--;
+    }
     if (this.screenShake > 0) this.screenShake--;
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -1213,8 +1312,13 @@ export class FootHockeyGame {
   }
 
   updateCamera() {
+    const focusX = this.ball.x + (this.ball.owner ? this.ball.owner.facingX * 22 : this.ball.vx * 8);
     const focusY = this.ball.y + (this.ball.owner ? this.ball.owner.facingY * 18 : this.ball.vy * 8);
-    const targetY = Math.max(0, Math.min(WORLD_H - VIEW_H, focusY - VIEW_H / 2));
+    const maxCamX = Math.max(0, this.court.worldW - SCREEN_W);
+    const maxCamY = Math.max(0, this.court.worldH - VIEW_H);
+    const targetX = Math.max(0, Math.min(maxCamX, focusX - SCREEN_W / 2));
+    const targetY = Math.max(0, Math.min(maxCamY, focusY - VIEW_H / 2));
+    this.cameraX += (targetX - this.cameraX) * 0.14;
     this.cameraY += (targetY - this.cameraY) * 0.14;
   }
 }

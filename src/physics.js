@@ -144,8 +144,10 @@ export function dropHeldBall(ball, player, nudgeSpeed = 0.65) {
   return true;
 }
 
-// Step 2.5D tennis ball physics and check fence/post/goal collisions
-export function stepBallPhysics(ball, callbacks = {}) {
+// Step 2.5D tennis ball physics and check wall/grill/post/goal collisions
+// Supports both classic symmetric GOAL and arbitrary multi-wall court nets (like 66 Bond's top rectangle + right square cage!)
+export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap = null) {
+  const bounds = court ? court.bounds : COURT;
   if (ball.pickupCooldown > 0) ball.pickupCooldown--;
   if (ball.throwGrace > 0) ball.throwGrace--;
   if (ball.passTimer > 0) {
@@ -198,6 +200,7 @@ export function stepBallPhysics(ball, callbacks = {}) {
     ball.trail.shift();
   }
 
+  const prevX = ball.x;
   const prevY = ball.y;
   ball.x += ball.vx;
   ball.y += ball.vy;
@@ -232,99 +235,180 @@ export function stepBallPhysics(ball, callbacks = {}) {
     ball.shotPower = 0;
   }
 
-  // === CHECK GOAL SCORING (Crossing between backpacks/cones under crossbar height!) ===
-  const inMouthX = ball.x > GOAL.leftX + 3 && ball.x < GOAL.rightX - 3;
-  const underCrossbar = ball.z <= GOAL.height;
+  const r = PHYSICS.ballRadius;
 
-  // Top goal (Home scores on Away!)
-  if (inMouthX && underCrossbar && prevY >= GOAL.topLineY && ball.y < GOAL.topLineY) {
-    // Clamp inside goal backstop visually
-    ball.y = Math.max(GOAL.topLineY - GOAL.depth + 3, ball.y);
-    ball.vx *= 0.3;
-    ball.vy *= 0.3;
-    return { scoredBy: 'home', goalSide: 'top' };
-  }
+  // === CHECK GOAL SCORING ON COURT NETS (66 Bond asymmetrical walls & heights!) ===
+  if (court && court.nets && teamNetMap) {
+    for (const net of court.nets) {
+      const scoringTeam = teamNetMap.homeAttackId === net.id ? 'home' : 'away';
+      const underTop = ball.z <= net.maxZ;
 
-  // Bottom goal (Away scores on Home!)
-  if (inMouthX && underCrossbar && prevY <= GOAL.bottomLineY && ball.y > GOAL.bottomLineY) {
-    ball.y = Math.min(GOAL.bottomLineY + GOAL.depth - 3, ball.y);
-    ball.vx *= 0.3;
-    ball.vy *= 0.3;
-    return { scoredBy: 'away', goalSide: 'bottom' };
-  }
+      if (net.wall === 'top') {
+        const inSpan = ball.x > net.minCoord + 2 && ball.x < net.maxCoord - 2;
+        if (inSpan && underTop && prevY >= net.lineCoord + r && ball.y <= net.lineCoord + r) {
+          ball.y = net.lineCoord + r;
+          ball.vx *= 0.25;
+          ball.vy = Math.abs(ball.vy) * 0.25;
+          return { scoredBy: scoringTeam, netId: net.id, goalSide: net.id };
+        }
+      } else if (net.wall === 'right') {
+        const inSpan = ball.y > net.minCoord + 2 && ball.y < net.maxCoord - 2;
+        if (inSpan && underTop && prevX <= net.lineCoord - r && ball.x >= net.lineCoord - r) {
+          ball.x = net.lineCoord - r;
+          ball.vx = -Math.abs(ball.vx) * 0.25;
+          ball.vy *= 0.25;
+          return { scoredBy: scoringTeam, netId: net.id, goalSide: net.id };
+        }
+      } else if (net.wall === 'bottom') {
+        const inSpan = ball.x > net.minCoord + 2 && ball.x < net.maxCoord - 2;
+        if (inSpan && underTop && prevY <= net.lineCoord - r && ball.y >= net.lineCoord - r) {
+          ball.y = net.lineCoord - r;
+          ball.vx *= 0.25;
+          ball.vy = -Math.abs(ball.vy) * 0.25;
+          return { scoredBy: scoringTeam, netId: net.id, goalSide: net.id };
+        }
+      } else if (net.wall === 'left') {
+        const inSpan = ball.y > net.minCoord + 2 && ball.y < net.maxCoord - 2;
+        if (inSpan && underTop && prevX >= net.lineCoord + r && ball.x <= net.lineCoord + r) {
+          ball.x = net.lineCoord + r;
+          ball.vx = Math.abs(ball.vx) * 0.25;
+          ball.vy *= 0.25;
+          return { scoredBy: scoringTeam, netId: net.id, goalSide: net.id };
+        }
+      }
+    }
 
-  // === BACKPACK / CONE GOALPOST COLLISIONS ===
-  const posts = [
-    { x: GOAL.leftX, y: GOAL.topLineY },
-    { x: GOAL.rightX, y: GOAL.topLineY },
-    { x: GOAL.leftX, y: GOAL.bottomLineY },
-    { x: GOAL.rightX, y: GOAL.bottomLineY },
-  ];
-  for (const post of posts) {
-    const dx = ball.x - post.x;
-    const dy = ball.y - post.y;
-    const dist = Math.hypot(dx, dy);
-    const minDist = 6.5;
-    if (dist < minDist && dist > 0.001 && ball.z < 14) {
-      const nx = dx / dist;
-      const ny = dy / dist;
-      ball.x = post.x + nx * minDist;
-      ball.y = post.y + ny * minDist;
-      const dot = ball.vx * nx + ball.vy * ny;
-      if (dot < 0) {
-        ball.vx = (ball.vx - 2 * dot * nx) * 0.72;
-        ball.vy = (ball.vy - 2 * dot * ny) * 0.72;
-        callbacks.onPostHit?.(post.y < COURT.centerY ? 'top' : 'bottom');
+    // Net edge / window-frame corner post deflections
+    for (const net of court.nets) {
+      const posts =
+        net.wall === 'top' || net.wall === 'bottom'
+          ? [
+              { x: net.minCoord, y: net.lineCoord },
+              { x: net.maxCoord, y: net.lineCoord },
+            ]
+          : [
+              { x: net.lineCoord, y: net.minCoord },
+              { x: net.lineCoord, y: net.maxCoord },
+            ];
+      for (const post of posts) {
+        const dx = ball.x - post.x;
+        const dy = ball.y - post.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 6 && dist > 0.001 && ball.z <= net.maxZ + 2) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          ball.x = post.x + nx * 6;
+          ball.y = post.y + ny * 6;
+          const dot = ball.vx * nx + ball.vy * ny;
+          if (dot < 0) {
+            ball.vx = (ball.vx - 2 * dot * nx) * 0.74;
+            ball.vy = (ball.vy - 2 * dot * ny) * 0.74;
+            callbacks.onPostHit?.(net.id);
+          }
+        }
+      }
+    }
+  } else {
+    // Classic symmetric GOAL fallback (keeps legacy unit tests passing cleanly)
+    const inMouthX = ball.x > GOAL.leftX + 3 && ball.x < GOAL.rightX - 3;
+    const underCrossbar = ball.z <= GOAL.height;
+
+    if (inMouthX && underCrossbar && prevY >= GOAL.topLineY && ball.y < GOAL.topLineY) {
+      ball.y = Math.max(GOAL.topLineY - GOAL.depth + 3, ball.y);
+      ball.vx *= 0.3;
+      ball.vy *= 0.3;
+      return { scoredBy: 'home', goalSide: 'top' };
+    }
+
+    if (inMouthX && underCrossbar && prevY <= GOAL.bottomLineY && ball.y > GOAL.bottomLineY) {
+      ball.y = Math.min(GOAL.bottomLineY + GOAL.depth - 3, ball.y);
+      ball.vx *= 0.3;
+      ball.vy *= 0.3;
+      return { scoredBy: 'away', goalSide: 'bottom' };
+    }
+
+    const posts = [
+      { x: GOAL.leftX, y: GOAL.topLineY },
+      { x: GOAL.rightX, y: GOAL.topLineY },
+      { x: GOAL.leftX, y: GOAL.bottomLineY },
+      { x: GOAL.rightX, y: GOAL.bottomLineY },
+    ];
+    for (const post of posts) {
+      const dx = ball.x - post.x;
+      const dy = ball.y - post.y;
+      const dist = Math.hypot(dx, dy);
+      const minDist = 6.5;
+      if (dist < minDist && dist > 0.001 && ball.z < 14) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        ball.x = post.x + nx * minDist;
+        ball.y = post.y + ny * minDist;
+        const dot = ball.vx * nx + ball.vy * ny;
+        if (dot < 0) {
+          ball.vx = (ball.vx - 2 * dot * nx) * 0.72;
+          ball.vy = (ball.vy - 2 * dot * ny) * 0.72;
+          callbacks.onPostHit?.(post.y < COURT.centerY ? 'top' : 'bottom');
+        }
       }
     }
   }
 
-  // === SCHOOLYARD CHAIN-LINK FENCE BOUNDARY BOUNCES ===
-  const r = PHYSICS.ballRadius;
-  let hitFence = false;
-  if (ball.x < COURT.left + r) {
-    ball.x = COURT.left + r;
+  // === SCHOOLYARD WALL / WINDOW-GRILL / FENCE BOUNDARY BOUNCES ===
+  let hitWall = false;
+  let hitGrill = false;
+  if (ball.x < bounds.left + r) {
+    ball.x = bounds.left + r;
     ball.vx = Math.abs(ball.vx) * PHYSICS.fenceRestitution;
-    hitFence = true;
-  } else if (ball.x > COURT.right - r) {
-    ball.x = COURT.right - r;
+    hitWall = true;
+  } else if (ball.x > bounds.right - r) {
+    ball.x = bounds.right - r;
     ball.vx = -Math.abs(ball.vx) * PHYSICS.fenceRestitution;
-    hitFence = true;
+    hitWall = true;
   }
 
-  // Top/bottom fence boundaries (allowing ball to enter goal mouth if under crossbar)
-  if (ball.y < COURT.top + r) {
-    ball.y = COURT.top + r;
+  if (ball.y < bounds.top + r) {
+    ball.y = bounds.top + r;
     ball.vy = Math.abs(ball.vy) * PHYSICS.fenceRestitution;
-    hitFence = true;
-  } else if (ball.y > COURT.bottom - r) {
-    ball.y = COURT.bottom - r;
+    hitWall = true;
+    // Check if the ball clanged off one of the 5 vertical window grills on the top black brick wall!
+    if (court && court.topWindows) {
+      for (const w of court.topWindows) {
+        if (ball.x >= w.x1 && ball.x <= w.x2) {
+          hitGrill = true;
+          break;
+        }
+      }
+    }
+  } else if (ball.y > bounds.bottom - r) {
+    ball.y = bounds.bottom - r;
     ball.vy = -Math.abs(ball.vy) * PHYSICS.fenceRestitution;
-    hitFence = true;
+    hitWall = true;
   }
 
-  if (hitFence) {
+  if (hitGrill) {
+    callbacks.onGrillHit?.();
+  } else if (hitWall) {
     callbacks.onFenceHit?.();
   }
 
   return null;
 }
 
-// Keep a player inside the schoolyard fence
-export function clampPlayerToCourt(p) {
+// Keep a player inside the schoolyard walls/fence
+export function clampPlayerToCourt(p, bounds = COURT) {
   const pad = 7;
-  if (p.x < COURT.left + pad) {
-    p.x = COURT.left + pad;
+  if (p.x < bounds.left + pad) {
+    p.x = bounds.left + pad;
     if (p.vx < 0) p.vx = 0;
-  } else if (p.x > COURT.right - pad) {
-    p.x = COURT.right - pad;
+  } else if (p.x > bounds.right - pad) {
+    p.x = bounds.right - pad;
     if (p.vx > 0) p.vx = 0;
   }
-  if (p.y < COURT.top + pad) {
-    p.y = COURT.top + pad;
+  if (p.y < bounds.top + pad) {
+    p.y = bounds.top + pad;
     if (p.vy < 0) p.vy = 0;
-  } else if (p.y > COURT.bottom - pad) {
-    p.y = COURT.bottom - pad;
+  } else if (p.y > bounds.bottom - pad) {
+    p.y = bounds.bottom - pad;
     if (p.vy > 0) p.vy = 0;
   }
 }
