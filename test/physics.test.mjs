@@ -451,12 +451,39 @@ test('goalie clear throw is protected from immediate point-blank opponent interc
 });
 
 test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Colorful Jackets', () => {
-  const expectedNames = ['PAES', 'KWONG', 'MASANGKAY', 'STEVE', 'BLAIR', 'SEAN', 'DANIEL', 'ADAM', 'FIZZ', 'LOWELL'];
+  const expectedNames = [
+    'PAES',
+    'KWONG',
+    'MASANGKAY',
+    'STEVE',
+    'BLAIR',
+    'SEAN',
+    'DANIEL',
+    'ADAM',
+    'FIZZ',
+    'LOWELL',
+    'JIMMY',
+    'AVERY',
+    'RICH',
+    'JOHNNY ZORRO',
+    'ISTVAN',
+  ];
   assert.deepEqual(
     CLASSMATES.map((c) => c.name),
     expectedNames,
-    'Master classmate roster should contain all 10 classmates'
+    'Master classmate roster should contain all 15 classmates'
   );
+
+  // Verify ISTVAN is strictly the worst player in the game across every attribute by a clear margin!
+  const istvan = CLASSMATES.find((c) => c.name === 'ISTVAN');
+  const others = CLASSMATES.filter((c) => c.name !== 'ISTVAN');
+  for (const attr of ['speed', 'kick', 'control', 'hands', 'reflex']) {
+    const minOther = Math.min(...others.map((o) => o.stats[attr]));
+    assert.ok(
+      istvan.stats[attr] < minOther - 0.3,
+      `ISTVAN ${attr} (${istvan.stats[attr]}) should be much worse than every other classmate (min ${minOther})`
+    );
+  }
 
   const { homePlayers, awayPlayers } = draftRecessTeams();
   assert.equal(homePlayers.length, 4);

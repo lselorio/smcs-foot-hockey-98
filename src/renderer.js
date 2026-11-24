@@ -182,13 +182,16 @@ export function renderGame(ctx, game) {
     const sx = game.passTarget.x - game.cameraX;
     const sy = HUD_H + (game.passTarget.y - game.cameraY);
     if (sx < 8 || sx > SCREEN_W - 8 || sy < HUD_H + 8 || sy > SCREEN_H - 8) {
-      const ax = Math.max(36, Math.min(SCREEN_W - 36, Math.round(sx)));
+      const label = `${game.passTarget.name} #${game.passTarget.number}`;
+      const pillW = Math.max(56, label.length * 6 + 8);
+      const halfW = Math.ceil(pillW / 2);
+      const ax = Math.max(halfW + 4, Math.min(SCREEN_W - halfW - 4, Math.round(sx)));
       const ay = Math.max(HUD_H + 10, Math.min(SCREEN_H - 12, Math.round(sy)));
       const ctrl = game.getControlledPlayer();
       const col = ctrl.role === 'G' ? '#d9ff2e' : '#7ae8ff';
       ctx.fillStyle = 'rgba(10, 14, 26, 0.84)';
-      ctx.fillRect(ax - 28, ay - 6, 56, 12);
-      drawPixelText(ctx, `${game.passTarget.name} #${game.passTarget.number}`, ax, ay - 3, col, 1, 'center', null);
+      ctx.fillRect(ax - halfW, ay - 6, pillW, 12);
+      drawPixelText(ctx, label, ax, ay - 3, col, 1, 'center', null);
     }
   }
 
