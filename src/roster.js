@@ -425,8 +425,8 @@ export const TEAMS = {
   undrafted: initialDraft.undraftedPlayers,
   home: {
     id: 'home',
-    name: 'HOME',
-    short: 'HOME',
+    name: 'USER',
+    short: 'USER',
     primary: UNIFORM_COLORS.maroonShirt, // Everyday maroon uniform shirt!
     tieColor: UNIFORM_COLORS.tie,        // Slightly darker maroon tie
     secondary: UNIFORM_COLORS.whiteShirt,
@@ -437,8 +437,8 @@ export const TEAMS = {
   },
   away: {
     id: 'away',
-    name: 'AWAY',
-    short: 'AWAY',
+    name: 'CPU',
+    short: 'CPU',
     primary: '#1f78d1',                  // HUD accent color (on-court kids wear random jacket colors!)
     tieColor: UNIFORM_COLORS.tie,        // Uniform & darker maroon tie peeking out underneath!
     secondary: UNIFORM_COLORS.whiteShirt,

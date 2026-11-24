@@ -35,6 +35,12 @@ for (let i = 0; i < 380; i++) {
   });
 }
 
+// Show USER vs CPU in 1P matches, and CPU1 vs CPU2 during CPU-vs-CPU Demo Mode!
+function getTeamLabel(game, teamKey) {
+  if (game?.isDemo) return teamKey === 'home' ? 'CPU1' : 'CPU2';
+  return teamKey === 'home' ? TEAMS.home.name : TEAMS.away.name;
+}
+
 export function renderGame(ctx, game) {
   ctx.imageSmoothingEnabled = false;
 
@@ -302,12 +308,35 @@ export function renderGame(ctx, game) {
   // === TOP 16-BIT BROADCAST SCOREBOARD HUD ===
   renderHud(ctx, game);
 
-  // Classic 16-bit Arcade Demo Mode ticker along bottom edge!
+  // Classic 16-bit Arcade Demo Mode ticker along bottom edge, OR brief contextual action hint!
   if (game.isDemo && game.state !== 'GAME_OVER') {
     ctx.fillStyle = 'rgba(10, 14, 26, 0.82)';
     ctx.fillRect(0, SCREEN_H - 13, SCREEN_W, 13);
     const col = Math.floor(game.tick / 20) % 2 === 0 ? '#ffe84d' : '#9be8ff';
     drawPixelText(ctx, 'DEMO MODE (CPU VS CPU) - ENTER:PLAY  ESC:TITLE', SCREEN_W / 2, SCREEN_H - 10, col, 1, 'center', null);
+  } else if (!game.isDemo && game.state === 'PLAYING') {
+    const ctrl = game.getControlledPlayer();
+    let hintText = null;
+    let hintColor = '#d9ff2e';
+    if (ctrl.role === 'G' && ctrl.holdingBall) {
+      hintText = 'AIM + X:THROW  Z:BOMB  C:TOSS';
+    } else if (ctrl.holdingBall) {
+      hintText = 'HOLDING BALL - X:DROP  Z:DROP-KICK';
+    } else if (game.kickCharge >= SHOT.hardMinFrames) {
+      hintText = 'HARD SHOT READY!';
+      hintColor = '#ff6d2e';
+    }
+    if (hintText) {
+      const pw = Math.min(SCREEN_W - 16, hintText.length * 6 + 14);
+      const px = Math.round((SCREEN_W - pw) / 2);
+      const py = SCREEN_H - 14;
+      ctx.fillStyle = 'rgba(10, 14, 26, 0.86)';
+      ctx.fillRect(px, py, pw, 12);
+      ctx.strokeStyle = hintColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, 11);
+      drawPixelText(ctx, hintText, SCREEN_W / 2, py + 3, hintColor, 1, 'center', null);
+    }
   }
 
   // === STATE OVERLAYS ===
@@ -320,27 +349,37 @@ export function renderGame(ctx, game) {
       drawBanner(ctx, pInfo.name, `66 BOND - SHOOT AT ${atk.label}`, '#ffe84d');
     }
   } else if (game.state === 'BASEMENT_56') {
-    const awarded = game.restartTeam === 'home' ? TEAMS.home : TEAMS.away;
-    drawBanner(ctx, 'BASEMENT 56!', `${awarded.name} BALL AT STAIRS!`, '#d9ff2e');
+    const awardedLabel = getTeamLabel(game, game.restartTeam === 'home' ? 'home' : 'away');
+    drawBanner(ctx, 'BASEMENT 56!', `${awardedLabel} BALL AT STAIRS!`, '#d9ff2e');
   } else if (game.state === 'RESTART') {
     const isHomeBall = game.restartTeam === 'home';
     const isStairs = game.restartType === 'basement56';
+    const awayLabel = getTeamLabel(game, 'away');
+    const homeLabel = getTeamLabel(game, 'home');
     drawBanner(
       ctx,
       isStairs
         ? isHomeBall
-          ? 'STAIRS BALL!'
-          : `${TEAMS.away.short} STAIRS BALL`
+          ? game.isDemo
+            ? `${homeLabel} STAIRS BALL`
+            : 'STAIRS BALL!'
+          : `${awayLabel} STAIRS BALL`
         : isHomeBall
-        ? 'GOALIE BALL!'
-        : `${TEAMS.away.short} GOALIE BALL`,
+        ? game.isDemo
+          ? `${homeLabel} GOALIE BALL`
+          : 'GOALIE BALL!'
+        : `${awayLabel} GOALIE BALL`,
       isStairs
         ? isHomeBall
-          ? 'PLAY FROM STAIRCASE ENTRANCE'
-          : `${TEAMS.away.name} PLAYS FROM STAIRS`
+          ? game.isDemo
+            ? `${homeLabel} PLAYS FROM STAIRS`
+            : 'PLAY FROM STAIRCASE ENTRANCE'
+          : `${awayLabel} PLAYS FROM STAIRS`
         : isHomeBall
-        ? 'AIM + X:THROW  Z:BOMB'
-        : `${TEAMS.away.name} GOALIE RESTARTS`,
+        ? game.isDemo
+          ? `${homeLabel} GOALIE RESTARTS`
+          : 'AIM + X:THROW  Z:BOMB'
+        : `${awayLabel} GOALIE RESTARTS`,
       isHomeBall ? TEAMS.home.ringColor : TEAMS.away.ringColor
     );
   } else if (game.state === 'GOAL_CELEBRATION') {
@@ -846,20 +885,20 @@ function renderHud(ctx, game) {
   ctx.fillStyle = '#253152';
   ctx.fillRect(0, 0, SCREEN_W, 1);
 
-  // Left: HOME TEAM (ROOM 12) + SCORE
+  // Left: USER (or CPU1 in Demo) + SCORE
   ctx.fillStyle = TEAMS.home.primary;
   ctx.fillRect(4, 3, 56, 16);
   ctx.fillStyle = TEAMS.home.trim;
   ctx.fillRect(4, 17, 56, 2);
-  drawPixelText(ctx, TEAMS.home.short, 8, 8, '#ffffff', 1, 'left');
+  drawPixelText(ctx, getTeamLabel(game, 'home'), 8, 8, '#ffffff', 1, 'left');
   drawPixelText(ctx, String(game.score.home), 56, 8, '#ffe84d', 1, 'right');
 
-  // Right: AWAY TEAM (ROOM 14) + SCORE
+  // Right: CPU (or CPU2 in Demo) + SCORE
   ctx.fillStyle = TEAMS.away.primary;
   ctx.fillRect(SCREEN_W - 60, 3, 56, 16);
   ctx.fillStyle = TEAMS.away.trim;
   ctx.fillRect(SCREEN_W - 60, 17, 56, 2);
-  drawPixelText(ctx, TEAMS.away.short, SCREEN_W - 56, 8, '#ffffff', 1, 'left');
+  drawPixelText(ctx, getTeamLabel(game, 'away'), SCREEN_W - 56, 8, '#ffffff', 1, 'left');
   drawPixelText(ctx, String(game.score.away), SCREEN_W - 8, 8, '#ffe84d', 1, 'right');
 
   // Center: RECESS PERIOD + CLOCK + ACTIVE PLAYER NAMEPLATE!
@@ -868,30 +907,34 @@ function renderHud(ctx, game) {
   const ss = String(secs % 60).padStart(2, '0');
   const periodShort = game.getCurrentPeriodInfo().short;
 
-  ctx.fillStyle = '#090d18';
-  ctx.fillRect(108, 2, 104, 18);
-  ctx.strokeStyle = '#3b4a73';
-  ctx.strokeRect(108.5, 2.5, 103, 17);
-  drawPixelText(ctx, `${periodShort} ${mm}:${ss}`, 160, 4, '#ffe84d', 1, 'center');
-
-  // Show controlled player name & context prompt (or DEMO badge during CPU-vs-CPU!)
   const ctrl = game.getControlledPlayer();
+  const owner = game.ball.owner;
+  const awayHasBall = Boolean(owner && owner.team === 'away');
+  const homeHasBall = Boolean(owner && owner.team === 'home');
+
+  ctx.fillStyle = '#090d18';
+  ctx.fillRect(108, 1, 104, 20);
+  ctx.strokeStyle = awayHasBall
+    ? TEAMS.away.ringColor
+    : homeHasBall
+    ? TEAMS.home.ringColor
+    : '#3b4a73';
+  ctx.strokeRect(108.5, 1.5, 103, 19);
+  drawPixelText(ctx, `${periodShort} ${mm}:${ss}`, 160, 3, '#ffe84d', 1, 'center');
+
+  // Center nameplate strictly shows the active ball carrier (USER or CPU) or your controlled player!
   let statusText = ctrl.name;
-  let statusColor = '#9be8ff';
+  let statusColor = homeHasBall ? '#ff9cb2' : '#cfd9ef';
   if (game.isDemo) {
-    statusText = game.ball.owner ? `${game.ball.owner.name} (CPU)` : 'DEMO CPU VS CPU';
-    statusColor = '#ffe84d';
-  } else if (ctrl.role === 'G' && ctrl.holdingBall) {
-    statusText = 'THROW! X:PASS Z:BOMB';
-    statusColor = '#d9ff2e';
-  } else if (ctrl.holdingBall) {
-    statusText = 'HOLD! X:DROP Z:KICK';
-    statusColor = '#d9ff2e';
-  } else if (game.kickCharge >= SHOT.hardMinFrames) {
-    statusText = 'HARD SHOT READY!';
-    statusColor = '#ff6d2e';
+    statusText = owner ? owner.name : '';
+    statusColor = awayHasBall ? '#48c6ff' : '#ff9cb2';
+  } else if (awayHasBall) {
+    statusText = owner.name;
+    statusColor = '#48c6ff';
   }
-  drawPixelText(ctx, statusText, 160, 13, statusColor, 1, 'center', null);
+  if (statusText) {
+    drawPixelText(ctx, statusText, 160, 12, statusColor, 1, 'center', null);
+  }
 }
 
 function drawBanner(ctx, title, subtitle, accent) {
@@ -916,7 +959,7 @@ function renderGoalBanner(ctx, game) {
     ? goalCount > 1
       ? `${scorerName} SCORES! (${goalCount} GOALS)`
       : `${scorerName} SCORES!`
-    : `${team.name} SCORES!`;
+    : `${getTeamLabel(game, game.lastGoalTeam || 'home')} SCORES!`;
   const assists = info?.assists || [];
   const assistLabel =
     assists.length === 1
@@ -1029,13 +1072,13 @@ function renderStartingLineups(ctx, game) {
   ctx.fillRect(leftX, y + 32, colW, 14);
   ctx.fillStyle = TEAMS.home.trim;
   ctx.fillRect(leftX, y + 45, colW, 2);
-  drawPixelText(ctx, TEAMS.home.name, leftX + colW / 2, y + 36, '#ffffff', 1, 'center');
+  drawPixelText(ctx, getTeamLabel(game, 'home'), leftX + colW / 2, y + 36, '#ffffff', 1, 'center');
 
   ctx.fillStyle = TEAMS.away.primary;
   ctx.fillRect(rightX, y + 32, colW, 14);
   ctx.fillStyle = TEAMS.away.trim;
   ctx.fillRect(rightX, y + 45, colW, 2);
-  drawPixelText(ctx, TEAMS.away.name, rightX + colW / 2, y + 36, '#ffffff', 1, 'center');
+  drawPixelText(ctx, getTeamLabel(game, 'away'), rightX + colW / 2, y + 36, '#ffffff', 1, 'center');
 
   // Vertical center divider
   ctx.fillStyle = '#324066';
@@ -1552,9 +1595,9 @@ function renderStatsModal(ctx, game, { isFinal }) {
   if (isFinal) {
     const verdict =
       game.score.home > game.score.away
-        ? `${TEAMS.home.name} WINS RECESS!`
+        ? `${getTeamLabel(game, 'home')} WINS RECESS!`
         : game.score.away > game.score.home
-        ? `${TEAMS.away.name} WINS RECESS!`
+        ? `${getTeamLabel(game, 'away')} WINS RECESS!`
         : 'RECESS TIE GAME!';
     drawPixelText(ctx, 'ITE, LUDUS FINITUS EST', SCREEN_W / 2, y + 6, '#ffe84d', 1, 'center');
     drawPixelText(ctx, verdict, SCREEN_W / 2, y + 16, '#48b8ff', 1, 'center');
@@ -1618,13 +1661,13 @@ function renderStatsModal(ctx, game, { isFinal }) {
         ctx.fillStyle = 'rgba(34, 46, 78, 0.38)';
         ctx.fillRect(x + 8, tr.rowY - 2, w - 16, 10);
       }
-      drawPixelText(ctx, TEAMS[tr.key].short, x + 10, tr.rowY, tr.color, 1, 'left', null);
+      drawPixelText(ctx, getTeamLabel(game, tr.key), x + 10, tr.rowY, tr.color, 1, 'left', null);
       drawPixelText(ctx, String(pg[0]), x + 58, tr.rowY, '#ffffff', 1, 'center', null);
       drawPixelText(ctx, String(pg[1]), x + 78, tr.rowY, game.period >= 2 ? '#ffffff' : '#556380', 1, 'center', null);
       drawPixelText(ctx, String(pg[2]), x + 98, tr.rowY, game.period >= 3 ? '#ffffff' : '#556380', 1, 'center', null);
       drawPixelText(ctx, String(game.score[tr.key]), x + 120, tr.rowY, '#ffe84d', 1, 'center', null);
 
-      drawPixelText(ctx, TEAMS[tr.key].short, x + 148, tr.rowY, tr.color, 1, 'left', null);
+      drawPixelText(ctx, getTeamLabel(game, tr.key), x + 148, tr.rowY, tr.color, 1, 'left', null);
       drawPixelText(ctx, String(ps[0]), x + 196, tr.rowY, '#ffffff', 1, 'center', null);
       drawPixelText(ctx, String(ps[1]), x + 216, tr.rowY, game.period >= 2 ? '#ffffff' : '#556380', 1, 'center', null);
       drawPixelText(ctx, String(ps[2]), x + 236, tr.rowY, game.period >= 3 ? '#ffffff' : '#556380', 1, 'center', null);
@@ -1655,7 +1698,13 @@ function renderStatsModal(ctx, game, { isFinal }) {
           ctx.fillStyle = 'rgba(34, 46, 78, 0.36)';
           ctx.fillRect(x + 8, gy - 1, w - 16, 10);
         }
-        const tag = g.team === 'home' ? 'H' : 'A';
+        const tag = game.isDemo
+          ? g.team === 'home'
+            ? '1'
+            : '2'
+          : g.team === 'home'
+          ? 'U'
+          : 'C';
         const tagCol = g.team === 'home' ? '#ff7090' : '#48c6ff';
         const timeText = `P${g.period} ${g.time || '0:00'}`;
         drawPixelText(ctx, timeText, x + 10, gy, '#9be8ff', 1, 'left', null);
@@ -1692,7 +1741,7 @@ function renderStatsModal(ctx, game, { isFinal }) {
       const team = TEAMS[teamKey];
       ctx.fillStyle = team.primary;
       ctx.fillRect(x + 8, startY, w - 16, 10);
-      drawPixelText(ctx, `${team.name} (${game.score[teamKey]})`, x + 12, startY + 2, '#ffffff', 1, 'left', null);
+      drawPixelText(ctx, `${getTeamLabel(game, teamKey)} (${game.score[teamKey]})`, x + 12, startY + 2, '#ffffff', 1, 'left', null);
 
       const list = game.players.filter((p) => p.team === teamKey);
       for (let i = 0; i < list.length; i++) {
@@ -1728,8 +1777,8 @@ function renderStatsModal(ctx, game, { isFinal }) {
     ctx.fillRect(x + 10, y + 43, 84, 16);
     ctx.fillStyle = TEAMS.away.primary;
     ctx.fillRect(x + w - 94, y + 43, 84, 16);
-    drawPixelText(ctx, TEAMS.home.name, x + 52, y + 48, '#ffffff', 1, 'center');
-    drawPixelText(ctx, TEAMS.away.name, x + w - 52, y + 48, '#ffffff', 1, 'center');
+    drawPixelText(ctx, getTeamLabel(game, 'home'), x + 52, y + 48, '#ffffff', 1, 'center');
+    drawPixelText(ctx, getTeamLabel(game, 'away'), x + w - 52, y + 48, '#ffffff', 1, 'center');
     drawPixelText(ctx, `${game.score.home} - ${game.score.away}`, SCREEN_W / 2, y + 44, '#ffe84d', 2, 'center');
 
     // Divider line
