@@ -13,6 +13,7 @@ import { FootHockeyGame } from '../src/game.js';
 import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams } from '../src/roster.js';
 import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
+import { WIDOR_TOCCATA_SCORE } from '../src/music/widor-toccata.js';
 import { ChiptuneChoirPlayer } from '../src/music-player.js';
 import { sound } from '../src/audio.js';
 
@@ -409,6 +410,14 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   assert.ok(scheduled.length > 0, 'Gloria VIII opening notes must be scheduled right after Sicut Cervus ends');
   assert.equal(scheduled[0].midi, 72, 'First scheduled note of Gloria VIII should be C5 (72)');
   assert.ok(transitionPlayer.trackCursors[0] < 5, 'Soprano cursor must stay at start of Gloria VIII, not skip to end');
+
+  // Verify Widor Toccata cathedral organ postlude activates on GAME_OVER ("ITE, LUDUS FINITUS EST") and restores BGM after!
+  assert.equal(WIDOR_TOCCATA_SCORE.tracks.length, 4, 'Widor Toccata should have 4 organ tracks');
+  assert.equal(WIDOR_TOCCATA_SCORE.tracks[0].notes[0][2], 77, 'Widor Toccata opens on F5 (77)');
+  sound.updateMusic('GAME_OVER', false);
+  assert.equal(sound.music.score, WIDOR_TOCCATA_SCORE, 'GAME_OVER should play Widor Toccata postlude');
+  sound.updateMusic('TITLE', false);
+  assert.equal(sound.music.score, SICUT_CERVUS_SCORE, 'Leaving GAME_OVER should restore regular BGM track');
 });
 
 test('three recess periods: Morning, double-length Lunch, and Afternoon', () => {

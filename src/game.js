@@ -758,6 +758,7 @@ export class FootHockeyGame {
     this.kickCharge = 0;
     this.passTarget = null;
     this.state = 'TITLE';
+    sound.updateMusic('TITLE', false);
     sound.playMenuSelect();
   }
 
