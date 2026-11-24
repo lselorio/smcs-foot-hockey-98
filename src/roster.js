@@ -34,6 +34,7 @@ export const JACKET_PALETTE = [
 export const CLASSMATES = [
   {
     name: 'PAES',
+    thin: true,
     skin: '#9c6644',       // Brown
     hair: '#161416',
     hairStyle: 'part',
@@ -45,6 +46,7 @@ export const CLASSMATES = [
   },
   {
     name: 'KWONG',
+    thin: true,
     skin: '#f0cb9e',       // Chinese
     hair: '#141316',
     hairStyle: 'spiky',
@@ -55,6 +57,8 @@ export const CLASSMATES = [
   {
     name: 'MASANGKAY',
     preferredRole: 'G',    // One of the two best goaltenders — starts in net!
+    short: true,
+    thin: true,
     skin: '#b97e54',       // Filipino
     hair: '#161416',
     hairStyle: 'messy',
@@ -112,6 +116,7 @@ export const CLASSMATES = [
   },
   {
     name: 'FIZZ',
+    short: true,
     skin: '#f2c4a2',       // White
     hair: '#4a2f1d',
     hairStyle: 'spiky',
@@ -124,6 +129,7 @@ export const CLASSMATES = [
   {
     name: 'LOWELL',
     preferredRole: 'G',    // One of the two best goaltenders — starts in net!
+    short: true,
     skin: '#bd8258',       // Filipino
     hair: '#151316',
     hairStyle: 'part',
@@ -134,6 +140,7 @@ export const CLASSMATES = [
   },
   {
     name: 'JIMMY',
+    short: true,
     skin: '#f3c7a6',       // White
     hair: '#5e3820',
     hairStyle: 'spiky',
@@ -153,6 +160,7 @@ export const CLASSMATES = [
   },
   {
     name: 'RICH',
+    preferredRole: 'HOOPS', // Permanent corner basketball regular alongside Ernie & Sanford!
     skin: '#f2c6a4',       // White
     hair: '#5c381c',
     hairStyle: 'buzz',
@@ -172,6 +180,7 @@ export const CLASSMATES = [
   },
   {
     name: 'ISTVAN',
+    beefy: true,
     skin: '#f5ccb0',       // White
     hair: '#785028',
     hairStyle: 'messy',
@@ -179,6 +188,122 @@ export const CLASSMATES = [
     gloveColor: '#6e3d1e',
     // Undisputed worst player in the game by a fair margin!
     stats: { speed: 1.28, kick: 3.40, control: 0.42, hands: 0.38, reflex: 0.36, checking: 0.35 },
+  },
+  {
+    name: 'ERNIE',
+    preferredRole: 'HOOPS', // Permanent corner basketball regular on 66 Bond!
+    skin: '#ba7f55',       // Filipino
+    hair: '#151316',
+    hairStyle: 'part',
+    sneakers: '#ffffff',
+    gloveColor: '#9c5425',
+    stats: { speed: 1.84, kick: 5.05, control: 0.85, hands: 0.88, reflex: 0.82, checking: 0.78 },
+  },
+  {
+    name: 'PONESSE',
+    tall: true,            // Tall, athletic powerhouse — even with Blair, but stronger!
+    skin: '#f5ccb0',       // White
+    hair: '#694022',
+    hairStyle: 'part',
+    sneakers: '#1d222e',
+    gloveColor: '#8c4b22',
+    stats: { speed: 1.91, kick: 5.65, control: 0.88, hands: 0.90, reflex: 0.86, checking: 0.96 },
+  },
+  {
+    name: 'DEREK',
+    skin: '#f0ca9e',       // Asian
+    hair: '#141316',
+    hairStyle: 'part',
+    glasses: true,
+    sneakers: '#e8ecf4',
+    gloveColor: '#8c4b22',
+    stats: { speed: 1.83, kick: 5.15, control: 0.83, hands: 0.83, reflex: 0.80, checking: 0.79 },
+  },
+  {
+    name: 'CHUNG',
+    skin: '#eec89c',       // Asian
+    hair: '#131215',
+    hairStyle: 'buzz',
+    glasses: true,
+    sneakers: '#ffffff',
+    gloveColor: '#7a3f1a',
+    stats: { speed: 1.84, kick: 5.10, control: 0.84, hands: 0.84, reflex: 0.81, checking: 0.77 },
+  },
+  {
+    name: 'KEVIN',
+    thin: true,
+    skin: '#683e26',       // Black
+    hair: '#121114',
+    hairStyle: 'buzz',
+    sneakers: '#ffffff',
+    gloveColor: '#8c4b22',
+    // Fastest kid on 66 Bond, pure wheels, otherwise raw/unskilled
+    stats: { speed: 2.12, kick: 4.35, control: 0.65, hands: 0.65, reflex: 0.65, checking: 0.62 },
+  },
+  {
+    name: 'BRENDAN',
+    tall: true,
+    beefy: true,           // Towering beast on the boards — strongest kid in the yard, slow & raw
+    skin: '#f6cfb6',       // White
+    hair: '#c2411a',       // Red hair
+    hairStyle: 'messy',
+    sneakers: '#232836',
+    gloveColor: '#7a3f1a',
+    stats: { speed: 1.56, kick: 4.45, control: 0.64, hands: 0.62, reflex: 0.62, checking: 1.00 },
+  },
+  {
+    name: 'BAKER',
+    preferredRole: 'G',    // Big, husky goalie regular — similar build to Brendan, average skill, not as strong
+    beefy: true,
+    skin: '#f5ccb0',       // White
+    hair: '#784e28',
+    hairStyle: 'part',
+    sneakers: '#ffffff',
+    gloveColor: '#8c4b22',
+    stats: { speed: 1.58, kick: 5.05, control: 0.80, hands: 0.90, reflex: 0.89, checking: 0.86 },
+  },
+  {
+    name: 'LEN',
+    skin: '#efca9e',       // Asian
+    hair: '#141316',
+    hairStyle: 'part',
+    glasses: true,
+    sneakers: '#1d222e',
+    gloveColor: '#7a3f1a',
+    // Generally unskilled, though still well ahead of Istvan
+    stats: { speed: 1.66, kick: 4.35, control: 0.65, hands: 0.64, reflex: 0.64, checking: 0.62 },
+  },
+  {
+    name: 'SANFORD',
+    preferredRole: 'HOOPS', // Permanent corner basketball regular on 66 Bond alongside Ernie!
+    skin: '#efca9e',       // Asian
+    hair: '#141316',
+    hairStyle: 'part',
+    sneakers: '#ffffff',
+    gloveColor: '#8c4b22',
+    stats: { speed: 1.83, kick: 5.10, control: 0.84, hands: 0.88, reflex: 0.81, checking: 0.78 },
+  },
+  {
+    name: 'TAYLOR',
+    tall: true,
+    skin: '#f2cba2',       // White / Asian
+    hair: '#241b16',
+    hairStyle: 'part',
+    glasses: true,
+    sneakers: '#e8ecf4',
+    gloveColor: '#7a3f1a',
+    // Tall, glasses, generally unskilled (still well ahead of Istvan)
+    stats: { speed: 1.65, kick: 4.40, control: 0.65, hands: 0.64, reflex: 0.64, checking: 0.66 },
+  },
+  {
+    name: 'ARPAD',
+    skin: '#f3c9a8',       // White
+    hair: '#4f321c',
+    hairStyle: 'part',
+    sneakers: '#232836',
+    gloveColor: '#8c4b22',
+    // Faster & harder shot than average, otherwise unskilled
+    stats: { speed: 1.94, kick: 5.55, control: 0.66, hands: 0.65, reflex: 0.65, checking: 0.66 },
   },
 ];
 
@@ -234,23 +359,25 @@ function assembleTeams(homeRoster, awayRoster, undraftedPlayers, rng = Math.rand
 
 // Pick 8 classmates (4 HOME maroon uniforms vs 4 AWAY colorful jackets),
 // automatically slotting dedicated goaltenders (Lowell & Masangkay) into the two Goalie creases!
-// Remaining undrafted classmates populate the two corner basketball games!
+// Permanent basketball regulars (Ernie) + random undrafted classmates populate the two corner basketball games!
 export function draftRecessTeams(rng = Math.random) {
+  const hoopsRegulars = CLASSMATES.filter((c) => c.preferredRole === 'HOOPS');
   const goalies = shuffled(
     CLASSMATES.filter((c) => c.preferredRole === 'G'),
     rng
   );
   const skaters = shuffled(
-    CLASSMATES.filter((c) => c.preferredRole !== 'G'),
+    CLASSMATES.filter((c) => c.preferredRole !== 'G' && c.preferredRole !== 'HOOPS'),
     rng
   );
 
-  // Assign the top two goalies (Lowell & Masangkay) randomly to Home G and Away G!
+  // Assign two of the natural goalies (Lowell, Masangkay, Baker) randomly to Home G and Away G!
   const homeGoalie = goalies[0] || skaters.pop();
   const awayGoalie = goalies[1] || skaters.pop();
-  const pickedSkaters = skaters.slice(0, 6);
-  const leftoverGoalies = goalies.slice(2);
-  const undraftedPlayers = [...skaters.slice(6), ...leftoverGoalies].map((mate) => ({
+  const skaterPool = shuffled([...skaters, ...goalies.slice(2)], rng);
+  const pickedSkaters = skaterPool.slice(0, 6);
+  const randomUndrafted = skaterPool.slice(6);
+  const undraftedPlayers = [...hoopsRegulars, ...randomUndrafted].map((mate) => ({
     ...mate,
     stats: { ...mate.stats },
   }));
@@ -261,7 +388,7 @@ export function draftRecessTeams(rng = Math.random) {
 }
 
 // Build custom player-chosen HOME & AWAY lineups (4 names each: [C, LW, RW, G]),
-// automatically sending the remaining unpicked classmates to the two corner basketball courts!
+// automatically sending permanent hoops regulars (if unpicked) + remaining classmates to corner basketball!
 export function buildCustomTeams(homeNames, awayNames, rng = Math.random) {
   const byName = new Map(CLASSMATES.map((c) => [c.name, c]));
   const used = new Set();
@@ -278,10 +405,13 @@ export function buildCustomTeams(homeNames, awayNames, rng = Math.random) {
 
   const homeRoster = [0, 1, 2, 3].map((i) => resolveSlot(homeNames?.[i]));
   const awayRoster = [0, 1, 2, 3].map((i) => resolveSlot(awayNames?.[i]));
-  const undraftedPlayers = shuffled(
-    CLASSMATES.filter((c) => !used.has(c.name)),
+  const unpicked = CLASSMATES.filter((c) => !used.has(c.name));
+  const unpickedHoops = unpicked.filter((c) => c.preferredRole === 'HOOPS');
+  const unpickedOthers = shuffled(
+    unpicked.filter((c) => c.preferredRole !== 'HOOPS'),
     rng
-  ).map((mate) => ({
+  );
+  const undraftedPlayers = [...unpickedHoops, ...unpickedOthers].map((mate) => ({
     ...mate,
     stats: { ...mate.stats },
   }));

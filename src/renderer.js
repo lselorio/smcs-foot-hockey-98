@@ -1368,17 +1368,22 @@ function renderTeamSelectScreen(ctx, game) {
   }
 
   // Scout header & 6 normalized NHL '94 rating bars!
-  const scoutTitle = mate.preferredRole === 'G' ? `${mate.name} (NATURAL GOALIE)` : mate.name;
+  const scoutTitle =
+    mate.preferredRole === 'G'
+      ? `${mate.name} (NATURAL GOALIE)`
+      : mate.preferredRole === 'HOOPS'
+      ? `${mate.name} (HOOPS REGULAR)`
+      : mate.name;
   drawPixelText(ctx, scoutTitle, x + 56, y + 127, '#ffe84d', 1, 'left', null);
 
   const s = mate.stats;
   const barSpecs = [
-    ['SPD', (s.speed - 1.15) / 0.92],
+    ['SPD', (s.speed - 1.15) / 0.97],
     ['KCK', (s.kick - 3.0) / 2.9],
     ['CTL', (s.control - 0.30) / 0.70],
     ['HND', (s.hands - 0.30) / 0.70],
     ['RFX', (s.reflex - 0.30) / 0.70],
-    ['CHK', ((s.checking ?? 0.8) - 0.30) / 0.65],
+    ['CHK', ((s.checking ?? 0.8) - 0.30) / 0.70],
   ];
   for (let i = 0; i < barSpecs.length; i++) {
     const [lbl, rawPct] = barSpecs[i];
@@ -1443,7 +1448,7 @@ function renderOptionsScreen(ctx, game) {
     },
     {
       label: 'WEATHER',
-      value: game.weather === 'snow' ? 'SNOW DAY' : 'CLEAR BLACKTOP',
+      value: game.weather === 'snow' ? 'SNOW' : 'CLEAR',
       color: game.weather === 'snow' ? '#9be8ff' : '#e3ebfa',
     },
     {

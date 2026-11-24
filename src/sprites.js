@@ -278,7 +278,7 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   // Ground shadow
   ctx.fillStyle = PALETTE.shadow;
   ctx.beginPath();
-  ctx.ellipse(x, y + 2, isStunned ? 8 : 6, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 2, isStunned ? 9 : p.beefy ? 8 : p.thin ? 5 : 6, p.beefy ? 3.5 : 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // If body-checked / knocked down, tilt sprite sideways with spinning NHL '94 dizziness stars!
@@ -296,19 +296,29 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   const kickExt = p.kickTimer > 0 ? 4 : isWindup ? -4 : 0;
 
   // School uniform pants: blue pants by default, charcoal trousers on dress uniform days!
+  const tallLift = p.tall ? 2 : p.short ? -2 : 0;
   ctx.fillStyle = isDress ? UNIFORM_COLORS.dressPants : UNIFORM_COLORS.bluePants;
-  ctx.fillRect(x - 4, y - 5 - bob, 3, 4);
-  ctx.fillRect(x + 1, y - 5 - bob, 3, 4);
+  if (p.beefy) {
+    ctx.fillRect(x - 5, y - 5 - tallLift - bob, 4, 4 + tallLift);
+    ctx.fillRect(x + 1, y - 5 - tallLift - bob, 4, 4 + tallLift);
+  } else if (p.thin) {
+    ctx.fillRect(x - 3, y - 5 - tallLift - bob, 2, 4 + tallLift);
+    ctx.fillRect(x + 1, y - 5 - tallLift - bob, 2, 4 + tallLift);
+  } else {
+    ctx.fillRect(x - 4, y - 5 - tallLift - bob, 3, 4 + tallLift);
+    ctx.fillRect(x + 1, y - 5 - tallLift - bob, 3, 4 + tallLift);
+  }
 
   // Sneakers / school shoes
   const rkOx = kickExt ? Math.round(p.facingX * kickExt) : 0;
   const rkOy = kickExt ? Math.round(p.facingY * kickExt * 0.5) : 0;
+  const shoePad = p.beefy ? 1 : 0;
   ctx.fillStyle = '#151822';
-  ctx.fillRect(x - 5, leftLegY - 1, 5, 3);
-  ctx.fillRect(x + rkOx, rightLegY - 1 + rkOy, 5, 3);
+  ctx.fillRect(x - 5 - shoePad, leftLegY - 1, 5 + shoePad, 3);
+  ctx.fillRect(x + rkOx, rightLegY - 1 + rkOy, 5 + shoePad, 3);
   ctx.fillStyle = p.sneakers;
-  ctx.fillRect(x - 4, leftLegY, 3, 2);
-  ctx.fillRect(x + 1 + rkOx, rightLegY + rkOy, 3, 2);
+  ctx.fillRect(x - 4 - shoePad, leftLegY, 3 + shoePad, 2);
+  ctx.fillRect(x + 1 + rkOx, rightLegY + rkOy, 3 + shoePad, 2);
 
   // Flashing spark at kicking heel when fully cocked for a Hard Shot!
   if (isWindup && p.windupFrames >= 20 && Math.floor(tick / 3) % 2 === 0) {
@@ -320,116 +330,120 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   // - Default Everyday Uniform: maroon collared shirt + slightly darker maroon tie (NO blazer!)
   // - Dress Uniform (optional): maroon blazer + gold crest + white shirt collar + darker maroon tie
   // - Away Team ('JACKETS'): casual colorful outdoor jacket (parka/windbreaker/bomber, NOT blazer) over the uniform & tie!
-  const ty = y - 12 - bob;
+  const ty = y - 12 - tallLift - bob;
+  const bw = p.beefy ? 2 : p.thin ? -1 : 0; // Broad, hefty torso for beefy builds; trim silhouette for thin builds!
+  const bh = p.beefy ? 1 : 0;               // Fuller belly/torso depth for beefy builds
   const homeBase = isDress ? UNIFORM_COLORS.maroon : UNIFORM_COLORS.maroonShirt;
   const sleeveColor = p.wearsJacket && p.coatColor ? p.coatColor : homeBase;
   ctx.fillStyle = '#12151f'; // crisp 16-bit outline
-  ctx.fillRect(x - 6, ty - 1, 12, 9);
+  ctx.fillRect(x - 6 - bw, ty - 1, 12 + bw * 2, 9 + bh);
 
   if (p.wearsJacket && p.coatColor) {
     // Casual colorful recess jacket (puffy/zippered outerwear, NOT a blazer!)
     ctx.fillStyle = p.coatColor;
-    ctx.fillRect(x - 5, ty, 10, 7);
+    ctx.fillRect(x - 5 - bw, ty, 10 + bw * 2, 7 + bh);
     // Ribbed elastic jacket waist & sporty side stripe/collar
     ctx.fillStyle = p.coatTrim || '#1a2233';
-    ctx.fillRect(x - 5, ty + 6, 10, 1);
-    ctx.fillRect(x - 5, ty, 2, 1);
-    ctx.fillRect(x + 3, ty, 2, 1);
+    ctx.fillRect(x - 5 - bw, ty + 6 + bh, 10 + bw * 2, 1);
+    ctx.fillRect(x - 5 - bw, ty, 2, 1);
+    ctx.fillRect(x + 3 + bw, ty, 2, 1);
     if (!facingUp) {
       // Open zipped jacket reveals the school uniform shirt + slightly darker maroon tie underneath!
       ctx.fillStyle = isDress ? UNIFORM_COLORS.whiteShirt : UNIFORM_COLORS.maroonShirt;
-      ctx.fillRect(x - 2, ty, 4, 5);
+      ctx.fillRect(x - 2, ty, 4, 5 + bh);
       // Zipper edge flecks
       ctx.fillStyle = '#d8e2f0';
-      ctx.fillRect(x - 2, ty + 2, 1, 3);
-      ctx.fillRect(x + 2, ty + 2, 1, 3);
+      ctx.fillRect(x - 2, ty + 2, 1, 3 + bh);
+      ctx.fillRect(x + 2, ty + 2, 1, 3 + bh);
       // Slightly darker maroon tie peeking cleanly through the open jacket!
       ctx.fillStyle = UNIFORM_COLORS.tie;
-      ctx.fillRect(x - 1, ty, 2, 5);
+      ctx.fillRect(x - 1, ty, 2, 5 + bh);
     } else {
       // Hood/collar seam across back of casual recess jacket
       ctx.fillStyle = p.coatTrim || '#1a2233';
-      ctx.fillRect(x - 4, ty + 1, 8, 2);
+      ctx.fillRect(x - 4 - bw, ty + 1, 8 + bw * 2, 2);
     }
   } else if (isDress) {
     // Optional Dress Uniform: Maroon blazer + white shirt collar + darker maroon tie + gold crest
     ctx.fillStyle = UNIFORM_COLORS.maroon;
-    ctx.fillRect(x - 5, ty, 10, 7);
+    ctx.fillRect(x - 5 - bw, ty, 10 + bw * 2, 7 + bh);
     ctx.fillStyle = UNIFORM_COLORS.maroonShade;
-    ctx.fillRect(x - 5, ty + 6, 10, 1);
+    ctx.fillRect(x - 5 - bw, ty + 6 + bh, 10 + bw * 2, 1);
     if (!facingUp) {
       ctx.fillStyle = UNIFORM_COLORS.whiteShirt;
       ctx.fillRect(x - 2, ty, 4, 2);
       ctx.fillStyle = UNIFORM_COLORS.tie;
-      ctx.fillRect(x - 1, ty + 1, 2, 4);
-      ctx.fillRect(x - 1, ty + 5, 1, 1);
+      ctx.fillRect(x - 1, ty + 1, 2, 4 + bh);
+      ctx.fillRect(x - 1, ty + 5 + bh, 1, 1);
       ctx.fillStyle = UNIFORM_COLORS.crest;
-      ctx.fillRect(x + 2, ty + 2, 1, 1);
+      ctx.fillRect(x + 2 + (p.beefy ? 1 : 0), ty + 2, 1, 1);
     }
   } else {
     // Default Everyday Uniform: Maroon collared shirt + slightly darker maroon tie!
     ctx.fillStyle = UNIFORM_COLORS.maroonShirt;
-    ctx.fillRect(x - 5, ty, 10, 7);
+    ctx.fillRect(x - 5 - bw, ty, 10 + bw * 2, 7 + bh);
     // Subtle tucked shirt belt/waist line
     ctx.fillStyle = '#1d2230';
-    ctx.fillRect(x - 5, ty + 6, 10, 1);
+    ctx.fillRect(x - 5 - bw, ty + 6 + bh, 10 + bw * 2, 1);
     if (!facingUp) {
       // Slightly darker maroon collar fold + tie down the center of the maroon shirt
       ctx.fillStyle = UNIFORM_COLORS.maroonShirtShade;
       ctx.fillRect(x - 3, ty, 6, 1);
       ctx.fillStyle = UNIFORM_COLORS.tie;
-      ctx.fillRect(x - 1, ty, 2, 5);
-      ctx.fillRect(x - 1, ty + 5, 1, 1);
+      ctx.fillRect(x - 1, ty, 2, 5 + bh);
+      ctx.fillRect(x - 1, ty + 5 + bh, 1, 1);
     }
   }
 
   // Arms — raised forward if catching/holding the tennis ball!
   const armsUp = p.holdingBall || p.catchAnim > 0;
+  const armW = p.beefy ? 3 : 2;
   ctx.fillStyle = sleeveColor;
   if (armsUp) {
-    ctx.fillRect(x - 7, ty - 1, 2, 4);
-    ctx.fillRect(x + 5, ty - 1, 2, 4);
+    ctx.fillRect(x - 5 - bw - armW, ty - 1, armW, 4);
+    ctx.fillRect(x + 5 + bw, ty - 1, armW, 4);
     ctx.fillStyle = p.skin;
-    ctx.fillRect(x - 7, ty - 2, 2, 2);
-    ctx.fillRect(x + 5, ty - 2, 2, 2);
+    ctx.fillRect(x - 5 - bw - armW, ty - 2, armW, 2);
+    ctx.fillRect(x + 5 + bw, ty - 2, armW, 2);
   } else {
     const armSwing = Math.round(stride * 1.5);
-    ctx.fillRect(x - 7, ty + 1 - armSwing, 2, 5);
-    ctx.fillRect(x + 5, ty + 1 + armSwing, 2, 5);
+    ctx.fillRect(x - 5 - bw - armW, ty + 1 - armSwing, armW, 5);
+    ctx.fillRect(x + 5 + bw, ty + 1 + armSwing, armW, 5);
     ctx.fillStyle = p.skin;
-    ctx.fillRect(x - 7, ty + 5 - armSwing, 2, 2);
-    ctx.fillRect(x + 5, ty + 5 + armSwing, 2, 2);
+    ctx.fillRect(x - 5 - bw - armW, ty + 5 - armSwing, armW, 2);
+    ctx.fillRect(x + 5 + bw, ty + 5 + armSwing, armW, 2);
   }
 
-  // Head
+  // Head (rounder/fuller head for beefy builds!)
   const hy = ty - 7;
+  const hw = p.beefy ? 1 : 0;
   ctx.fillStyle = '#12151f';
-  ctx.fillRect(x - 5, hy - 1, 10, 8);
+  ctx.fillRect(x - 5 - hw, hy - 1, 10 + hw * 2, 8);
   ctx.fillStyle = p.skin;
-  ctx.fillRect(x - 4, hy, 8, 6);
+  ctx.fillRect(x - 4 - hw, hy, 8 + hw * 2, 6);
 
   // Hair styles (classic 90s kids!)
   ctx.fillStyle = p.hair;
   if (p.hairStyle === 'cap') {
     // Backwards or forwards 90s baseball cap
     ctx.fillStyle = team.primary;
-    ctx.fillRect(x - 5, hy - 2, 10, 3);
+    ctx.fillRect(x - 5 - hw, hy - 2, 10 + hw * 2, 3);
     ctx.fillStyle = team.trim;
     ctx.fillRect(x - 5 + (flipX > 0 ? 3 : -2), hy, 5, 1);
   } else if (p.hairStyle === 'spiky') {
-    ctx.fillRect(x - 4, hy - 2, 8, 3);
+    ctx.fillRect(x - 4 - hw, hy - 2, 8 + hw * 2, 3);
     ctx.fillRect(x - 3, hy - 3, 2, 1);
     ctx.fillRect(x, hy - 3, 2, 1);
     ctx.fillRect(x + 2, hy - 3, 2, 1);
   } else if (p.hairStyle === 'pony') {
-    ctx.fillRect(x - 4, hy - 2, 8, 3);
-    ctx.fillRect(x - 5, hy, 1, 3);
-    ctx.fillRect(x + 4, hy, 2, 4); // ponytail
+    ctx.fillRect(x - 4 - hw, hy - 2, 8 + hw * 2, 3);
+    ctx.fillRect(x - 5 - hw, hy, 1, 3);
+    ctx.fillRect(x + 4 + hw, hy, 2, 4); // ponytail
   } else if (p.hairStyle === 'buzz') {
-    ctx.fillRect(x - 4, hy - 1, 8, 2);
+    ctx.fillRect(x - 4 - hw, hy - 1, 8 + hw * 2, 2);
   } else {
-    ctx.fillRect(x - 4, hy - 2, 8, 3);
-    ctx.fillRect(x - 4, hy, 2, 2);
+    ctx.fillRect(x - 4 - hw, hy - 2, 8 + hw * 2, 3);
+    ctx.fillRect(x - 4 - hw, hy, 2, 2);
   }
 
   // Face (eyes + optional 16-bit glasses when facing down/side; hair back when facing up)
@@ -451,7 +465,7 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   } else {
     // Hair covers back of head
     ctx.fillStyle = p.hair;
-    ctx.fillRect(x - 4, hy + 1, 8, 4);
+    ctx.fillRect(x - 4 - hw, hy + 1, 8 + hw * 2, 4);
   }
 
   // If holding the caught tennis ball in hands, draw it clutched visibly right in front!
@@ -473,7 +487,7 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
     for (let i = 0; i < 3; i++) {
       const a = tick * 0.25 + (i * Math.PI * 2) / 3;
       const sx = Math.round(x + Math.cos(a) * 6);
-      const sy = Math.round(y - 22 + Math.sin(a) * 2.5);
+      const sy = Math.round(y - 22 - tallLift + Math.sin(a) * 2.5);
       ctx.fillStyle = '#ffe84d';
       ctx.fillRect(sx - 1, sy, 2, 2);
     }
@@ -493,15 +507,19 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
   // Wide goalie shadow
   ctx.fillStyle = PALETTE.shadow;
   ctx.beginPath();
-  ctx.ellipse(x + diveX * 0.5, y + 2, 11, 3.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + diveX * 0.5, y + 2, g.beefy ? 13 : 11, g.beefy ? 4 : 3.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
   const gx = x + diveX;
   const gy = y;
+  const tallLift = g.tall ? 2 : g.short ? -2 : 0;
+  const bw = g.beefy ? 2 : g.thin ? -1 : 0; // Broad hefty torso for beefy goalies like Baker & Brendan!
+  const bh = g.beefy ? 1 : 0;
+  const hw = g.beefy ? 1 : 0;
 
   // === LEFT SIDE: OUTSTRETCHED RECESS JACKET (held like a cape/blocker!) ===
-  const jx = gx - 13 - jacketFlare;
-  const jy = gy - 12;
+  const jx = gx - 13 - Math.max(0, bw) - jacketFlare;
+  const jy = gy - 12 - tallLift;
   const jw = 9 + jacketFlare;
   const jh = 11;
   ctx.fillStyle = '#12151f';
@@ -516,69 +534,70 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
   ctx.fillRect(jx + jw - 2, jy + 1, 1, jh - 3);
 
   // Legs & crouched goalie stance (blue uniform pants by default, charcoal on dress days!)
+  const legPad = g.beefy ? 1 : 0;
   ctx.fillStyle = isDress ? UNIFORM_COLORS.dressPants : UNIFORM_COLORS.bluePants;
-  ctx.fillRect(gx - 5, gy - 5, 4, 4);
-  ctx.fillRect(gx + 1, gy - 5, 4, 4);
+  ctx.fillRect(gx - 5 - legPad, gy - 5 - tallLift, 4 + legPad, 4 + tallLift);
+  ctx.fillRect(gx + 1, gy - 5 - tallLift, 4 + legPad, 4 + tallLift);
   ctx.fillStyle = '#151822';
-  ctx.fillRect(gx - 6, gy - 1, 5, 3);
-  ctx.fillRect(gx + 1, gy - 1, 5, 3);
+  ctx.fillRect(gx - 6 - legPad, gy - 1, 5 + legPad, 3);
+  ctx.fillRect(gx + 1, gy - 1, 5 + legPad, 3);
   ctx.fillStyle = g.sneakers;
-  ctx.fillRect(gx - 5, gy, 3, 2);
-  ctx.fillRect(gx + 2, gy, 3, 2);
+  ctx.fillRect(gx - 5 - legPad, gy, 3 + legPad, 2);
+  ctx.fillRect(gx + 2, gy, 3 + legPad, 2);
 
   // Torso (Default maroon shirt + tie, optional dress blazer, or casual jacket worn OVER uniform!)
-  const ty = gy - 12;
+  const ty = gy - 12 - tallLift;
   const homeBase = isDress ? UNIFORM_COLORS.maroon : UNIFORM_COLORS.maroonShirt;
   const gSleeve = g.wearsJacket && g.coatColor ? g.coatColor : homeBase;
   ctx.fillStyle = '#12151f';
-  ctx.fillRect(gx - 6, ty - 1, 12, 9);
+  ctx.fillRect(gx - 6 - bw, ty - 1, 12 + bw * 2, 9 + bh);
   if (g.wearsJacket && g.coatColor) {
     ctx.fillStyle = g.coatColor;
-    ctx.fillRect(gx - 5, ty, 10, 7);
+    ctx.fillRect(gx - 5 - bw, ty, 10 + bw * 2, 7 + bh);
     ctx.fillStyle = g.coatTrim || '#1a2233';
-    ctx.fillRect(gx - 5, ty + 6, 10, 1);
+    ctx.fillRect(gx - 5 - bw, ty + 6 + bh, 10 + bw * 2, 1);
     if (facingDown) {
       ctx.fillStyle = isDress ? UNIFORM_COLORS.whiteShirt : UNIFORM_COLORS.maroonShirt;
-      ctx.fillRect(gx - 2, ty, 4, 5);
+      ctx.fillRect(gx - 2, ty, 4, 5 + bh);
       ctx.fillStyle = '#d8e2f0';
-      ctx.fillRect(gx - 2, ty + 2, 1, 3);
-      ctx.fillRect(gx + 2, ty + 2, 1, 3);
+      ctx.fillRect(gx - 2, ty + 2, 1, 3 + bh);
+      ctx.fillRect(gx + 2, ty + 2, 1, 3 + bh);
       ctx.fillStyle = UNIFORM_COLORS.tie;
-      ctx.fillRect(gx - 1, ty, 2, 5);
+      ctx.fillRect(gx - 1, ty, 2, 5 + bh);
     } else {
       ctx.fillStyle = g.coatTrim || '#1a2233';
-      ctx.fillRect(gx - 4, ty + 1, 8, 2);
+      ctx.fillRect(gx - 4 - bw, ty + 1, 8 + bw * 2, 2);
     }
   } else if (isDress) {
     ctx.fillStyle = UNIFORM_COLORS.maroon;
-    ctx.fillRect(gx - 5, ty, 10, 7);
+    ctx.fillRect(gx - 5 - bw, ty, 10 + bw * 2, 7 + bh);
     if (facingDown) {
       ctx.fillStyle = UNIFORM_COLORS.whiteShirt;
       ctx.fillRect(gx - 2, ty, 4, 2);
       ctx.fillStyle = UNIFORM_COLORS.tie;
-      ctx.fillRect(gx - 1, ty + 1, 2, 5);
+      ctx.fillRect(gx - 1, ty + 1, 2, 5 + bh);
       ctx.fillStyle = UNIFORM_COLORS.crest;
-      ctx.fillRect(gx + 2, ty + 2, 1, 1);
+      ctx.fillRect(gx + 2 + (g.beefy ? 1 : 0), ty + 2, 1, 1);
     }
   } else {
     ctx.fillStyle = UNIFORM_COLORS.maroonShirt;
-    ctx.fillRect(gx - 5, ty, 10, 7);
+    ctx.fillRect(gx - 5 - bw, ty, 10 + bw * 2, 7 + bh);
     ctx.fillStyle = '#1d2230';
-    ctx.fillRect(gx - 5, ty + 6, 10, 1);
+    ctx.fillRect(gx - 5 - bw, ty + 6 + bh, 10 + bw * 2, 1);
     if (facingDown) {
       ctx.fillStyle = UNIFORM_COLORS.tie;
-      ctx.fillRect(gx - 1, ty, 2, 5);
+      ctx.fillRect(gx - 1, ty, 2, 5 + bh);
     }
   }
 
   // === RIGHT SIDE: GIANT LEATHER BASEBALL GLOVE (+ OVERHAND THROW ANIMATION!) ===
   const isThrowing = g.throwTimer > 0;
   const throwWhipY = isThrowing ? (facingDown ? 4 : -6) : 0;
-  const glx = gx + 6 + gloveReach + (isThrowing ? 2 : 0);
+  const glx = gx + 6 + bw + gloveReach + (isThrowing ? 2 : 0);
   const gly = ty - 2 - (gloveReach > 0 ? 2 : 0) + throwWhipY;
   // Arm reaching out or whipping forward on an overhand throw
   ctx.fillStyle = gSleeve;
-  ctx.fillRect(gx + 4, ty + 1 + Math.round(throwWhipY * 0.5), 4 + gloveReach, 3);
+  ctx.fillRect(gx + 4 + bw, ty + 1 + Math.round(throwWhipY * 0.5), 4 + gloveReach, g.beefy ? 4 : 3);
   // Oversized leather mitt outline
   ctx.fillStyle = '#1b0f08';
   ctx.fillRect(glx - 1, gly - 1, 9, 9);
@@ -603,21 +622,21 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
   // Head
   const hy = ty - 7;
   ctx.fillStyle = '#12151f';
-  ctx.fillRect(gx - 5, hy - 1, 10, 8);
+  ctx.fillRect(gx - 5 - hw, hy - 1, 10 + hw * 2, 8);
   ctx.fillStyle = g.skin;
-  ctx.fillRect(gx - 4, hy, 8, 6);
+  ctx.fillRect(gx - 4 - hw, hy, 8 + hw * 2, 6);
 
   // Hair / Cap
   if (g.hairStyle === 'cap') {
     ctx.fillStyle = team.primary;
-    ctx.fillRect(gx - 5, hy - 2, 10, 3);
+    ctx.fillRect(gx - 5 - hw, hy - 2, 10 + hw * 2, 3);
     ctx.fillStyle = team.trim;
     ctx.fillRect(gx - 2, hy, 6, 1);
   } else {
     ctx.fillStyle = g.hair;
-    ctx.fillRect(gx - 4, hy - 2, 8, 3);
-    ctx.fillRect(gx - 5, hy - 1, 2, 2);
-    ctx.fillRect(gx + 3, hy - 1, 2, 2);
+    ctx.fillRect(gx - 4 - hw, hy - 2, 8 + hw * 2, 3);
+    ctx.fillRect(gx - 5 - hw, hy - 1, 2, 2);
+    ctx.fillRect(gx + 3 + hw, hy - 1, 2, 2);
   }
 
   if (facingDown) {
@@ -636,7 +655,7 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
     }
   } else {
     ctx.fillStyle = g.hair;
-    ctx.fillRect(gx - 4, hy + 1, 8, 4);
+    ctx.fillRect(gx - 4 - hw, hy + 1, 8 + hw * 2, 4);
   }
 }
 

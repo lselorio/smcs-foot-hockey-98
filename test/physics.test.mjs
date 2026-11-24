@@ -625,11 +625,22 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
     'RICH',
     'JOHNNY ZORRO',
     'ISTVAN',
+    'ERNIE',
+    'PONESSE',
+    'DEREK',
+    'CHUNG',
+    'KEVIN',
+    'BRENDAN',
+    'BAKER',
+    'LEN',
+    'SANFORD',
+    'TAYLOR',
+    'ARPAD',
   ];
   assert.deepEqual(
     CLASSMATES.map((c) => c.name),
     expectedNames,
-    'Master classmate roster should contain all 15 classmates'
+    'Master classmate roster should contain all 26 classmates'
   );
 
   // Verify ISTVAN is strictly the worst player in the game across every attribute by a clear margin!
@@ -646,29 +657,67 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
     );
   }
   // Verify authentic scouting-report hierarchy!
+  const kevin = CLASSMATES.find((c) => c.name === 'KEVIN');
+  const brendan = CLASSMATES.find((c) => c.name === 'BRENDAN');
   assert.equal(
-    avery.stats.speed,
+    kevin.stats.speed,
     Math.max(...CLASSMATES.map((c) => c.stats.speed)),
-    'Avery should be the fastest classmate on 66 Bond'
+    'Kevin should be the fastest classmate on 66 Bond'
   );
+  assert.ok(avery.stats.speed < kevin.stats.speed && avery.stats.control > kevin.stats.control + 0.25, 'Avery should be elite all-around while Kevin has top raw speed');
   assert.equal(
     paes.stats.control,
     Math.max(...CLASSMATES.map((c) => c.stats.control)),
     'Paes should have top ball control'
   );
   assert.ok(fizz.stats.speed < 1.70 && fizz.stats.speed > istvan.stats.speed + 0.25, 'Fizz should be below average but much better than Istvan');
+  const blair = CLASSMATES.find((c) => c.name === 'BLAIR');
+  const ponesse = CLASSMATES.find((c) => c.name === 'PONESSE');
+  const rich = CLASSMATES.find((c) => c.name === 'RICH');
+  const ernie = CLASSMATES.find((c) => c.name === 'ERNIE');
+  const sanford = CLASSMATES.find((c) => c.name === 'SANFORD');
+  const arpad = CLASSMATES.find((c) => c.name === 'ARPAD');
+  assert.equal(ponesse.tall, true, 'Ponesse should have the tall trait');
+  assert.ok(ponesse.stats.checking > blair.stats.checking, 'Ponesse should be stronger than Blair');
+  assert.equal(brendan.stats.checking, Math.max(...CLASSMATES.map((c) => c.stats.checking)), 'Brendan should be the strongest beast on 66 Bond');
+  assert.ok(brendan.stats.speed < 1.65 && brendan.stats.checking > ponesse.stats.checking, 'Brendan should be slow and unskilled but strongest overall');
+  assert.ok(arpad.stats.speed > 1.90 && arpad.stats.kick >= 5.50 && arpad.stats.control < 0.70, 'Arpad should be fast with a hard shot, otherwise unskilled');
+  assert.equal(rich.preferredRole, 'HOOPS', 'Rich should be a permanent corner hoops regular');
+  assert.equal(ernie.preferredRole, 'HOOPS', 'Ernie should be a permanent corner hoops regular');
+  assert.equal(sanford.preferredRole, 'HOOPS', 'Sanford should be a permanent corner hoops regular');
 
-  const { homePlayers, awayPlayers } = draftRecessTeams();
+  const { homePlayers, awayPlayers, undraftedPlayers } = draftRecessTeams();
   assert.equal(homePlayers.length, 4);
   assert.equal(awayPlayers.length, 4);
+  assert.deepEqual(
+    undraftedPlayers.slice(0, 3).map((p) => p.name),
+    ['RICH', 'ERNIE', 'SANFORD'],
+    'Rich, Ernie, and Sanford should always fill the first corner basketball court'
+  );
 
-  // Lowell & Masangkay should always be slotted as the two starting goalies!
-  const goalieNames = [homePlayers[3].name, awayPlayers[3].name].sort();
-  assert.deepEqual(goalieNames, ['LOWELL', 'MASANGKAY'], 'Lowell and Masangkay should always play goalie');
+  // Verify across multiple random drafts that Rich, Ernie & Sanford always stay in corner basketball and never get randomly drafted to hockey
+  for (let i = 0; i < 12; i++) {
+    const d = draftRecessTeams();
+    const draftedNames = [...d.homePlayers, ...d.awayPlayers].map((p) => p.name);
+    for (const hoopsKid of ['RICH', 'ERNIE', 'SANFORD']) {
+      assert.ok(!draftedNames.includes(hoopsKid), `${hoopsKid} should stay in corner hoops during random drafts`);
+    }
+    assert.deepEqual(d.undraftedPlayers.slice(0, 3).map((p) => p.name), ['RICH', 'ERNIE', 'SANFORD']);
+  }
 
-  // Verify glasses trait on Lowell, Sean, Fizz, and Paes
+  // Two of the natural goalies (Baker, Lowell, Masangkay) should always start in net!
+  const naturalGoalies = new Set(['BAKER', 'LOWELL', 'MASANGKAY']);
+  assert.ok(naturalGoalies.has(homePlayers[3].name), `Home goalie (${homePlayers[3].name}) should be a natural goalie`);
+  assert.ok(naturalGoalies.has(awayPlayers[3].name), `Away goalie (${awayPlayers[3].name}) should be a natural goalie`);
+  assert.notEqual(homePlayers[3].name, awayPlayers[3].name);
+
+  // Verify glasses & build traits across the 25 classmates
   const glassesNames = CLASSMATES.filter((c) => c.glasses).map((c) => c.name).sort();
-  assert.deepEqual(glassesNames, ['FIZZ', 'LOWELL', 'PAES', 'SEAN']);
+  assert.deepEqual(glassesNames, ['CHUNG', 'DEREK', 'FIZZ', 'LEN', 'LOWELL', 'PAES', 'SEAN', 'TAYLOR']);
+  assert.deepEqual(CLASSMATES.filter((c) => c.thin).map((c) => c.name).sort(), ['KEVIN', 'KWONG', 'MASANGKAY', 'PAES']);
+  assert.deepEqual(CLASSMATES.filter((c) => c.tall).map((c) => c.name).sort(), ['BRENDAN', 'PONESSE', 'TAYLOR']);
+  assert.deepEqual(CLASSMATES.filter((c) => c.short).map((c) => c.name).sort(), ['FIZZ', 'JIMMY', 'LOWELL', 'MASANGKAY']);
+  assert.deepEqual(CLASSMATES.filter((c) => c.beefy).map((c) => c.name).sort(), ['BAKER', 'BRENDAN', 'ISTVAN']);
 
   const allNames = [...homePlayers, ...awayPlayers].map((p) => p.name);
   assert.equal(new Set(allNames).size, 8, 'All 8 drafted players in a match must be unique');
