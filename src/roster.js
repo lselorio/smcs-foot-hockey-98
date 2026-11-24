@@ -181,9 +181,15 @@ function shuffled(arr, rng = Math.random) {
 const ROLES = ['C', 'LW', 'RW', 'G'];
 const ROLE_SUFFIX = ['c', 'lw', 'rw', 'g'];
 
-// Pick any collection of 8 classmates (4 Maroon Uniforms vs 4 Colorful Jackets)
+// Pick any collection of 8 classmates (4 HOME maroon uniforms vs 4 AWAY colorful jackets),
+// plus return the remaining undrafted classmates to populate the two corner basketball games!
 export function draftRecessTeams(rng = Math.random) {
-  const picked = shuffled(CLASSMATES, rng).slice(0, 8);
+  const pool = shuffled(CLASSMATES, rng);
+  const picked = pool.slice(0, 8);
+  const undraftedPlayers = pool.slice(8).map((mate) => ({
+    ...mate,
+    stats: { ...mate.stats },
+  }));
   const jacketChoices = shuffled(JACKET_PALETTE, rng);
 
   const homePlayers = picked.slice(0, 4).map((mate, i) => {
@@ -218,12 +224,13 @@ export function draftRecessTeams(rng = Math.random) {
     };
   });
 
-  return { homePlayers, awayPlayers };
+  return { homePlayers, awayPlayers, undraftedPlayers };
 }
 
 const initialDraft = draftRecessTeams();
 
 export const TEAMS = {
+  undrafted: initialDraft.undraftedPlayers,
   home: {
     id: 'home',
     name: 'HOME',

@@ -7,29 +7,34 @@
 import { PHYSICS } from './constants.js';
 import { UNIFORM_COLORS } from './roster.js';
 
-function createHoopGame({ id, wall, zone, kidTemplates }) {
-  const kids = kidTemplates.map((k, idx) => ({
-    id: `${id}_${idx + 1}`,
-    x: k.x,
-    y: k.y,
-    vx: 0,
-    vy: 0,
-    facingX: wall === 'left' ? -1 : 0,
-    facingY: wall === 'left' ? 0 : 1,
-    skin: k.skin,
-    hair: k.hair,
-    hairStyle: k.hairStyle,
-    coatColor: k.coatColor,
-    coatTrim: k.coatTrim,
-    wearsJacket: k.wearsJacket,
-    sneakers: k.sneakers,
-    homeX: k.x,
-    homeY: k.y,
-    animOffset: k.animOffset,
-    decisionTimer: k.decisionTimer,
-    kickTimer: 0,
-    kickCooldown: 0,
-  }));
+function createHoopGame({ id, wall, zone, kidTemplates, classmates = [] }) {
+  const kids = kidTemplates.map((k, idx) => {
+    const mate = classmates[idx] || null;
+    return {
+      id: `${id}_${idx + 1}`,
+      name: mate ? mate.name : `KID ${idx + 1}`,
+      x: k.x,
+      y: k.y,
+      vx: 0,
+      vy: 0,
+      facingX: wall === 'left' ? -1 : 0,
+      facingY: wall === 'left' ? 0 : 1,
+      skin: mate ? mate.skin : k.skin,
+      hair: mate ? mate.hair : k.hair,
+      hairStyle: mate ? mate.hairStyle : k.hairStyle,
+      coatColor: k.coatColor,
+      coatTrim: k.coatTrim,
+      wearsJacket: k.wearsJacket,
+      sneakers: mate ? mate.sneakers : k.sneakers,
+      stats: mate ? { ...mate.stats } : null,
+      homeX: k.x,
+      homeY: k.y,
+      animOffset: k.animOffset,
+      decisionTimer: k.decisionTimer,
+      kickTimer: 0,
+      kickCooldown: 0,
+    };
+  });
 
   const bball = {
     x: kids[0].x,
@@ -53,7 +58,7 @@ function createHoopGame({ id, wall, zone, kidTemplates }) {
   };
 }
 
-export function createCornerBasketballGames(court) {
+export function createCornerBasketballGames(court, undraftedPlayers = []) {
   const b = court.bounds;
 
   // === GAME 1: TOP-LEFT CORNER (Hoop on LEFT WALL facing right!) ===
@@ -71,6 +76,7 @@ export function createCornerBasketballGames(court) {
     id: 'bb_tl',
     wall: 'left',
     zone: topLeftZone,
+    classmates: undraftedPlayers.slice(0, 3),
     kidTemplates: [
       {
         x: topLeftZone.left + 44,
@@ -129,6 +135,7 @@ export function createCornerBasketballGames(court) {
     id: 'bb_bl',
     wall: 'bottom',
     zone: botLeftZone,
+    classmates: undraftedPlayers.slice(3, 6),
     kidTemplates: [
       {
         x: botLeftZone.hoopX - 24,

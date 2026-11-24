@@ -665,6 +665,16 @@ test('66 Bond top-left corner basketball players stay active and deflect the ten
   assert.equal(game.hoopsGames[1].kids.length, 3);
   assert.ok(game.hoops.zone.hoopX < game.court.bounds.centerX, 'Basketball hoop should sit in top-left corner');
 
+  // Verify all 6 corner basketball players are actual UNDRAFTED St. Mike's classmates (no overlap with hockey players!)
+  const hockeyNames = new Set(game.players.map((p) => p.name));
+  const rosterNames = new Set(CLASSMATES.map((c) => c.name));
+  const hoopsNames = game.hoopsGames.flatMap((h) => h.kids.map((k) => k.name));
+  assert.equal(new Set(hoopsNames).size, 6, 'All 6 corner basketball kids should be distinct classmates');
+  for (const name of hoopsNames) {
+    assert.ok(rosterNames.has(name), `Basketball player ${name} should be from CLASSMATES`);
+    assert.ok(!hockeyNames.has(name), `Basketball player ${name} must be an UNDRAFTED classmate, not playing foot hockey`);
+  }
+
   // Fire tennis ball straight at the first basketball kid -> should deflect or get booted away in play!
   const hoopKid = game.hoops.kids[0];
   game.ball.owner = null;

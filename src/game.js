@@ -64,7 +64,8 @@ export class FootHockeyGame {
     this.particles = [];
     this.callouts = [];
     this.spectators = this.createSpectators();
-    this.hoopsGames = createCornerBasketballGames(this.court);
+    this.undraftedPlayers = TEAMS.undrafted || [];
+    this.hoopsGames = createCornerBasketballGames(this.court, this.undraftedPlayers);
     this.hoops = this.hoopsGames[0];
     this.snowflakes = this.createSnowflakes();
 
@@ -167,9 +168,13 @@ export class FootHockeyGame {
 
   initRoster(redraft = false) {
     if (redraft) {
-      const { homePlayers, awayPlayers } = draftRecessTeams();
+      const { homePlayers, awayPlayers, undraftedPlayers } = draftRecessTeams();
       TEAMS.home.players = homePlayers;
       TEAMS.away.players = awayPlayers;
+      TEAMS.undrafted = undraftedPlayers;
+      this.undraftedPlayers = undraftedPlayers;
+    } else {
+      this.undraftedPlayers = TEAMS.undrafted || [];
     }
     this.players = [];
     for (const teamKey of ['home', 'away']) {
@@ -226,7 +231,7 @@ export class FootHockeyGame {
     this.restartTeam = null;
     this.particles = [];
     this.callouts = [];
-    this.hoopsGames = createCornerBasketballGames(this.court);
+    this.hoopsGames = createCornerBasketballGames(this.court, this.undraftedPlayers);
     this.hoops = this.hoopsGames[0];
     this.startFaceoff();
     sound.playRecessBell();
