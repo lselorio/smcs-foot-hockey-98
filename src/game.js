@@ -454,6 +454,9 @@ export class FootHockeyGame {
     } else if (code === 'KeyN') {
       const musicOn = sound.toggleMusic();
       this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, musicOn ? 'MUSIC ON' : 'MUSIC OFF', '#9be8ff');
+    } else if (code === 'KeyG') {
+      const track = sound.cycleMusicTrack();
+      this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, `BGM: ${track.label}`, '#9be8ff');
     } else if (code === 'KeyU') {
       this.toggleUniformMode();
     } else if (code === 'KeyW' && this.state === 'TITLE') {
@@ -594,9 +597,11 @@ export class FootHockeyGame {
       this.justPressed.has('Escape');
 
     const restartPressed = this.justPressed.has('KeyR');
+    const quitPressed = this.justPressed.has('KeyQ');
+    const escapePressed = this.justPressed.has('Escape');
     const replayIntroPressed = this.justPressed.has('KeyI');
     const demoPressed = this.justPressed.has('KeyD');
-    const exitDemoPressed = this.justPressed.has('Escape') || this.justPressed.has('KeyP');
+    const exitDemoPressed = escapePressed || this.justPressed.has('KeyP') || quitPressed;
     const menuTogglePressed =
       this.justPressed.has('ArrowLeft') ||
       this.justPressed.has('ArrowRight');
@@ -629,11 +634,22 @@ export class FootHockeyGame {
       startPressed,
       pausePressed,
       restartPressed,
+      quitPressed,
+      escapePressed,
       replayIntroPressed,
       demoPressed,
       exitDemoPressed,
       menuTogglePressed,
     };
+  }
+
+  returnToTitle() {
+    this.isDemo = false;
+    this.titleIdleFrames = 0;
+    this.kickCharge = 0;
+    this.passTarget = null;
+    this.state = 'TITLE';
+    sound.playMenuSelect();
   }
 
   // === MAIN FIXED-TIMESTEP UPDATE (60Hz) ===
@@ -652,6 +668,8 @@ export class FootHockeyGame {
       } else if (input.restartPressed) {
         sound.playMenuSelect();
         this.startNewMatch();
+      } else if (input.quitPressed) {
+        this.returnToTitle();
       }
       return;
     }
@@ -804,6 +822,10 @@ export class FootHockeyGame {
     }
 
     if (this.state === 'PERIOD_END') {
+      if (input.quitPressed) {
+        this.returnToTitle();
+        return;
+      }
       this.stateTimer--;
       const autoNext = this.isDemo ? this.stateTimer <= -30 : this.stateTimer < -90;
       if (this.stateTimer <= 0 && (input.startPressed || input.kickPressed || input.passPressed || autoNext)) {
@@ -823,6 +845,10 @@ export class FootHockeyGame {
           this.titleIdleFrames = 0;
           this.state = 'TITLE';
         }
+        return;
+      }
+      if (input.quitPressed || input.escapePressed) {
+        this.returnToTitle();
         return;
       }
       if (input.startPressed || input.kickPressed || input.passPressed) {

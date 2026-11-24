@@ -12,7 +12,9 @@ import {
 import { FootHockeyGame } from '../src/game.js';
 import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams } from '../src/roster.js';
 import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
+import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
 import { ChiptuneChoirPlayer } from '../src/music-player.js';
+import { sound } from '../src/audio.js';
 
 test('tennis ball bounces realistically on asphalt under gravity', () => {
   const ball = createBall(COURT.centerX, COURT.centerY, 16);
@@ -271,6 +273,23 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   game.update();
   game.onKeyUp('Escape');
   assert.equal(game.state, 'PLAYING');
+
+  // Pause and press Q -> quits cleanly back to TITLE screen!
+  game.onKeyDown('KeyP');
+  game.update();
+  game.onKeyUp('KeyP');
+  assert.equal(game.state, 'PAUSED');
+  game.onKeyDown('KeyQ');
+  game.update();
+  game.onKeyUp('KeyQ');
+  assert.equal(game.state, 'TITLE', 'Pressing Q while paused should return to Title screen');
+
+  // On GAME_OVER ("Ite, ludus finitus est"), Q or Escape returns cleanly to TITLE screen!
+  game.state = 'GAME_OVER';
+  game.onKeyDown('Escape');
+  game.update();
+  game.onKeyUp('Escape');
+  assert.equal(game.state, 'TITLE', 'Pressing Escape on GAME_OVER should return to Title screen');
 });
 
 test('Sicut Cervus 4-voice SATB score has valid register ordering and choir player toggles cleanly', () => {
@@ -292,6 +311,32 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   assert.equal(player.enabled, true);
   assert.equal(player.toggleEnabled(), false);
   assert.equal(player.toggleEnabled(), true);
+
+  // Verify Gregorian Missa VIII (de Angelis) Gloria chiptune score & track switching!
+  assert.equal(GLORIA_VIII_SCORE.tracks.length, 4, 'Gloria VIII should have 4 SATB voices');
+  const gMedians = {};
+  for (const tr of GLORIA_VIII_SCORE.tracks) {
+    assert.ok(tr.notes.length > 80, `Expected >80 notes in Gloria VIII ${tr.role}`);
+    const sorted = tr.notes.map((n) => n[2]).sort((a, b) => a - b);
+    gMedians[tr.role] = sorted[Math.floor(sorted.length / 2)];
+  }
+  assert.ok(gMedians.soprano > gMedians.alto);
+  assert.ok(gMedians.alto > gMedians.tenor);
+  assert.ok(gMedians.tenor > gMedians.bass);
+  // Opening "Glo-ri-a in ex-cel-sis De-o" pitches in Mode V (F Major): C5 C5 A4 G4 F4 G4 A4 G4 F4
+  const opening = GLORIA_VIII_SCORE.tracks[0].notes.slice(0, 9).map((n) => n[2]);
+  assert.deepEqual(opening, [72, 72, 69, 67, 65, 67, 69, 67, 65]);
+  // Final Amen includes the signature B-flat (70)
+  assert.ok(GLORIA_VIII_SCORE.tracks[0].notes.some((n) => n[2] === 70), 'Gloria VIII Amen should include Bb4');
+
+  // Default track should be Sicut Cervus, and cycling / auto-advancing switches cleanly to Gloria VIII!
+  assert.equal(sound.getMusicTrack().id, 'sicut_cervus', 'Default BGM track should be Sicut Cervus');
+  const nextTrack = sound.cycleMusicTrack().id;
+  assert.equal(nextTrack, 'gloria_viii');
+  // Simulate track ending -> auto-advances back to Sicut Cervus!
+  const autoNext = sound.music.onTrackEnded();
+  assert.equal(autoNext, SICUT_CERVUS_SCORE);
+  assert.equal(sound.getMusicTrack().id, 'sicut_cervus');
 });
 
 test('three recess periods: Morning, double-length Lunch, and Afternoon', () => {

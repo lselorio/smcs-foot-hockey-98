@@ -54,8 +54,9 @@ const VOICE_PROFILES = {
 };
 
 export class ChiptuneChoirPlayer {
-  constructor(score) {
+  constructor(score, { onTrackEnded = null } = {}) {
     this.score = score;
+    this.onTrackEnded = onTrackEnded;
     this.ctx = null;
     this.masterGain = null;
     this.voiceBuses = new Map();
@@ -176,6 +177,17 @@ export class ChiptuneChoirPlayer {
     this.applyVolume();
   }
 
+  setScore(newScore) {
+    if (!newScore || newScore === this.score) return;
+    this.stopAllActiveNotes();
+    this.score = newScore;
+    this.songPos = 0;
+    this.trackCursors = newScore.tracks.map(() => 0);
+    if (this.ctx) {
+      this.lastAudioTime = this.ctx.currentTime;
+    }
+  }
+
   toggleEnabled() {
     this.enabled = !this.enabled;
     this.applyVolume();
@@ -236,8 +248,14 @@ export class ChiptuneChoirPlayer {
 
     const loopEnd = this.score.duration + 1.6;
     if (this.songPos >= loopEnd) {
+      if (this.onTrackEnded) {
+        const nextScore = this.onTrackEnded();
+        if (nextScore && nextScore !== this.score) {
+          this.score = nextScore;
+        }
+      }
       this.songPos = 0;
-      this.trackCursors.fill(0);
+      this.trackCursors = this.score.tracks.map(() => 0);
     }
 
     const lookaheadScoreSec = 0.24 * this.tempoRate;

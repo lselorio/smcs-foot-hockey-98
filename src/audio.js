@@ -2,7 +2,13 @@
 // Synthesizes Sega Genesis / SNES arcade SFX + Palestrina's Sicut Cervus in 16-bit chiptune!
 
 import { SICUT_CERVUS_SCORE } from './music/sicut-cervus.js';
+import { GLORIA_VIII_SCORE } from './music/gloria-viii.js';
 import { ChiptuneChoirPlayer } from './music-player.js';
+
+export const MUSIC_TRACKS = [
+  { id: 'sicut_cervus', label: 'SICUT CERVUS', score: SICUT_CERVUS_SCORE },
+  { id: 'gloria_viii', label: 'GLORIA VIII', score: GLORIA_VIII_SCORE },
+];
 
 export const BOOT_CHANTS = [
   {
@@ -34,7 +40,13 @@ class SoundEngine {
     this.ctx = null;
     this.muted = false;
     this.noiseBuffer = null;
-    this.music = new ChiptuneChoirPlayer(SICUT_CERVUS_SCORE);
+    this.musicTrackIndex = 0;
+    this.music = new ChiptuneChoirPlayer(MUSIC_TRACKS[0].score, {
+      onTrackEnded: () => {
+        this.musicTrackIndex = (this.musicTrackIndex + 1) % MUSIC_TRACKS.length;
+        return this.getMusicTrack().score;
+      },
+    });
     this.bootVoiceBuffer = null;
     this.bootVoiceChecked = false;
     this.bootVoiceSource = null;
@@ -79,6 +91,19 @@ class SoundEngine {
     const enabled = this.music.toggleEnabled();
     if (enabled) this.ensureContext();
     return enabled;
+  }
+
+  getMusicTrack() {
+    return MUSIC_TRACKS[this.musicTrackIndex] || MUSIC_TRACKS[0];
+  }
+
+  cycleMusicTrack() {
+    this.musicTrackIndex = (this.musicTrackIndex + 1) % MUSIC_TRACKS.length;
+    const track = this.getMusicTrack();
+    this.music.setScore(track.score);
+    if (!this.music.enabled) this.music.toggleEnabled();
+    this.ensureContext();
+    return track;
   }
 
   updateMusic(state, isFinalSeconds = false) {

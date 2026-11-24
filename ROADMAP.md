@@ -5,16 +5,15 @@
 ## Upcoming Features & New 66 Bond Recess Games
 
 1. **Multi-Sport 66 Bond Anthology (Shared Arena & *"In Ludo Est!"* Intro)**
-   - Reuse the **66 Bond** schoolyard arena, classmate roster, uniforms, and the **360° spinning SMCS crest + *"In Ludo Est!"* boot intro** to launch additional recess sports:
-     - **Elimination** — Classic St. Mike's schoolyard Elimination game on 66 Bond.
-     - **Basketball** — Full playable recess basketball on 66 Bond's hoops.
+   - Reuse the **66 Bond** schoolyard arena, classmate roster, uniforms, and the **360° spinning SMCS crest + sung Gloria/Magnificat + *"In Ludo Est!"* boot intro** to launch additional recess sports:
+     - **Elimination** — Classic St. Mike's schoolyard basketball elimination game on 66 Bond's hoops.
      - **Touch Football** — Schoolyard touch football across 66 Bond.
 
 2. **Classmate Roster & Player Attributes** *(In progress — 10 St. Mike's classmates drafted into HOME vs. AWAY with everyday/dress uniforms; expand roster & fine-tune attributes anytime)*
    - Distinct playable classmates with individualized player attributes (speed, kick power, ball control, catching/hands, goalie reflexes, looks/gear).
 
-3. **Chiptune Sacred / Liturgical Soundtrack** *(In progress — live 4-voice Palestrina Sicut Cervus prototype added; can refine timbre or add Gregorian Missa XVIII Gloria later)*
-   - Play a chiptune rendition of **Palestrina's *Sicut Cervus*** or **Gregorian *Missa XVIII* Gloria** during gameplay.
+3. **Chiptune Sacred / Liturgical Soundtrack** *(In progress — live 4-voice Palestrina Sicut Cervus prototype added; can refine timbre or add Gregorian Missa VIII "de Angelis" Gloria later)*
+   - Play a chiptune rendition of **Palestrina's *Sicut Cervus*** or **Gregorian *Missa VIII (de Angelis)* Gloria** during gameplay.
 
 4. **Two Play Surfaces: "66 Bond" & "67 Bond"** *(66 Bond complete; 67 Bond lower priority for now)*
    - Add **67 Bond** as a second selectable schoolyard court with its own dimensions and net layout.

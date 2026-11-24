@@ -6,6 +6,9 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const padBadge = document.getElementById('pad-status');
 const game = new FootHockeyGame();
+if (typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location?.hostname || '')) {
+  window.game = game;
+}
 
 function updatePadBadge(name) {
   if (!padBadge) return;

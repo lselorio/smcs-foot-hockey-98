@@ -916,14 +916,16 @@ function renderTitleScreen(ctx, game) {
   drawPixelText(ctx, 'KICK + CATCH & DROP', 96, 158, '#9be8ff', 1, 'center', null);
   drawPixelText(ctx, 'JACKET + GLOVE!', 224, 158, '#ffd84d', 1, 'center', null);
 
-  // Matchup summary + Uniform & Weather toggles!
+  // Matchup summary + Uniform, Weather & BGM Track toggles!
   const uniformShort = game.uniformMode === 'dress' ? 'DRESS' : 'DEFAULT';
-  const weatherShort = game.weather === 'snow' ? 'SNOW (CHECKS ALL!)' : 'CLEAR';
-  drawPixelText(ctx, `UNIFORM: ${uniformShort} (U)   WEATHER: ${weatherShort} (W)`, SCREEN_W / 2, 178, '#ffd84d', 1, 'center');
+  const weatherShort = game.weather === 'snow' ? 'SNOW' : 'CLEAR';
+  const trackLabel = sound.getMusicTrack().label;
+  drawPixelText(ctx, `UNIFORM:${uniformShort}(U)  WEATHER:${weatherShort}(W)`, SCREEN_W / 2, 175, '#ffd84d', 1, 'center');
+  drawPixelText(ctx, `BGM: ${trackLabel} (G:SWITCH  N:ON/OFF)`, SCREEN_W / 2, 187, '#9be8ff', 1, 'center');
   if (game.gamepadName) {
-    drawPixelText(ctx, 'PAD READY! B/X:SHOOT/CHECK A:PASS Y:CATCH', SCREEN_W / 2, 196, '#6ef0a4', 1, 'center');
+    drawPixelText(ctx, 'PAD READY! B/X:SHOOT/CHECK A:PASS Y:CATCH', SCREEN_W / 2, 200, '#6ef0a4', 1, 'center');
   } else {
-    drawPixelText(ctx, 'Z:SHOOT/CHECK  X:PASS  C:CATCH  B:SNOW', SCREEN_W / 2, 196, '#b8c7e6', 1, 'center');
+    drawPixelText(ctx, 'Z:SHOOT/CHECK  X:PASS  C:CATCH  B:SNOW', SCREEN_W / 2, 200, '#b8c7e6', 1, 'center');
   }
 
   // Blinking arcade prompt + Demo Mode shortcut
@@ -980,7 +982,7 @@ function renderStatsModal(ctx, game, { isFinal }) {
         : game.score.away > game.score.home
         ? `${TEAMS.away.name} WINS RECESS!`
         : 'RECESS TIE GAME!';
-    drawPixelText(ctx, 'FINAL BELL! STATS', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
+    drawPixelText(ctx, 'ITE, LUDUS FINITUS EST', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
     drawPixelText(ctx, verdict, SCREEN_W / 2, y + 19, '#48b8ff', 1, 'center');
   } else {
     drawPixelText(ctx, 'PAUSED - STATS TO DATE', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
@@ -1036,9 +1038,9 @@ function renderStatsModal(ctx, game, { isFinal }) {
   // Action prompts at bottom
   if (isFinal) {
     if (Math.floor(game.tick / 22) % 2 === 0) {
-      drawPixelText(ctx, 'PRESS ENTER / START / Z FOR REMATCH', SCREEN_W / 2, y + 181, '#d9ff2e', 1, 'center');
+      drawPixelText(ctx, 'ENTER/Z: REMATCH   Q/ESC: TITLE', SCREEN_W / 2, y + 181, '#d9ff2e', 1, 'center');
     }
   } else {
-    drawPixelText(ctx, 'P / ESC / ENTER: RESUME   R: RESTART', SCREEN_W / 2, y + 181, '#d9ff2e', 1, 'center');
+    drawPixelText(ctx, 'P/ESC:RESUME  R:RESTART  Q:TITLE', SCREEN_W / 2, y + 181, '#d9ff2e', 1, 'center');
   }
 }
