@@ -53,7 +53,7 @@ for (const grp of groupByOnset(dedupeNotes(leadRaw))) {
   // Lead pairs each 16th note with its +12 upper octave (e.g. 77 & 89); pick the crisp lower voice (77)
   // so 16-bit square/saw oscillators sing warmly without piercing ultrasonic aliasing!
   const primary = grp[0];
-  soprano.push([round3(primary[0]), round3(Math.max(0.06, primary[1] * 0.92)), primary[2], 0.58]);
+  soprano.push([round3(primary[0]), round3(Math.max(0.06, primary[1] * 0.92)), primary[2], 0.48]);
 }
 
 // 2) Left-hand staccato manual chords (lead bass): deduplicate octave doublings -> clean 3-note chord split across Alto & Tenor!
@@ -73,7 +73,7 @@ for (const grp of groupByOnset(dedupeNotes(leadBassRaw))) {
   }
   uniquePcs.forEach((n, idx) => {
     const target = idx === uniquePcs.length - 1 && uniquePcs.length >= 2 ? alto : tenor;
-    target.push([round3(n[0]), round3(Math.max(0.07, n[1] * 0.9)), n[2], 0.44]);
+    target.push([round3(n[0]), round3(Math.max(0.07, n[1] * 0.9)), n[2], 0.35]);
   });
 }
 
@@ -82,23 +82,32 @@ for (const grp of groupByOnset(dedupeNotes(secLeadRaw))) {
   const usable = grp.filter((n) => n[2] >= 45 && n[2] <= 82);
   if (usable.length === 0) continue;
   const top = usable[usable.length - 1];
-  alto.push([round3(top[0]), round3(Math.max(0.07, top[1] * 0.92)), top[2], 0.50]);
+  alto.push([round3(top[0]), round3(Math.max(0.07, top[1] * 0.92)), top[2], 0.40]);
   if (usable.length >= 2) {
     const low = usable[0];
-    tenor.push([round3(low[0]), round3(Math.max(0.07, low[1] * 0.9)), low[2], 0.44]);
+    tenor.push([round3(low[0]), round3(Math.max(0.07, low[1] * 0.9)), low[2], 0.35]);
   }
 }
 
-// 4) Iconic Widor Pedal Theme (Track 4): lift subsonic 32'/16' notes into rich audible pipe-organ bass (MIDI 36..53)!
+// 4) Iconic Widor Pedal Theme (Track 4): thunderous coupled 16' + 8' cathedral Bombarde reed stops!
+// Doubling the fundamental (MIDI 36..47) with its +12 octave pipe (MIDI 48..59) at full velocity
+// makes the pedal melody roar cleanly over the manual arpeggios on any speakers!
 for (const grp of groupByOnset(dedupeNotes(pedalRaw))) {
-  // Pick the strongest audible pedal pitch in MIDI 36..55 (or lift lowest pitch up by octaves into 36..47)
-  let picked = grp.find((n) => n[2] >= 36 && n[2] <= 55);
+  let picked = grp.find((n) => n[2] >= 36 && n[2] <= 50);
   if (!picked) {
     let p = grp[0][2];
     while (p < 36) p += 12;
     picked = [grp[0][0], grp[0][1], p, grp[0][3]];
   }
-  bass.push([round3(picked[0]), round3(Math.max(0.10, picked[1] * 0.95)), picked[2], 0.78]);
+  const start = round3(picked[0]);
+  const dur = round3(Math.max(0.12, picked[1] * 0.96));
+  const fundamental = picked[2];
+  // 16' deep cathedral bass pipe (full roar!)
+  bass.push([start, dur, fundamental, 1.0]);
+  // 8' coupled upper pedal reed pipe (+12) so the pedal theme cuts boldly through the arpeggios!
+  if (fundamental + 12 <= 62) {
+    bass.push([start, dur, fundamental + 12, 0.92]);
+  }
 }
 
 const sortNotes = (arr) => dedupeNotes(arr);
