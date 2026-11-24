@@ -45,7 +45,8 @@ function parseGabc(gabc) {
 
   for (const word of tokens) {
     const parenMatches = [...word.matchAll(/\(([^)]*)\)/g)];
-    for (const m of parenMatches) {
+    for (let mIdx = 0; mIdx < parenMatches.length; mIdx++) {
+      const m = parenMatches[mIdx];
       const code = m[1].trim();
       if (!code) continue;
 
@@ -79,7 +80,10 @@ function parseGabc(gabc) {
 
       // Strip bracketed Gregorio directives like [ll:1], [oh:h]
       const clean = code.replace(/\[[^\]]*\]/g, '');
+      const isLastGroupOfCommaWord = mIdx === parenMatches.length - 1 && word.includes(',');
       let i = 0;
+      let neumeNoteCount = 0;
+      let prevWasQuilisma = false;
       while (i < clean.length) {
         const ch = clean[i];
         const lower = ch.toLowerCase();
@@ -106,11 +110,36 @@ function parseGabc(gabc) {
             i++;
           }
 
+          // Solesmes quilisma rule: the note IMMEDIATELY PRECEDING the squiggly quilisma ("w")
+          // is expressively lengthened (e.g. first note of "O clemens" and "O pia")!
+          const prevEv = events[events.length - 1];
+          if (quilisma && prevEv && prevEv.type === 'note') {
+            const targetPrevDur = Math.max(prevEv.dur, BASE_PULSE * 1.9);
+            const delta = targetPrevDur - prevEv.dur;
+            if (delta > 0) {
+              prevEv.dur = targetPrevDur;
+              prevEv.accented = true;
+              t += delta;
+            }
+          }
+
+          // Tie consecutive identical pitches within the same neume (distropha/tristropha:
+          // e.g. dul-ce(ff)do, Je-sum(jj), cle(ee)mens, O(jjj//...) -> smooth sustained held note!)
+          if (neumeNoteCount > 0 && prevEv && prevEv.type === 'note' && prevEv.midi === midi && !quilisma) {
+            let addDur = BASE_PULSE * 1.05;
+            if (doubleSlashAfter) addDur += BASE_PULSE * 0.45;
+            prevEv.dur += addDur;
+            prevEv.accented = prevEv.accented || accented || episema;
+            t += addDur;
+            neumeNoteCount++;
+            prevWasQuilisma = false;
+            continue;
+          }
+
           let dur = BASE_PULSE;
           if (dots === 1) {
             dur = BASE_PULSE * 2.15;
           } else if (dots >= 2) {
-            const prevEv = events[events.length - 1];
             if (prevEv && prevEv.type === 'note' && prevEv.dots === 0) {
               const oldDur = prevEv.dur;
               const newPrevDur = BASE_PULSE * 2.15;
@@ -120,14 +149,18 @@ function parseGabc(gabc) {
             }
             dur = BASE_PULSE * 2.75;
           } else if (episema) {
-            dur = BASE_PULSE * 1.55;
+            // Generous Solesmes horizontal-episema hold in the middle of phrases (e.g. "eia ergo", "tuos", "nobis")
+            dur = BASE_PULSE * 2.20;
           } else if (quilisma) {
-            // Subtle expressive lengthening before rising quilisma
-            dur = BASE_PULSE * 1.15;
+            // Quilisma itself flows lightly upward into the peak note
+            dur = BASE_PULSE * 0.90;
+          } else if (prevWasQuilisma) {
+            // Expressive arrival on the top note right after a quilisma ("O clemens", "O pia")
+            dur = BASE_PULSE * 1.25;
           }
 
           if (doubleSlashAfter) {
-            dur += BASE_PULSE * 0.35;
+            dur += BASE_PULSE * 0.45;
           }
 
           events.push({
@@ -136,14 +169,38 @@ function parseGabc(gabc) {
             dur,
             midi,
             accented: accented || episema,
+            hasEpisema: episema,
             dots,
           });
           t += dur;
+          neumeNoteCount++;
+          prevWasQuilisma = quilisma;
         } else {
           i++;
         }
       }
+
+      // Subtle natural choir breath ONLY at the end of a comma word whose final syllable has an episema (e.g. "Eia ergo,")
+      const lastEv = events[events.length - 1];
+      if (isLastGroupOfCommaWord && lastEv && lastEv.type === 'note' && lastEv.hasEpisema) {
+        t += 0.14;
+      }
     }
+  }
+
+  // Graceful cathedral ritardando on the closing "Virgo Maria." (final 6 notes: Vir-go Ma-ri(d-c)-a.)
+  const noteEvents = events.filter((e) => e.type === 'note');
+  const ritFactors = [1.12, 1.24, 1.38, 1.56, 1.78, 1.45];
+  if (noteEvents.length >= ritFactors.length) {
+    const startIdx = noteEvents.length - ritFactors.length;
+    let curT = noteEvents[startIdx].start;
+    for (let k = 0; k < ritFactors.length; k++) {
+      const ev = noteEvents[startIdx + k];
+      ev.start = curT;
+      ev.dur *= ritFactors[k];
+      curT += ev.dur;
+    }
+    t = Math.max(t, curT + 0.78);
   }
 
   return { events, totalDuration: t + 0.5 };
@@ -223,7 +280,7 @@ function buildScore() {
       const vel = n.accented ? 0.78 : n.dots > 0 ? 0.74 : 0.66;
       soprano.push([
         Number(n.start.toFixed(3)),
-        Number((n.dur * 0.96).toFixed(3)),
+        Number(Math.max(0.08, n.dur - 0.015).toFixed(3)),
         n.midi,
         vel,
       ]);

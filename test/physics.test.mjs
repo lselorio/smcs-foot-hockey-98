@@ -423,6 +423,26 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   // Iconic opening "Sal-ve, Re-gi-na" in Eb Major: Eb4 G4 Bb4 C5 Bb4
   const srOpening = SALVE_REGINA_SCORE.tracks[0].notes.slice(0, 5).map((n) => n[2]);
   assert.deepEqual(srOpening, [63, 67, 70, 72, 70]);
+  // Verify Solesmes lengthening on mid-phrase episema ("eia ergo") and pre-quilisma notes ("O clemens", "O pia")!
+  const srSop = SALVE_REGINA_SCORE.tracks[0].notes;
+  const oClemensIdx = srSop.findIndex(
+    (n, i) => i > 100 && n[2] === 67 && srSop[i + 1]?.[2] === 68 && srSop[i + 2]?.[2] === 70 && srSop[i + 3]?.[2] === 67
+  );
+  assert.ok(oClemensIdx > 0, 'Should locate opening of "O clemens"');
+  assert.ok(srSop[oClemensIdx][1] >= 0.72, 'First note of "O clemens" before quilisma should be expressively lengthened');
+  const oPiaIdx = srSop.findIndex(
+    (n, i) => i > oClemensIdx && n[2] === 70 && srSop[i + 1]?.[2] === 72 && srSop[i + 2]?.[2] === 74 && srSop[i + 3]?.[2] === 75
+  );
+  assert.ok(oPiaIdx > 0, 'Should locate opening of "O pia"');
+  assert.ok(srSop[oPiaIdx][1] >= 0.72, 'First note of "O pia" before quilisma should be expressively lengthened');
+  // Verify smooth legato on "dul-cé-do" (no awkward mid-word gap) and ritardando on closing "Virgo Maria."
+  const dulCe = srSop[16]; // "cé" (Ab4=68)
+  const dulDo = srSop[17]; // "do" (F4=65)
+  assert.equal(dulCe[2], 68);
+  assert.equal(dulDo[2], 65);
+  assert.ok(dulDo[0] - (dulCe[0] + dulCe[1]) < 0.04, 'Should have no awkward pause between "cé" and "do" of dulcédo');
+  const virgoTail = srSop.slice(-6); // Vir-go Ma-ri(d-c)-a.
+  assert.ok(virgoTail[4][1] > virgoTail[2][1] && virgoTail[2][1] > virgoTail[0][1], 'Closing "Virgo Maria." should smoothly ritard');
 
   // Default track should be Sicut Cervus, and cycling / auto-advancing moves Sicut Cervus -> Gloria VIII -> Salve Regina -> Sicut Cervus!
   assert.equal(sound.getMusicTrack().id, 'sicut_cervus', 'Default BGM track should be Sicut Cervus');
