@@ -626,6 +626,33 @@ test('boot intro spins SMCS crest then automatically transitions to TITLE (or sk
   assert.equal(game.state, 'BOOT');
   assert.notEqual(game.bootChant.id, initialChantId, 'Replaying intro with I should showcase the other chant');
 
+  // Verify OPTIONS screen opens from TITLE via KeyO, toggles settings cleanly, and returns via Escape!
+  game.state = 'TITLE';
+  game.onKeyDown('KeyO');
+  game.update();
+  game.onKeyUp('KeyO');
+  assert.equal(game.state, 'OPTIONS', 'Pressing O on Title should open the Options screen');
+  assert.equal(game.optionsCursor, 0);
+  // Toggle Uniforms (row 0) via ArrowRight
+  game.onKeyDown('ArrowRight');
+  game.update();
+  game.onKeyUp('ArrowRight');
+  assert.equal(game.uniformMode, 'dress', 'ArrowRight on Options row 0 should toggle Uniforms');
+  // Move down to Weather (row 1) and toggle to Snow Day
+  game.onKeyDown('ArrowDown');
+  game.update();
+  game.onKeyUp('ArrowDown');
+  assert.equal(game.optionsCursor, 1);
+  game.onKeyDown('ArrowRight');
+  game.update();
+  game.onKeyUp('ArrowRight');
+  assert.equal(game.weather, 'snow', 'ArrowRight on Options row 1 should toggle Weather');
+  // Escape returns cleanly to TITLE
+  game.onKeyDown('Escape');
+  game.update();
+  game.onKeyUp('Escape');
+  assert.equal(game.state, 'TITLE', 'Escape on Options should return cleanly to Title');
+
   // Verify skipping on keypress after brief intro
   const gameSkip = new FootHockeyGame();
   for (let i = 0; i < 20; i++) gameSkip.update();
@@ -654,9 +681,36 @@ test('66 Bond court has larger blacktop, asymmetrical 90-degree nets, and swaps 
   assert.ok(rightNet.span < topNet.span, 'Right square cage should be slightly thinner than top rectangle');
   assert.ok(rightNet.maxZ > topNet.maxZ, 'Right square cage should be taller than top rectangle');
 
-  // Period 1 (Morning): Home attacks Top Yellow Bricks, defends Right Square Cage
+  // Period 1 (Morning): Home attacks Top Yellow Bricks, camera is unrotated!
   assert.equal(game.getAttackNet('home').id, 'top_yellow');
   assert.equal(game.getDefendNet('home').id, 'right_cage');
+  assert.equal(game.isCameraRotated(), false, 'Period 1 should not rotate camera');
+
+  // Period 2 (Lunch Recess): Home attacks Right Window Cage -> camera rotates 90° CCW so UP drives toward the right net!
+  game.period = 2;
+  assert.equal(game.getAttackNet('home').id, 'right_cage');
+  assert.equal(game.isCameraRotated(), true, 'Lunch Recess should rotate camera 90° CCW so player shoots UP');
+  const skater = game.getControlledPlayer();
+  skater.x = 240;
+  skater.y = 240;
+  skater.vx = 0;
+  skater.vy = 0;
+  game.onKeyDown('ArrowUp');
+  game.update();
+  game.onKeyUp('ArrowUp');
+  assert.ok(skater.vx > 0, 'Pressing UP during rotated Lunch Recess should skate +X toward the right square cage net');
+
+  // Optional toggle (V key) disables Lunch Recess rotation cleanly -> UP returns to standard -Y world movement!
+  assert.equal(game.toggleRotateLunchView(), false);
+  assert.equal(game.isCameraRotated(), false, 'Disabling Lunch rotation keeps fixed court orientation');
+  skater.vx = 0;
+  skater.vy = 0;
+  game.onKeyDown('ArrowUp');
+  game.update();
+  game.onKeyUp('ArrowUp');
+  assert.ok(skater.vy < 0, 'With Lunch rotation off, pressing UP should skate standard -Y');
+  game.toggleRotateLunchView();
+  game.period = 1;
 
   // High shot at z=23 misses over top rectangle (maxZ=18) but SCORES on taller right square cage (maxZ=28)!
   const highTopBall = createBall(topNet.centerX, topNet.lineCoord + 8, 23);

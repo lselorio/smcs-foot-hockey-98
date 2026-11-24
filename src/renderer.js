@@ -48,6 +48,11 @@ export function renderGame(ctx, game) {
     return;
   }
 
+  if (game.state === 'OPTIONS') {
+    renderOptionsScreen(ctx, game);
+    return;
+  }
+
   // === PLAYFIELD VIEWPORT ===
   ctx.save();
   ctx.beginPath();
@@ -58,13 +63,43 @@ export function renderGame(ctx, game) {
   const shakeY = game.screenShake > 0 ? Math.round((Math.random() - 0.5) * 4) : 0;
   ctx.translate(-Math.round(game.cameraX) + shakeX, HUD_H - Math.round(game.cameraY) + shakeY);
 
-  drawSchoolyard(ctx, game);
+  // During Lunch Recess (when Home attacks the right square cage net), rotate the schoolyard 90° CCW
+  // so the attack net is ALWAYS at the TOP of the screen while all kids, balls, & text stay upright!
+  const rotated = typeof game.isCameraRotated === 'function' && game.isCameraRotated();
+  const W = game.court.worldW;
+  const toView = (wx, wy) => (rotated ? { x: wy, y: W - wx } : { x: wx, y: wy });
+  const toViewVec = (vx, vy) => (rotated ? { x: vy, y: -vx } : { x: vx, y: vy });
 
-  // Depth-sort skaters, goalies, and ball by Y coordinate for authentic 3/4 perspective!
+  ctx.save();
+  if (rotated) {
+    ctx.translate(0, W);
+    ctx.rotate(-Math.PI / 2);
+  }
+  drawSchoolyard(ctx, game, rotated);
+  if (rotated && game.court.protrudingRoom) {
+    drawProtrudingRoom(ctx, game.court.protrudingRoom, W, game.weather === 'snow');
+  }
+  ctx.restore();
+
+  // Depth-sort skaters, goalies, spectators, basketball games, and ball by screen-Y for crisp 3/4 perspective!
   const drawables = [];
-  for (const p of game.players) {
+  const celebrating = game.state === 'GOAL_CELEBRATION';
+  for (const spec of game.spectators) {
+    const wobble = Math.round(getLeftWallFlexOffset(game.leftWallImpact, spec.y) * 0.65);
+    const sp = toView(spec.x + wobble, spec.y);
     drawables.push({
-      y: p.y,
+      y: sp.y,
+      draw: () => drawSpectator(ctx, { ...spec, x: sp.x, y: sp.y }, game.tick, celebrating),
+    });
+  }
+
+  for (const p of game.players) {
+    const pos = toView(p.x, p.y);
+    const fv = toViewVec(p.facingX, p.facingY);
+    const vv = toViewVec(p.vx, p.vy);
+    const vp = { ...p, x: pos.x, y: pos.y, facingX: fv.x, facingY: fv.y, vx: vv.x, vy: vv.y };
+    drawables.push({
+      y: pos.y,
       draw: () => {
         const team = TEAMS[p.team];
         if (!game.isDemo && p.id === game.controlledId) {
@@ -73,21 +108,21 @@ export function renderGame(ctx, game) {
               ? Math.max(0, 1 - p.holdFrames / PHYSICS.goalieMaxHoldFrames)
               : Math.max(0, 1 - Math.max(p.holdFrames / PHYSICS.maxHoldFrames, p.holdDist / PHYSICS.maxHoldSteps))
             : 0;
-          drawStarRing(ctx, p.x, p.y, team.ringColor, game.tick, p.holdingBall, holdRatio);
+          drawStarRing(ctx, pos.x, pos.y, team.ringColor, game.tick, p.holdingBall, holdRatio);
         } else if (game.ball.owner?.id === p.id) {
-          drawStarRing(ctx, p.x, p.y, team.ringColor, game.tick, p.holdingBall, 0);
+          drawStarRing(ctx, pos.x, pos.y, team.ringColor, game.tick, p.holdingBall, 0);
         }
 
         if (p.role === 'G') {
-          drawGoalie(ctx, p, team, game.tick, game.uniformMode);
+          drawGoalie(ctx, vp, team, game.tick, game.uniformMode);
         } else {
-          drawSkater(ctx, p, team, game.tick, game.uniformMode);
+          drawSkater(ctx, vp, team, game.tick, game.uniformMode);
         }
 
         // Deliberate pass / goalie-throw receiver chevron on highlighted teammate!
         if (game.passTarget && game.passTarget.id === p.id) {
           const ctrl = game.getControlledPlayer();
-          drawPassTargetMarker(ctx, p, game.tick, ctrl.role === 'G');
+          drawPassTargetMarker(ctx, vp, game.tick, ctrl.role === 'G');
         }
 
         // Two-tier Quick Shot / Hard Shot (Slap-Kick) charge meter under active skater
@@ -96,13 +131,13 @@ export function renderGame(ctx, game) {
           const pct = Math.min(1, game.kickCharge / SHOT.hardFullFrames);
           const w = Math.round(pct * 22);
           ctx.fillStyle = '#12151f';
-          ctx.fillRect(Math.round(p.x - 12), Math.round(p.y + 7), 24, 5);
+          ctx.fillRect(Math.round(pos.x - 12), Math.round(pos.y + 7), 24, 5);
           // Threshold notch marking where Quick Shot transitions to Hard Shot!
-          const notchX = Math.round(p.x - 11 + (SHOT.hardMinFrames / SHOT.hardFullFrames) * 22);
+          const notchX = Math.round(pos.x - 11 + (SHOT.hardMinFrames / SHOT.hardFullFrames) * 22);
           ctx.fillStyle = isHard ? '#ff5238' : '#ffe84d';
-          ctx.fillRect(Math.round(p.x - 11), Math.round(p.y + 8), w, 3);
+          ctx.fillRect(Math.round(pos.x - 11), Math.round(pos.y + 8), w, 3);
           ctx.fillStyle = '#ffffff';
-          ctx.fillRect(notchX, Math.round(p.y + 7), 1, 5);
+          ctx.fillRect(notchX, Math.round(pos.y + 7), 1, 5);
         }
       },
     });
@@ -110,9 +145,24 @@ export function renderGame(ctx, game) {
 
   // Only draw independent tennis ball when not clutched inside a player's hands
   if (!(game.ball.owner && game.ball.owner.holdingBall)) {
+    const bpos = toView(game.ball.x, game.ball.y);
+    const bv = toViewVec(game.ball.vx, game.ball.vy);
+    const vball = rotated
+      ? {
+          ...game.ball,
+          x: bpos.x,
+          y: bpos.y,
+          vx: bv.x,
+          vy: bv.y,
+          trail: game.ball.trail.map((tp) => {
+            const tv = toView(tp.x, tp.y);
+            return { x: tv.x, y: tv.y, z: tp.z };
+          }),
+        }
+      : game.ball;
     drawables.push({
-      y: game.ball.y + 0.5,
-      draw: () => drawTennisBall(ctx, game.ball, game.tick),
+      y: bpos.y + 0.5,
+      draw: () => drawTennisBall(ctx, vball, game.tick),
     });
   }
 
@@ -120,14 +170,19 @@ export function renderGame(ctx, game) {
   if (game.hoopsGames) {
     for (const h of game.hoopsGames) {
       for (const k of h.kids) {
+        const kpos = toView(k.x, k.y);
+        const kfv = toViewVec(k.facingX, k.facingY);
+        const kvv = toViewVec(k.vx, k.vy);
+        const vk = { ...k, x: kpos.x, y: kpos.y, facingX: kfv.x, facingY: kfv.y, vx: kvv.x, vy: kvv.y };
         drawables.push({
-          y: k.y,
-          draw: () => drawSkater(ctx, k, HOOPS_TEAM_STYLE, game.tick, game.uniformMode),
+          y: kpos.y,
+          draw: () => drawSkater(ctx, vk, HOOPS_TEAM_STYLE, game.tick, game.uniformMode),
         });
       }
+      const bbpos = toView(h.bball.x, h.bball.y);
       drawables.push({
-        y: h.bball.y + 0.5,
-        draw: () => drawBasketball(ctx, h.bball),
+        y: bbpos.y + 0.5,
+        draw: () => drawBasketball(ctx, rotated ? { ...h.bball, x: bbpos.x, y: bbpos.y } : h.bball),
       });
     }
   }
@@ -135,14 +190,16 @@ export function renderGame(ctx, game) {
   // Depth-sort the chubby kid sitting at the foot of the bottom-right stairs!
   if (game.court.cornerStairs) {
     const cs = game.court.cornerStairs;
+    const kpos = toView(cs.kidX, cs.kidY);
+    const ballViewX = toView(game.ball.x, game.ball.y).x;
     drawables.push({
-      y: cs.kidY,
-      draw: () => drawSeatedStairsKid(ctx, cs.kidX, cs.kidY, game.tick, game.uniformMode, game.ball.x),
+      y: kpos.y,
+      draw: () => drawSeatedStairsKid(ctx, kpos.x, kpos.y, game.tick, game.uniformMode, ballViewX),
     });
   }
 
-  // Depth-sort the protruding brick room above the right-wall net for crisp 3/4 occlusion!
-  if (game.court.protrudingRoom) {
+  // Depth-sort the protruding brick room when unrotated (already drawn with rotated walls when rotated)
+  if (!rotated && game.court.protrudingRoom) {
     const pr = game.court.protrudingRoom;
     drawables.push({
       y: pr.y2,
@@ -153,15 +210,37 @@ export function renderGame(ctx, game) {
   drawables.sort((a, b) => a.y - b.y);
   for (const item of drawables) item.draw();
 
+  // Upright caption plaque out of bounds on the top red-brick wall (above & left of the seated kid!)
+  if (rotated && game.court.cornerStairs) {
+    const cs = game.court.cornerStairs;
+    const bw = 92;
+    const bh = 23;
+    const bx = 330; // Cleanly right of the square cage net (312) and above-left of the seated kid (423, 60)
+    const by = 4;   // Completely out of bounds inside the top red-brick wall (y: 0..32)!
+    ctx.fillStyle = 'rgba(11, 15, 28, 0.88)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#d4aa52';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+    // Little pointer tab pointing down-right toward the seated kid at the stairs
+    ctx.fillStyle = '#d4aa52';
+    ctx.fillRect(bx + bw - 6, by + bh, 3, 3);
+    ctx.fillRect(bx + bw - 4, by + bh + 2, 3, 2);
+    drawPixelText(ctx, cs.captionLines[0], bx + bw / 2, by + 4, '#fff1c4', 1, 'center', null);
+    drawPixelText(ctx, cs.captionLines[1], bx + bw / 2, by + 13, '#ffe07a', 1, 'center', null);
+  }
+
   // Particles
   for (const pt of game.particles) {
+    const ppos = toView(pt.x, pt.y);
     ctx.fillStyle = pt.color;
-    ctx.fillRect(Math.round(pt.x), Math.round(pt.y), pt.size, pt.size);
+    ctx.fillRect(Math.round(ppos.x), Math.round(ppos.y), pt.size, pt.size);
   }
 
   // Arcade callouts ("CAUGHT!", "GLOVE SAVE!", "JACKET BLOCK!", "BOARDED!", "HOOPS!")
   for (const c of game.callouts) {
-    drawPixelText(ctx, c.text, c.x, c.y, c.color, 1, 'center', '#0c0f1a');
+    const cpos = toView(c.x, c.y);
+    drawPixelText(ctx, c.text, cpos.x, cpos.y, c.color, 1, 'center', '#0c0f1a');
   }
 
   ctx.restore();
@@ -179,8 +258,9 @@ export function renderGame(ctx, game) {
   // Off-screen indicators on the larger 66 Bond blacktop:
   // 1) Targeted pass/throw teammate arrow (any edge!)
   if (game.passTarget && game.state === 'PLAYING') {
-    const sx = game.passTarget.x - game.cameraX;
-    const sy = HUD_H + (game.passTarget.y - game.cameraY);
+    const ptView = toView(game.passTarget.x, game.passTarget.y);
+    const sx = ptView.x - game.cameraX;
+    const sy = HUD_H + (ptView.y - game.cameraY);
     if (sx < 8 || sx > SCREEN_W - 8 || sy < HUD_H + 8 || sy > SCREEN_H - 8) {
       const label = game.passTarget.name;
       const pillW = Math.max(48, label.length * 6 + 8);
@@ -195,11 +275,12 @@ export function renderGame(ctx, game) {
     }
   }
 
-  // 2) Off-screen Attack Net indicator so you always know where to shoot on 66 Bond!
+  // 2) Off-screen Attack Net indicator (always points UP when Lunch Recess rotates the court!)
   if (!game.isDemo && (game.state === 'PLAYING' || game.state === 'RESTART')) {
     const atk = game.getAttackNet('home');
-    const nx = atk.centerX - game.cameraX;
-    const ny = HUD_H + (atk.centerY - game.cameraY);
+    const atkView = toView(atk.centerX, atk.centerY);
+    const nx = atkView.x - game.cameraX;
+    const ny = HUD_H + (atkView.y - game.cameraY);
     const offscreen = nx < 10 || nx > SCREEN_W - 10 || ny < HUD_H + 10 || ny > SCREEN_H - 10;
     if (offscreen) {
       const ix = Math.max(40, Math.min(SCREEN_W - 40, Math.round(nx)));
@@ -209,7 +290,7 @@ export function renderGame(ctx, game) {
       ctx.strokeStyle = '#ffd84d';
       ctx.lineWidth = 1;
       ctx.strokeRect(ix - 33.5, iy - 5.5, 67, 11);
-      drawPixelText(ctx, atk.wall === 'right' ? 'NET ->' : 'NET ^', ix, iy - 3, '#ffd84d', 1, 'center', null);
+      drawPixelText(ctx, rotated || atk.wall === 'top' ? 'NET ^' : 'NET ->', ix, iy - 3, '#ffd84d', 1, 'center', null);
     }
   }
 
@@ -277,7 +358,7 @@ export function renderGame(ctx, game) {
   }
 }
 
-function drawSchoolyard(ctx, game) {
+function drawSchoolyard(ctx, game, rotated = false) {
   const { court } = game;
   const b = court.bounds;
   const W = court.worldW;
@@ -657,24 +738,25 @@ function drawSchoolyard(ctx, game) {
     ctx.fillRect(cs.x1 - 2, cs.y1 + 2, 1, ch - 2);
     ctx.fillRect(cs.x2 + 1, cs.y1 + 2, 1, ch - 2);
 
-    // Caption plaque right next to the seated kid on the bottom red-brick wall:
-    // "The Bird That Couldn't Fly."
-    const bx = 298;
-    const by = 432;
-    const bw = 92;
-    const bh = 23;
-    ctx.fillStyle = 'rgba(11, 15, 28, 0.88)';
-    ctx.fillRect(bx, by, bw, bh);
-    ctx.strokeStyle = '#d4aa52';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
-    // Little pointer tab toward the seated kid at the stairs
-    ctx.fillStyle = '#d4aa52';
-    ctx.fillRect(bx + bw, by + 9, 4, 2);
-    ctx.fillRect(bx + bw + 2, by + 8, 2, 4);
+    // Caption plaque right next to the seated kid on the bottom red-brick wall (drawn upright in main pass when rotated!)
+    if (!rotated) {
+      const bx = 298;
+      const by = 432;
+      const bw = 92;
+      const bh = 23;
+      ctx.fillStyle = 'rgba(11, 15, 28, 0.88)';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = '#d4aa52';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      // Little pointer tab toward the seated kid at the stairs
+      ctx.fillStyle = '#d4aa52';
+      ctx.fillRect(bx + bw, by + 9, 4, 2);
+      ctx.fillRect(bx + bw + 2, by + 8, 2, 4);
 
-    drawPixelText(ctx, cs.captionLines[0], bx + bw / 2, by + 4, '#fff1c4', 1, 'center', null);
-    drawPixelText(ctx, cs.captionLines[1], bx + bw / 2, by + 13, '#ffe07a', 1, 'center', null);
+      drawPixelText(ctx, cs.captionLines[0], bx + bw / 2, by + 4, '#fff1c4', 1, 'center', null);
+      drawPixelText(ctx, cs.captionLines[1], bx + bw / 2, by + 13, '#ffe07a', 1, 'center', null);
+    }
   }
 
   // === TOP-LEFT & LOWER-LEFT CORNER BASKETBALL HALF-COURTS & HOOPS (IN PLAY!) ===
@@ -682,14 +764,6 @@ function drawSchoolyard(ctx, game) {
     for (const h of game.hoopsGames) {
       drawCornerBasketballCourt(ctx, h, isSnow);
     }
-  }
-
-  // === SIDELINE CLASSMATES WATCHING RECESS ===
-  // Left-wall spectators jolt gently along with the flexing boards when someone gets boarded nearby!
-  const celebrating = game.state === 'GOAL_CELEBRATION';
-  for (const spec of game.spectators) {
-    const wobble = Math.round(getLeftWallFlexOffset(game.leftWallImpact, spec.y) * 0.65);
-    drawSpectator(ctx, wobble !== 0 ? { ...spec, x: spec.x + wobble } : spec, game.tick, celebrating);
   }
 }
 
@@ -1054,25 +1128,130 @@ function renderTitleScreen(ctx, game) {
   drawPixelText(ctx, 'KICK + CATCH & DROP', 96, 158, '#9be8ff', 1, 'center', null);
   drawPixelText(ctx, 'JACKET + GLOVE!', 224, 158, '#ffd84d', 1, 'center', null);
 
-  // Matchup summary + Uniform, Weather & BGM Track toggles!
-  const uniformShort = game.uniformMode === 'dress' ? 'DRESS' : 'DEFAULT';
-  const weatherShort = game.weather === 'snow' ? 'SNOW' : 'CLEAR';
-  const trackLabel = sound.getMusicTrack().label;
-  drawPixelText(ctx, `UNIFORM:${uniformShort}(U)  WEATHER:${weatherShort}(W)`, SCREEN_W / 2, 175, '#ffd84d', 1, 'center');
-  drawPixelText(ctx, `BGM: ${trackLabel} (G:SWITCH  N:ON/OFF)`, SCREEN_W / 2, 187, '#9be8ff', 1, 'center');
-  if (game.gamepadName) {
-    drawPixelText(ctx, 'PAD READY! B/X:SHOOT/CHECK A:PASS Y:CATCH', SCREEN_W / 2, 200, '#6ef0a4', 1, 'center');
-  } else {
-    drawPixelText(ctx, 'Z:SHOOT/CHECK  X:PASS  C:CATCH  B:SNOW', SCREEN_W / 2, 200, '#b8c7e6', 1, 'center');
+  // Clean 16-bit Genesis sports Title Menu (PLAY RECESS / OPTIONS / DEMO MODE)
+  const items = [
+    { label: 'PLAY RECESS', hint: '' },
+    { label: 'OPTIONS', hint: '(O)' },
+    { label: 'DEMO MODE', hint: '(D)' },
+  ];
+  for (let i = 0; i < items.length; i++) {
+    const iy = 175 + i * 14;
+    const selected = (game.titleCursor || 0) === i;
+    if (selected) {
+      ctx.fillStyle = 'rgba(255, 216, 77, 0.16)';
+      ctx.fillRect(88, iy - 2, 144, 11);
+      ctx.fillStyle = '#ffe84d';
+      drawPixelText(ctx, '>', 96, iy, '#ffe84d', 1, 'left', null);
+    }
+    const text = items[i].hint ? `${items[i].label} ${items[i].hint}` : items[i].label;
+    drawPixelText(ctx, text, SCREEN_W / 2, iy, selected ? '#d9ff2e' : '#cfd9ef', 1, 'center');
   }
 
-  // Blinking arcade prompt + Demo Mode shortcut
-  if (Math.floor(game.tick / 24) % 2 === 0) {
-    const prompt = game.gamepadName
-      ? 'START/A: PLAY   D: DEMO (CPU VS CPU)'
-      : 'ENTER/Z: PLAY   D: DEMO (CPU VS CPU)';
-    drawPixelText(ctx, prompt, SCREEN_W / 2, 219, '#d9ff2e', 1, 'center');
+  // Subtle bottom shortcut strip
+  const padReady = game.gamepadName ? 'PAD READY  ' : '';
+  drawPixelText(ctx, `${padReady}ENTER/Z:SELECT   I:REPLAY INTRO`, SCREEN_W / 2, 222, '#7fa3d9', 1, 'center', null);
+}
+
+// Dedicated 16-bit NHL '94 OPTIONS Screen organizing all 7 game toggles cleanly!
+function renderOptionsScreen(ctx, game) {
+  ctx.fillStyle = '#121933';
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // Subtle schoolyard diagonal stripes matching Title Screen
+  ctx.fillStyle = '#192347';
+  for (let i = -240; i < SCREEN_W + 240; i += 28) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i + 14, 0);
+    ctx.lineTo(i - 66, SCREEN_H);
+    ctx.lineTo(i - 80, SCREEN_H);
+    ctx.closePath();
+    ctx.fill();
   }
+
+  const x = 22;
+  const y = 16;
+  const w = SCREEN_W - 44;
+  const h = 208;
+  ctx.fillStyle = 'rgba(10, 14, 28, 0.95)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#ffd84d';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+  drawPixelText(ctx, 'FOOT HOCKEY 98 - OPTIONS', SCREEN_W / 2, y + 10, '#ffe84d', 1, 'center');
+  ctx.fillStyle = '#324066';
+  ctx.fillRect(x + 12, y + 23, w - 24, 1);
+
+  const rows = [
+    {
+      label: 'UNIFORMS',
+      value: game.uniformMode === 'dress' ? 'DRESS BLAZER' : 'DEFAULT',
+      color: '#ffd84d',
+    },
+    {
+      label: 'WEATHER',
+      value: game.weather === 'snow' ? 'SNOW DAY' : 'CLEAR BLACKTOP',
+      color: game.weather === 'snow' ? '#9be8ff' : '#e3ebfa',
+    },
+    {
+      label: 'LUNCH CAMERA',
+      value: game.rotateLunchView ? 'ROTATE UP' : 'FIXED COURT',
+      color: '#d9ff2e',
+    },
+    {
+      label: 'MUSIC TRACK',
+      value: sound.getMusicTrack().label,
+      color: '#9be8ff',
+    },
+    {
+      label: 'MUSIC BGM',
+      value: sound.music.enabled ? 'ON' : 'OFF',
+      color: sound.music.enabled ? '#6ef0a4' : '#ff7090',
+    },
+    {
+      label: 'ALL AUDIO',
+      value: sound.muted ? 'MUTED' : 'ON',
+      color: sound.muted ? '#ff7090' : '#6ef0a4',
+    },
+    {
+      label: 'CRT SCANLINES',
+      value: game.crtEnabled ? 'ON' : 'OFF',
+      color: game.crtEnabled ? '#6ef0a4' : '#96a5c4',
+    },
+    {
+      label: 'BACK TO TITLE',
+      value: '',
+      color: '#ffe84d',
+    },
+  ];
+
+  const cursor = game.optionsCursor || 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const ry = y + 32 + i * 19;
+    const selected = cursor === i;
+    if (selected) {
+      ctx.fillStyle = 'rgba(56, 86, 156, 0.55)';
+      ctx.fillRect(x + 10, ry - 3, w - 20, 14);
+      ctx.strokeStyle = '#ffd84d';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 10.5, ry - 2.5, w - 21, 13);
+      drawPixelText(ctx, '>', x + 15, ry + 1, '#ffe84d', 1, 'left', null);
+    }
+
+    if (r.value) {
+      drawPixelText(ctx, r.label, x + 26, ry + 1, selected ? '#ffffff' : '#b4c2e0', 1, 'left', null);
+      const valDisplay = selected ? `< ${r.value} >` : r.value;
+      drawPixelText(ctx, valDisplay, x + w - 16, ry + 1, r.color, 1, 'right', null);
+    } else {
+      drawPixelText(ctx, r.label, SCREEN_W / 2, ry + 1, selected ? '#d9ff2e' : '#ffe84d', 1, 'center', null);
+    }
+  }
+
+  ctx.fillStyle = '#324066';
+  ctx.fillRect(x + 12, y + 186, w - 24, 1);
+  drawPixelText(ctx, 'UP/DN:MOVE  </>/Z:CHANGE  ESC:BACK', SCREEN_W / 2, y + 193, '#9be8ff', 1, 'center', null);
 }
 
 function formatScorerSummary(goalLog) {
@@ -1204,7 +1383,7 @@ function renderStatsModal(ctx, game, { isFinal }) {
     const scroll = Math.max(0, Math.min(Math.max(0, goals.length - maxVisible), game.summaryScroll || 0));
     const headerTitle =
       goals.length > maxVisible
-        ? `SCORING SUMMARY (${scroll + 1}-${Math.min(goals.length, scroll + maxVisible)}/${goals.length} ^/V)`
+        ? `SCORING SUMMARY (${scroll + 1}-${Math.min(goals.length, scroll + maxVisible)}/${goals.length} UP/DN)`
         : 'SCORING SUMMARY';
     drawPixelText(ctx, headerTitle, x + 10, y + 86, '#ffe84d', 1, 'left', null);
 

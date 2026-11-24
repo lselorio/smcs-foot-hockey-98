@@ -49,6 +49,8 @@ export class FootHockeyGame {
     this.goalLog = [];
     this.statsPage = 'team'; // 'team' | 'players' | 'summary' (toggleable on PAUSED and GAME_OVER!)
     this.summaryScroll = 0;
+    this.titleCursor = 0;    // 0: PLAY RECESS | 1: OPTIONS | 2: DEMO MODE
+    this.optionsCursor = 0;  // 0..7 rows on the OPTIONS screen
 
     this.court = createBond66Court();
     this.period = 1;
@@ -84,6 +86,7 @@ export class FootHockeyGame {
     this.gamepadName = null;
     this.uniformMode = 'default'; // 'default' (maroon shirt, tie, blue pants) | 'dress' (optional blazer dress uniform)
     this.weather = 'clear';       // 'clear' (blacktop, left-wall checks only) | 'snow' (white slippery snow, checks legal everywhere!)
+    this.rotateLunchView = true;  // Optional: rotate 66 Bond 90° CCW during Lunch Recess so Home always shoots UP!
     this.isDemo = false;          // True during CPU-vs-CPU Arcade Demo / Attract Mode
     this.titleIdleFrames = 0;     // Auto-launches Demo Mode after ~10s idle on Title Screen
     this.crtEnabled = true;
@@ -161,6 +164,21 @@ export class FootHockeyGame {
         };
   }
 
+  // Optional: rotate the viewport 90° CCW during Lunch Recess (when Home attacks the right square cage net)
+  // so the player is ALWAYS skating UP and shooting UP toward the opponent's net!
+  isCameraRotated() {
+    return this.rotateLunchView && this.getAttackNet('home').wall === 'right';
+  }
+
+  toggleRotateLunchView() {
+    this.rotateLunchView = !this.rotateLunchView;
+    this.updateCamera(true);
+    sound.playMenuSelect();
+    const label = this.rotateLunchView ? 'LUNCH CAM: ROTATE' : 'LUNCH CAM: FIXED';
+    this.addCallout(this.ball.x, this.ball.y - 16, label, '#ffd84d');
+    return this.rotateLunchView;
+  }
+
   getAttackNet(team) {
     const map = this.getTeamNetMap();
     const id = team === 'home' ? map.homeAttackId : map.awayAttackId;
@@ -236,6 +254,8 @@ export class FootHockeyGame {
     this.goalLog = [];
     this.statsPage = 'team'; // 'team' | 'players' | 'summary' (toggleable on PAUSED and GAME_OVER!)
     this.summaryScroll = 0;
+    this.titleCursor = 0;    // 0: PLAY RECESS | 1: OPTIONS | 2: DEMO MODE
+    this.optionsCursor = 0;  // 0..7 rows on the OPTIONS screen
     this.period = 1;
     this.clockFrames = this.getCurrentPeriodInfo().seconds * 60;
     this.restartTeam = null;
@@ -257,6 +277,7 @@ export class FootHockeyGame {
     this.state = 'FACEOFF';
     this.showLineups = Boolean(showLineups);
     this.stateTimer = this.showLineups ? (this.isDemo ? 105 : 210) : 58;
+    this.updateCamera(true); // Snap camera cleanly on period/orientation swaps!
     sound.playFaceoffDrop();
   }
 
@@ -482,6 +503,9 @@ export class FootHockeyGame {
     } else if (code === 'KeyB') {
       // Quick weather toggle anytime during play too (W is WASD Up during play)
       this.toggleWeather();
+    } else if (code === 'KeyV') {
+      if (this.state === 'TITLE') this.titleIdleFrames = 0;
+      this.toggleRotateLunchView();
     } else if (code === 'KeyT') {
       this.toggleCrt();
     } else {
@@ -617,11 +641,14 @@ export class FootHockeyGame {
     const quitPressed = this.justPressed.has('KeyQ');
     const escapePressed = this.justPressed.has('Escape');
     const replayIntroPressed = this.justPressed.has('KeyI');
+    const optionsPressed = this.justPressed.has('KeyO');
     const demoPressed = this.justPressed.has('KeyD');
     const exitDemoPressed = escapePressed || this.justPressed.has('KeyP') || quitPressed;
     const menuTogglePressed =
       this.justPressed.has('ArrowLeft') ||
       this.justPressed.has('ArrowRight');
+    const menuUpPressed = this.justPressed.has('ArrowUp') || this.justPressed.has('KeyW');
+    const menuDownPressed = this.justPressed.has('ArrowDown') || this.justPressed.has('KeyS');
     const statsPagePrevPressed =
       this.justPressed.has('ArrowLeft') ||
       this.justPressed.has('KeyA');
@@ -664,14 +691,51 @@ export class FootHockeyGame {
       quitPressed,
       escapePressed,
       replayIntroPressed,
+      optionsPressed,
       demoPressed,
       exitDemoPressed,
       menuTogglePressed,
+      menuUpPressed,
+      menuDownPressed,
       statsPagePrevPressed,
       statsPageNextPressed,
       summaryScrollUp,
       summaryScrollDown,
     };
+  }
+
+  activateOptionRow(row) {
+    switch (row) {
+      case 0:
+        this.toggleUniformMode();
+        break;
+      case 1:
+        this.toggleWeather();
+        break;
+      case 2:
+        this.toggleRotateLunchView();
+        break;
+      case 3:
+        sound.cycleMusicTrack();
+        sound.playMenuSelect();
+        break;
+      case 4:
+        sound.toggleMusic();
+        sound.playMenuSelect();
+        break;
+      case 5:
+        sound.toggleMute();
+        break;
+      case 6:
+        this.toggleCrt();
+        sound.playMenuSelect();
+        break;
+      case 7:
+        this.returnToTitle();
+        break;
+      default:
+        break;
+    }
   }
 
   toggleStatsPage(dir = 1) {
@@ -755,6 +819,34 @@ export class FootHockeyGame {
       return;
     }
 
+    if (this.state === 'OPTIONS') {
+      const OPTION_COUNT = 8;
+      if (input.menuUpPressed) {
+        this.optionsCursor = (this.optionsCursor - 1 + OPTION_COUNT) % OPTION_COUNT;
+        sound.playMenuSelect();
+        return;
+      }
+      if (input.menuDownPressed) {
+        this.optionsCursor = (this.optionsCursor + 1) % OPTION_COUNT;
+        sound.playMenuSelect();
+        return;
+      }
+      if (input.escapePressed || input.quitPressed || input.optionsPressed) {
+        this.returnToTitle();
+        return;
+      }
+      if (
+        input.menuTogglePressed ||
+        input.startPressed ||
+        input.kickPressed ||
+        input.passPressed ||
+        input.catchPressed
+      ) {
+        this.activateOptionRow(this.optionsCursor);
+      }
+      return;
+    }
+
     if (this.state === 'TITLE') {
       this.titleIdleFrames++;
       if (input.replayIntroPressed) {
@@ -763,6 +855,25 @@ export class FootHockeyGame {
         this.bootChant = pickBootChant(this.bootChant?.id);
         this.bootFrames = 0;
         this.state = 'BOOT';
+        return;
+      }
+      if (input.optionsPressed) {
+        this.titleIdleFrames = 0;
+        this.optionsCursor = 0;
+        this.state = 'OPTIONS';
+        sound.playMenuSelect();
+        return;
+      }
+      if (input.menuUpPressed) {
+        this.titleIdleFrames = 0;
+        this.titleCursor = (this.titleCursor - 1 + 3) % 3;
+        sound.playMenuSelect();
+        return;
+      }
+      if (input.menuDownPressed) {
+        this.titleIdleFrames = 0;
+        this.titleCursor = (this.titleCursor + 1) % 3;
+        sound.playMenuSelect();
         return;
       }
       if (input.menuTogglePressed) {
@@ -776,7 +887,15 @@ export class FootHockeyGame {
       }
       if (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed) {
         sound.playMenuSelect();
-        this.startNewMatch(false);
+        if (this.titleCursor === 1) {
+          this.titleIdleFrames = 0;
+          this.optionsCursor = 0;
+          this.state = 'OPTIONS';
+        } else if (this.titleCursor === 2) {
+          this.startDemoMatch();
+        } else {
+          this.startNewMatch(false);
+        }
       }
       return;
     }
@@ -1087,7 +1206,13 @@ export class FootHockeyGame {
     this.updateCamera();
   }
 
-  handlePlayerControl(input) {
+  handlePlayerControl(rawInput) {
+    // When Lunch Recess rotates the map 90° CCW so the right net is at the TOP of the screen,
+    // remap directional stick/arrow input so pressing UP always skates & aims UP toward the net!
+    const input = this.isCameraRotated()
+      ? { ...rawInput, mx: -rawInput.my, my: rawInput.mx }
+      : rawInput;
+
     const p = this.getControlledPlayer();
     const { ball } = this;
 
@@ -1774,9 +1899,14 @@ export class FootHockeyGame {
       if (pt.life <= 0) this.particles.splice(i, 1);
     }
 
+    const rotated = this.isCameraRotated();
     for (let i = this.callouts.length - 1; i >= 0; i--) {
       const c = this.callouts[i];
-      c.y -= 0.35;
+      if (rotated) {
+        c.x += 0.35; // +worldX is UP on screen when rotated 90° CCW!
+      } else {
+        c.y -= 0.35;
+      }
       c.life--;
       if (c.life <= 0) this.callouts.splice(i, 1);
     }
@@ -1794,14 +1924,24 @@ export class FootHockeyGame {
     }
   }
 
-  updateCamera() {
+  updateCamera(snap = false) {
     const focusX = this.ball.x + (this.ball.owner ? this.ball.owner.facingX * 22 : this.ball.vx * 8);
     const focusY = this.ball.y + (this.ball.owner ? this.ball.owner.facingY * 18 : this.ball.vy * 8);
-    const maxCamX = Math.max(0, this.court.worldW - SCREEN_W);
-    const maxCamY = Math.max(0, this.court.worldH - VIEW_H);
-    const targetX = Math.max(0, Math.min(maxCamX, focusX - SCREEN_W / 2));
-    const targetY = Math.max(0, Math.min(maxCamY, focusY - VIEW_H / 2));
-    this.cameraX += (targetX - this.cameraX) * 0.14;
-    this.cameraY += (targetY - this.cameraY) * 0.14;
+    const rotated = this.isCameraRotated();
+    const viewFocusX = rotated ? focusY : focusX;
+    const viewFocusY = rotated ? this.court.worldW - focusX : focusY;
+    const mapW = rotated ? this.court.worldH : this.court.worldW;
+    const mapH = rotated ? this.court.worldW : this.court.worldH;
+    const maxCamX = Math.max(0, mapW - SCREEN_W);
+    const maxCamY = Math.max(0, mapH - VIEW_H);
+    const targetX = Math.max(0, Math.min(maxCamX, viewFocusX - SCREEN_W / 2));
+    const targetY = Math.max(0, Math.min(maxCamY, viewFocusY - VIEW_H / 2));
+    if (snap) {
+      this.cameraX = targetX;
+      this.cameraY = targetY;
+    } else {
+      this.cameraX += (targetX - this.cameraX) * 0.14;
+      this.cameraY += (targetY - this.cameraY) * 0.14;
+    }
   }
 }

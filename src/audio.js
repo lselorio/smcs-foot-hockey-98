@@ -115,7 +115,12 @@ class SoundEngine {
       this.music.setMood({ tempoRate: 0.92, volume: 0.26 });
     } else if (state === 'GOAL_CELEBRATION') {
       this.music.setMood({ tempoRate: 1.0, volume: 0.22 });
-    } else if (state === 'TITLE' || state === 'GAME_OVER' || state === 'PERIOD_END') {
+    } else if (
+      state === 'TITLE' ||
+      state === 'OPTIONS' ||
+      state === 'GAME_OVER' ||
+      state === 'PERIOD_END'
+    ) {
       this.music.setMood({ tempoRate: 1.0, volume: 0.72 });
     } else if (isFinalSeconds) {
       // Classic 16-bit hurry-up tempo in the last 15 seconds before the recess bell!
