@@ -22,6 +22,7 @@ function createHoopGame({ id, wall, zone, kidTemplates, classmates = [] }) {
       skin: mate ? mate.skin : k.skin,
       hair: mate ? mate.hair : k.hair,
       hairStyle: mate ? mate.hairStyle : k.hairStyle,
+      glasses: mate ? Boolean(mate.glasses) : false,
       coatColor: k.coatColor,
       coatTrim: k.coatTrim,
       wearsJacket: k.wearsJacket,

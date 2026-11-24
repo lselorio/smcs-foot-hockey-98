@@ -1,6 +1,6 @@
-import { HUD_H, PALETTE, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
+import { HUD_H, MATCH, PALETTE, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { DEFAULT_COURT } from './courts.js';
-import { TEAMS } from './roster.js';
+import { CLASSMATES, TEAMS } from './roster.js';
 import {
   drawGoalie,
   drawPassTargetMarker,
@@ -50,6 +50,11 @@ export function renderGame(ctx, game) {
 
   if (game.state === 'OPTIONS') {
     renderOptionsScreen(ctx, game);
+    return;
+  }
+
+  if (game.state === 'TEAM_SELECT') {
+    renderTeamSelectScreen(ctx, game);
     return;
   }
 
@@ -339,11 +344,7 @@ export function renderGame(ctx, game) {
       isHomeBall ? TEAMS.home.ringColor : TEAMS.away.ringColor
     );
   } else if (game.state === 'GOAL_CELEBRATION') {
-    const team = TEAMS[game.lastGoalTeam];
-    const scorerLabel = game.lastScorer
-      ? `${game.lastScorer.name} SCORES!`
-      : `${team.name} SCORES!`;
-    drawBanner(ctx, 'GOAL!!', scorerLabel, team.ringColor);
+    renderGoalBanner(ctx, game);
   } else if (game.state === 'PERIOD_END') {
     const nextPeriod = RECESS_PERIODS[game.period];
     const endTitle = game.period === 1 ? 'MORNING BELL!' : 'LUNCH BELL!';
@@ -904,6 +905,101 @@ function drawBanner(ctx, title, subtitle, accent) {
   drawPixelText(ctx, subtitle, SCREEN_W / 2, 126, '#f4f7ff', 1, 'center');
 }
 
+// 16-bit NHL '94 Goal Celebration Banner with live 2x celebrating pixel-art portrait of the scorer on the left!
+function renderGoalBanner(ctx, game) {
+  const team = TEAMS[game.lastGoalTeam] || TEAMS.home;
+  const scorer = game.lastScorer;
+  const info = game.lastGoalInfo;
+  const scorerName = info?.scorerName || scorer?.name || null;
+  const goalCount = info?.goalCount || scorer?.matchStats?.goals || 1;
+  const scorerLabel = scorerName
+    ? goalCount > 1
+      ? `${scorerName} SCORES! (${goalCount} GOALS)`
+      : `${scorerName} SCORES!`
+    : `${team.name} SCORES!`;
+  const assists = info?.assists || [];
+  const assistLabel =
+    assists.length === 1
+      ? `ASSIST: ${assists[0]}`
+      : assists.length >= 2
+      ? `ASSISTS: ${assists[0]}, ${assists[1]}`
+      : 'UNASSISTED';
+
+  const bx = 14;
+  const by = 82;
+  const bw = SCREEN_W - 28;
+  const bh = 72;
+  ctx.fillStyle = 'rgba(10, 14, 28, 0.94)';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = team.ringColor;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
+
+  // Left portrait box featuring a 2x pixel-art celebrating sprite of the goal scorer!
+  const px = bx + 8;
+  const py = by + 8;
+  const pw = 46;
+  const ph = 56;
+  ctx.fillStyle = '#131b32';
+  ctx.fillRect(px, py, pw, ph);
+  // Subtle team color stripe at top & bottom of portrait frame
+  ctx.fillStyle = team.primary;
+  ctx.fillRect(px + 1, py + 1, pw - 2, 6);
+  ctx.fillRect(px + 1, py + ph - 5, pw - 2, 4);
+  ctx.strokeStyle = '#ffd84d';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
+
+  if (scorer) {
+    const hop = Math.round(Math.abs(Math.sin(game.tick * 0.22)) * 2);
+    const portraitEntity = {
+      ...scorer,
+      x: 0,
+      y: -hop,
+      vx: 0,
+      vy: 0,
+      facingX: 0,
+      facingY: 1,
+      holdingBall: false,
+      windupFrames: 0,
+      kickTimer: 0,
+      catchAnim: Math.floor(game.tick / 10) % 2 === 0 ? 10 : 0, // Pumping arms in celebration!
+      stunTimer: 0,
+      diveTimer: 0,
+      diveDir: 0,
+      jacketTimer: 0,
+      gloveTimer: 0,
+    };
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(px + 1, py + 1, pw - 2, ph - 2);
+    ctx.clip();
+    ctx.translate(Math.round(px + pw / 2), Math.round(py + ph - 7));
+    ctx.scale(2, 2);
+    if (scorer.role === 'G') {
+      drawGoalie(ctx, portraitEntity, team, game.tick, game.uniformMode);
+    } else {
+      drawSkater(ctx, portraitEntity, team, game.tick, game.uniformMode);
+    }
+    ctx.restore();
+  }
+
+  // Right text area: GOAL!! + Scorer (+ multi-goal count) + Assist(s) / Unassisted
+  const textCenterX = Math.round((px + pw + 6 + bx + bw - 8) / 2);
+  drawPixelText(ctx, 'GOAL!!', textCenterX, by + 11, team.ringColor, 2, 'center');
+  drawPixelText(ctx, scorerLabel, textCenterX, by + 35, '#f4f7ff', 1, 'center');
+  drawPixelText(
+    ctx,
+    assistLabel,
+    textCenterX,
+    by + 51,
+    assists.length > 0 ? '#9be8ff' : '#96a5c4',
+    1,
+    'center',
+    null
+  );
+}
+
 // Classic 16-bit NHL '94 Starting Lineups Card shown at the start of every recess match!
 function renderStartingLineups(ctx, game) {
   // Dim playfield slightly behind the lineup card
@@ -985,7 +1081,7 @@ function renderStartingLineups(ctx, game) {
 
   // Action prompt at bottom
   if (Math.floor(game.tick / 18) % 2 === 0) {
-    const prompt = game.isDemo ? 'DEMO MODE - PRESS ENTER TO PLAY' : 'ENTER / Z / SPACE: DROP BALL!';
+    const prompt = game.isDemo ? 'DEMO MODE - PRESS ENTER TO PLAY' : 'ENTER/Z: DROP BALL   L: PICK TEAMS';
     drawPixelText(ctx, prompt, SCREEN_W / 2, y + 168, '#d9ff2e', 1, 'center');
   }
 }
@@ -1128,19 +1224,19 @@ function renderTitleScreen(ctx, game) {
   drawPixelText(ctx, 'KICK + CATCH & DROP', 96, 158, '#9be8ff', 1, 'center', null);
   drawPixelText(ctx, 'JACKET + GLOVE!', 224, 158, '#ffd84d', 1, 'center', null);
 
-  // Clean 16-bit Genesis sports Title Menu (PLAY RECESS / OPTIONS / DEMO MODE)
+  // Clean 16-bit Genesis sports Title Menu (PLAY RECESS / PICK TEAMS / OPTIONS / DEMO MODE)
   const items = [
     { label: 'PLAY RECESS', hint: '' },
+    { label: 'PICK TEAMS', hint: '(L)' },
     { label: 'OPTIONS', hint: '(O)' },
     { label: 'DEMO MODE', hint: '(D)' },
   ];
   for (let i = 0; i < items.length; i++) {
-    const iy = 175 + i * 14;
+    const iy = 172 + i * 12;
     const selected = (game.titleCursor || 0) === i;
     if (selected) {
       ctx.fillStyle = 'rgba(255, 216, 77, 0.16)';
-      ctx.fillRect(88, iy - 2, 144, 11);
-      ctx.fillStyle = '#ffe84d';
+      ctx.fillRect(88, iy - 2, 144, 10);
       drawPixelText(ctx, '>', 96, iy, '#ffe84d', 1, 'left', null);
     }
     const text = items[i].hint ? `${items[i].label} ${items[i].hint}` : items[i].label;
@@ -1149,7 +1245,163 @@ function renderTitleScreen(ctx, game) {
 
   // Subtle bottom shortcut strip
   const padReady = game.gamepadName ? 'PAD READY  ' : '';
-  drawPixelText(ctx, `${padReady}ENTER/Z:SELECT   I:REPLAY INTRO`, SCREEN_W / 2, 222, '#7fa3d9', 1, 'center', null);
+  drawPixelText(ctx, `${padReady}ENTER/Z:SELECT   I:REPLAY INTRO`, SCREEN_W / 2, 224, '#7fa3d9', 1, 'center', null);
+}
+
+// 16-Bit NHL '94 Recess Team Draft / Roster Selector with live scouting bars & pixel preview!
+function renderTeamSelectScreen(ctx, game) {
+  ctx.fillStyle = '#121933';
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  ctx.fillStyle = '#192347';
+  for (let i = -240; i < SCREEN_W + 240; i += 28) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i + 14, 0);
+    ctx.lineTo(i - 66, SCREEN_H);
+    ctx.lineTo(i - 80, SCREEN_H);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  const x = 12;
+  const y = 10;
+  const w = SCREEN_W - 24;
+  const h = 220;
+  ctx.fillStyle = 'rgba(10, 14, 28, 0.96)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#ffd84d';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+  drawPixelText(ctx, 'PICK TEAMS - 66 BOND RECESS', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
+
+  const roles = ['C', 'LW', 'RW', 'G'];
+  const slots = game.draftSlots && game.draftSlots.length === 8 ? game.draftSlots : [];
+  const cursor = game.draftCursor || 0;
+
+  const colW = 132;
+  const leftX = x + 10;
+  const rightX = x + w - 10 - colW;
+
+  // Team banners
+  ctx.fillStyle = TEAMS.home.primary;
+  ctx.fillRect(leftX, y + 22, colW, 13);
+  ctx.fillStyle = TEAMS.home.trim;
+  ctx.fillRect(leftX, y + 34, colW, 2);
+  drawPixelText(ctx, TEAMS.home.name, leftX + colW / 2, y + 25, '#ffffff', 1, 'center');
+
+  ctx.fillStyle = TEAMS.away.primary;
+  ctx.fillRect(rightX, y + 22, colW, 13);
+  ctx.fillStyle = TEAMS.away.trim;
+  ctx.fillRect(rightX, y + 34, colW, 2);
+  drawPixelText(ctx, TEAMS.away.name, rightX + colW / 2, y + 25, '#ffffff', 1, 'center');
+
+  // 4 HOME slots (0..3) and 4 AWAY slots (4..7)
+  for (let i = 0; i < 4; i++) {
+    const ry = y + 42 + i * 19;
+    const drawSlot = (slotIdx, sx, roleColor) => {
+      const selected = cursor === slotIdx;
+      const name = slots[slotIdx] || '---';
+      ctx.fillStyle = selected ? 'rgba(56, 86, 156, 0.65)' : i % 2 === 0 ? 'rgba(34, 46, 78, 0.36)' : 'rgba(18, 25, 44, 0.36)';
+      ctx.fillRect(sx, ry - 2, colW, 14);
+      if (selected) {
+        ctx.strokeStyle = '#ffd84d';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx + 0.5, ry - 1.5, colW - 1, 13);
+      }
+      const rCol = i === 3 ? '#ffd84d' : roleColor;
+      drawPixelText(ctx, roles[i], sx + 4, ry + 1, rCol, 1, 'left', null);
+      const label = selected ? `<${name}>` : name;
+      drawPixelText(ctx, label, sx + 22, ry + 1, selected ? '#d9ff2e' : '#ffffff', 1, 'left', null);
+    };
+    drawSlot(i, leftX, '#ff9cb2');
+    drawSlot(i + 4, rightX, '#7ae8ff');
+  }
+
+  // === LIVE SCOUTING CARD FOR HIGHLIGHTED CLASSMATE ===
+  ctx.fillStyle = '#324066';
+  ctx.fillRect(x + 10, y + 120, w - 20, 1);
+
+  const selectedName = slots[cursor];
+  const mate = CLASSMATES.find((c) => c.name === selectedName) || CLASSMATES[0];
+  const isHomeSlot = cursor < 4;
+  const isGoalieSlot = cursor % 4 === 3;
+  const previewTeam = isHomeSlot ? TEAMS.home : TEAMS.away;
+
+  // Mini live sprite preview on the left of the scouting box
+  const px = x + 30;
+  const py = y + 158;
+  ctx.fillStyle = 'rgba(26, 36, 62, 0.65)';
+  ctx.fillRect(x + 12, y + 126, 36, 44);
+  ctx.strokeStyle = '#3b4f80';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 12.5, y + 126.5, 35, 43);
+
+  const previewEntity = {
+    ...mate,
+    team: isHomeSlot ? 'home' : 'away',
+    wearsJacket: !isHomeSlot,
+    coatColor: !isHomeSlot ? '#1f78d1' : null,
+    coatTrim: !isHomeSlot ? '#124b8a' : null,
+    jacketColor: '#22a05b',
+    jacketTrim: '#146638',
+    x: px,
+    y: py,
+    vx: 0,
+    vy: 0,
+    facingX: 0,
+    facingY: 1,
+    animOffset: 0,
+    holdingBall: false,
+    kickTimer: 0,
+    catchAnim: 0,
+    diveTimer: 0,
+    diveDir: 0,
+    jacketTimer: 0,
+    gloveTimer: 0,
+  };
+  if (isGoalieSlot) {
+    drawGoalie(ctx, previewEntity, previewTeam, game.tick, game.uniformMode);
+  } else {
+    drawSkater(ctx, previewEntity, previewTeam, game.tick, game.uniformMode);
+  }
+
+  // Scout header & 6 normalized NHL '94 rating bars!
+  const scoutTitle = mate.preferredRole === 'G' ? `${mate.name} (NATURAL GOALIE)` : mate.name;
+  drawPixelText(ctx, scoutTitle, x + 56, y + 127, '#ffe84d', 1, 'left', null);
+
+  const s = mate.stats;
+  const barSpecs = [
+    ['SPD', (s.speed - 1.15) / 0.92],
+    ['KCK', (s.kick - 3.0) / 2.9],
+    ['CTL', (s.control - 0.30) / 0.70],
+    ['HND', (s.hands - 0.30) / 0.70],
+    ['RFX', (s.reflex - 0.30) / 0.70],
+    ['CHK', ((s.checking ?? 0.8) - 0.30) / 0.65],
+  ];
+  for (let i = 0; i < barSpecs.length; i++) {
+    const [lbl, rawPct] = barSpecs[i];
+    const pct = Math.max(0.08, Math.min(1, rawPct));
+    const col = i < 3 ? 0 : 1;
+    const row = i % 3;
+    const bx = x + 56 + col * 116;
+    const by = y + 140 + row * 12;
+    drawPixelText(ctx, lbl, bx, by, '#9be8ff', 1, 'left', null);
+    ctx.fillStyle = '#19223a';
+    ctx.fillRect(bx + 24, by + 1, 78, 5);
+    const fillCol = pct >= 0.82 ? '#6ef0a4' : pct >= 0.58 ? '#ffe84d' : '#ff5e5e';
+    ctx.fillStyle = fillCol;
+    ctx.fillRect(bx + 24, by + 1, Math.round(78 * pct), 5);
+  }
+
+  // Controls footer
+  ctx.fillStyle = '#324066';
+  ctx.fillRect(x + 10, y + 180, w - 20, 1);
+  drawPixelText(ctx, 'UP/DN:SLOT  </>:PLAYER  TAB:SIDE  R:RAND', SCREEN_W / 2, y + 187, '#9be8ff', 1, 'center', null);
+  if (Math.floor(game.tick / 20) % 2 === 0) {
+    drawPixelText(ctx, 'ENTER / Z: START MATCH   ESC: BACK', SCREEN_W / 2, y + 202, '#d9ff2e', 1, 'center', null);
+  }
 }
 
 // Dedicated 16-bit NHL '94 OPTIONS Screen organizing all 7 game toggles cleanly!
@@ -1515,7 +1767,11 @@ function renderStatsModal(ctx, game, { isFinal }) {
 
   // Action prompts at bottom
   if (isFinal) {
-    if (Math.floor(game.tick / 22) % 2 === 0) {
+    const lockRemaining = MATCH.gameOverLockFrames - (game.stateTimer || 0);
+    if (lockRemaining > 0) {
+      const remSec = Math.max(1, Math.ceil(lockRemaining / 60));
+      drawPixelText(ctx, `</>:BROWSE STATS   CONTINUE IN ${remSec}S`, SCREEN_W / 2, y + 189, '#9be8ff', 1, 'center');
+    } else if (Math.floor(game.tick / 22) % 2 === 0) {
       drawPixelText(ctx, '</>:PAGE  ENTER/Z:REMATCH  Q/ESC:TITLE', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
     }
   } else {

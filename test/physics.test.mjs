@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COURT, GOAL, RECESS_PERIODS } from '../src/constants.js';
+import { COURT, GOAL, MATCH, RECESS_PERIODS } from '../src/constants.js';
 import {
   catchBall,
   createBall,
@@ -332,22 +332,43 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   assert.equal(scorer.matchStats.goals, 1, 'Scorer should be credited with 1 Goal');
   assert.equal(passer.matchStats.assists, 1, 'Primary passer should be credited with Primary Assist');
   assert.equal(goalie.matchStats.assists, 1, 'Goalie outlet should be credited with Secondary Assist');
+  assert.equal(game.lastGoalInfo.scorerName, scorer.name);
+  assert.equal(game.lastGoalInfo.goalCount, 1);
+  assert.deepEqual(game.lastGoalInfo.assists, [passer.name, goalie.name]);
   const lastGoal = game.goalLog[game.goalLog.length - 1];
   assert.deepEqual(lastGoal.assists, [passer.name, goalie.name]);
   assert.match(lastGoal.time, /^\d:\d\d$/, 'Goal log entry should record NHL-style period elapsed time');
   assert.equal(game.stats.home.periodGoals[0], 1, 'Period 1 goal count should increment for Game Summary');
   assert.equal(game.stats.home.periodShots[0], 1, 'Period 1 shots-on-goal count should increment for Game Summary');
 
-  // On GAME_OVER ("Ite, ludus finitus est"), ArrowRight toggles Player Stats and Escape returns to TITLE!
+  // Second solo goal by the same scorer tracks goalCount = 2 and empty assists (UNASSISTED)!
+  const opponent = game.players.find((p) => p.id === 'a_c');
+  catchBall(game.ball, opponent);
+  catchBall(game.ball, scorer);
+  game.handleGoalScored('home', 'top_yellow');
+  assert.equal(game.lastGoalInfo.scorerName, scorer.name);
+  assert.equal(game.lastGoalInfo.goalCount, 2, 'Multi-goal scorer should expose updated goal count for celebration banner');
+  assert.deepEqual(game.lastGoalInfo.assists, [], 'Solo takeaway goal should record no assists');
+
+  // On GAME_OVER ("Ite, ludus finitus est"), exit inputs are locked for 15 seconds while stats browsing stays active!
   game.state = 'GAME_OVER';
+  game.stateTimer = 0;
   game.onKeyDown('ArrowRight');
   game.update();
   game.onKeyUp('ArrowRight');
-  assert.equal(game.statsPage, 'players', 'ArrowRight on GAME_OVER should switch to Player Stats page');
+  assert.equal(game.statsPage, 'players', 'ArrowRight on GAME_OVER should switch to Player Stats page immediately');
+  for (const key of ['Enter', 'KeyZ', 'KeyX', 'KeyQ', 'Escape']) {
+    game.onKeyDown(key);
+    game.update();
+    game.onKeyUp(key);
+    assert.equal(game.state, 'GAME_OVER', `Pressing ${key} during 15s GAME_OVER lock must not leave final stats`);
+  }
+  // Once 15 seconds elapse, Escape returns cleanly to TITLE!
+  game.stateTimer = MATCH.gameOverLockFrames;
   game.onKeyDown('Escape');
   game.update();
   game.onKeyUp('Escape');
-  assert.equal(game.state, 'TITLE', 'Pressing Escape on GAME_OVER should return to Title screen');
+  assert.equal(game.state, 'TITLE', 'Pressing Escape after 15s GAME_OVER lock should return to Title screen');
 });
 
 test('Sicut Cervus 4-voice SATB score has valid register ordering and choir player toggles cleanly', () => {
@@ -411,13 +432,33 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   assert.equal(scheduled[0].midi, 72, 'First scheduled note of Gloria VIII should be C5 (72)');
   assert.ok(transitionPlayer.trackCursors[0] < 5, 'Soprano cursor must stay at start of Gloria VIII, not skip to end');
 
-  // Verify Widor Toccata cathedral organ postlude activates on GAME_OVER ("ITE, LUDUS FINITUS EST") and restores BGM after!
+  // Verify Widor Toccata cathedral organ postlude activates on GAME_OVER ("ITE, LUDUS FINITUS EST"),
+  // does NOT restart when it finishes, and sends the game back to the BOOT screen!
   assert.equal(WIDOR_TOCCATA_SCORE.tracks.length, 4, 'Widor Toccata should have 4 organ tracks');
   assert.equal(WIDOR_TOCCATA_SCORE.tracks[0].notes[0][2], 77, 'Widor Toccata opens on F5 (77)');
   sound.updateMusic('GAME_OVER', false);
   assert.equal(sound.music.score, WIDOR_TOCCATA_SCORE, 'GAME_OVER should play Widor Toccata postlude');
-  sound.updateMusic('TITLE', false);
-  assert.equal(sound.music.score, SICUT_CERVUS_SCORE, 'Leaving GAME_OVER should restore regular BGM track');
+
+  // Simulate Widor Toccata reaching its end -> returns null (no loop) and triggers return to BOOT!
+  const widorScheduled = [];
+  const origSched = sound.music.scheduleNote;
+  sound.music.playing = true;
+  sound.music.songPos = WIDOR_TOCCATA_SCORE.duration + 1.59;
+  sound.music.lastAudioTime = 20.0;
+  sound.music.scheduleNote = (...args) => widorScheduled.push(args);
+  sound.music.tick({ state: 'running', currentTime: 20.05 });
+  sound.music.scheduleNote = origSched;
+  assert.equal(widorScheduled.length, 0, 'Widor Toccata must not restart or schedule notes after ending');
+  assert.equal(sound.postludeFinished, true, 'Finishing Widor Toccata should flag postludeFinished');
+
+  const postludeGame = new FootHockeyGame();
+  postludeGame.state = 'GAME_OVER';
+  postludeGame.stateTimer = 100;
+  postludeGame.update();
+  assert.equal(postludeGame.state, 'BOOT', 'Finishing Widor Toccata on GAME_OVER should return to BOOT screen');
+  assert.equal(postludeGame.bootFrames, 0, 'Returning to BOOT should start the boot sequence fresh');
+  assert.equal(sound.music.score, SICUT_CERVUS_SCORE, 'Returning to BOOT should restore regular BGM track');
+  sound.music.playing = false;
 });
 
 test('three recess periods: Morning, double-length Lunch, and Afternoon', () => {
@@ -589,6 +630,10 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
   const goalieNames = [homePlayers[3].name, awayPlayers[3].name].sort();
   assert.deepEqual(goalieNames, ['LOWELL', 'MASANGKAY'], 'Lowell and Masangkay should always play goalie');
 
+  // Verify glasses trait on Lowell, Sean, Fizz, and Paes
+  const glassesNames = CLASSMATES.filter((c) => c.glasses).map((c) => c.name).sort();
+  assert.deepEqual(glassesNames, ['FIZZ', 'LOWELL', 'PAES', 'SEAN']);
+
   const allNames = [...homePlayers, ...awayPlayers].map((p) => p.name);
   assert.equal(new Set(allNames).size, 8, 'All 8 drafted players in a match must be unique');
 
@@ -661,6 +706,38 @@ test('boot intro spins SMCS crest then automatically transitions to TITLE (or sk
   game.update();
   game.onKeyUp('Escape');
   assert.equal(game.state, 'TITLE', 'Escape on Options should return cleanly to Title');
+
+  // Verify PICK TEAMS (TEAM_SELECT) opens via KeyL, cycles cleanly without disturbing other slots, and starts with chosen roster!
+  game.onKeyDown('KeyL');
+  game.update();
+  game.onKeyUp('KeyL');
+  assert.equal(game.state, 'TEAM_SELECT', 'Pressing L on Title should open Pick Teams screen');
+  assert.equal(game.draftSlots.length, 8);
+  assert.equal(new Set(game.draftSlots).size, 8, 'All 8 initial draft slots must be unique classmates');
+  // Release AVERY / ISTVAN if they landed in another slot, then select AVERY at HOME C and ISTVAN at AWAY G!
+  const putInSlot = (slotIdx, targetName) => {
+    const other = game.draftSlots.indexOf(targetName);
+    if (other !== -1 && other !== slotIdx) game.cycleDraftSlot(other, 1);
+    while (game.draftSlots[slotIdx] !== targetName) {
+      game.cycleDraftSlot(slotIdx, 1);
+    }
+  };
+  putInSlot(0, 'AVERY');
+  putInSlot(7, 'ISTVAN');
+  assert.equal(game.draftSlots[0], 'AVERY', 'Cycling another slot must never clobber HOME C');
+  assert.equal(new Set(game.draftSlots).size, 8, 'Cycling slots must never create duplicate classmates');
+  game.onKeyDown('Enter');
+  game.update();
+  game.onKeyUp('Enter');
+  assert.equal(game.state, 'FACEOFF');
+  assert.equal(game.players.find((p) => p.id === 'h_c')?.name, 'AVERY', 'Custom HOME C should be AVERY');
+  assert.equal(game.players.find((p) => p.id === 'a_g')?.name, 'ISTVAN', 'Custom AWAY G should be ISTVAN');
+  const hockeySet = new Set(game.players.map((p) => p.name));
+  for (const h of game.hoopsGames) {
+    for (const k of h.kids) {
+      assert.ok(!hockeySet.has(k.name), `Corner hoops kid ${k.name} must stay undrafted after custom pick`);
+    }
+  }
 
   // Verify skipping on keypress after brief intro
   const gameSkip = new FootHockeyGame();

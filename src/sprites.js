@@ -432,11 +432,22 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
     ctx.fillRect(x - 4, hy, 2, 2);
   }
 
-  // Face (eyes when facing down/side; jersey back highlight when facing up)
+  // Face (eyes + optional 16-bit glasses when facing down/side; hair back when facing up)
   if (!facingUp) {
-    ctx.fillStyle = '#12151f';
-    ctx.fillRect(x - 2 + (flipX > 0 ? 0 : -1), hy + 2, 1, 2);
-    ctx.fillRect(x + 1 + (flipX > 0 ? 1 : 0), hy + 2, 1, 2);
+    if (p.glasses) {
+      const glx = x + (flipX > 0 ? 0 : -1);
+      ctx.fillStyle = '#181e2c'; // dark frames
+      ctx.fillRect(glx - 3, hy + 1, 3, 3);
+      ctx.fillRect(glx + 1, hy + 1, 3, 3);
+      ctx.fillRect(glx, hy + 2, 1, 1); // nose bridge
+      ctx.fillStyle = '#d4eeff'; // crisp retro lens glint
+      ctx.fillRect(glx - 2, hy + 2, 1, 1);
+      ctx.fillRect(glx + 2, hy + 2, 1, 1);
+    } else {
+      ctx.fillStyle = '#12151f';
+      ctx.fillRect(x - 2 + (flipX > 0 ? 0 : -1), hy + 2, 1, 2);
+      ctx.fillRect(x + 1 + (flipX > 0 ? 1 : 0), hy + 2, 1, 2);
+    }
   } else {
     // Hair covers back of head
     ctx.fillStyle = p.hair;
@@ -610,9 +621,19 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
   }
 
   if (facingDown) {
-    ctx.fillStyle = '#12151f';
-    ctx.fillRect(gx - 2, hy + 2, 1, 2);
-    ctx.fillRect(gx + 1, hy + 2, 1, 2);
+    if (g.glasses) {
+      ctx.fillStyle = '#181e2c';
+      ctx.fillRect(gx - 3, hy + 1, 3, 3);
+      ctx.fillRect(gx + 1, hy + 1, 3, 3);
+      ctx.fillRect(gx, hy + 2, 1, 1);
+      ctx.fillStyle = '#d4eeff';
+      ctx.fillRect(gx - 2, hy + 2, 1, 1);
+      ctx.fillRect(gx + 2, hy + 2, 1, 1);
+    } else {
+      ctx.fillStyle = '#12151f';
+      ctx.fillRect(gx - 2, hy + 2, 1, 2);
+      ctx.fillRect(gx + 1, hy + 2, 1, 2);
+    }
   } else {
     ctx.fillStyle = g.hair;
     ctx.fillRect(gx - 4, hy + 1, 8, 4);

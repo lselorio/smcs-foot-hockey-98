@@ -1,7 +1,7 @@
 import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
-import { TEAMS, draftRecessTeams } from './roster.js';
+import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js';
 import { pickBootChant, sound } from './audio.js';
 import {
   catchBall,
@@ -47,17 +47,20 @@ export class FootHockeyGame {
       away: createEmptyTeamStats(),
     };
     this.goalLog = [];
+    this.lastScorer = null;
+    this.lastGoalTeam = null;
+    this.lastGoalInfo = null;
     this.statsPage = 'team'; // 'team' | 'players' | 'summary' (toggleable on PAUSED and GAME_OVER!)
     this.summaryScroll = 0;
-    this.titleCursor = 0;    // 0: PLAY RECESS | 1: OPTIONS | 2: DEMO MODE
+    this.titleCursor = 0;    // 0: PLAY RECESS | 1: PICK TEAMS | 2: OPTIONS | 3: DEMO MODE
     this.optionsCursor = 0;  // 0..7 rows on the OPTIONS screen
+    this.draftCursor = 0;    // 0..7 slots on TEAM_SELECT (0..3 HOME, 4..7 AWAY)
+    this.draftSlots = [];    // 8 selected classmate names on TEAM_SELECT
 
     this.court = createBond66Court();
     this.period = 1;
     this.clockFrames = RECESS_PERIODS[0].seconds * 60;
     this.stateTimer = 0;
-    this.lastScorer = null;
-    this.lastGoalTeam = null;
     this.restartTeam = null;
 
     this.cameraX = this.court.faceoffX - SCREEN_W / 2;
@@ -191,8 +194,17 @@ export class FootHockeyGame {
     return this.court.nets.find((n) => n.id === id) || this.court.nets[1];
   }
 
-  initRoster(redraft = false) {
-    if (redraft) {
+  initRoster(redraft = false, customRoster = null) {
+    if (customRoster) {
+      const { homePlayers, awayPlayers, undraftedPlayers } = buildCustomTeams(
+        customRoster.homeNames,
+        customRoster.awayNames
+      );
+      TEAMS.home.players = homePlayers;
+      TEAMS.away.players = awayPlayers;
+      TEAMS.undrafted = undraftedPlayers;
+      this.undraftedPlayers = undraftedPlayers;
+    } else if (redraft) {
       const { homePlayers, awayPlayers, undraftedPlayers } = draftRecessTeams();
       TEAMS.home.players = homePlayers;
       TEAMS.away.players = awayPlayers;
@@ -241,21 +253,26 @@ export class FootHockeyGame {
     return RECESS_PERIODS[this.period - 1] || RECESS_PERIODS[0];
   }
 
-  startNewMatch(demo = false) {
-    // Draft a fresh collection of classmates & random jacket colors each recess game!
+  startNewMatch(demo = false, customRoster = null) {
+    // Draft a fresh collection of classmates (or apply player-chosen custom lineups!)
     this.isDemo = Boolean(demo);
     this.titleIdleFrames = 0;
-    this.initRoster(true);
+    this.initRoster(true, customRoster);
     this.score = { home: 0, away: 0 };
     this.stats = {
       home: createEmptyTeamStats(),
       away: createEmptyTeamStats(),
     };
     this.goalLog = [];
+    this.lastScorer = null;
+    this.lastGoalTeam = null;
+    this.lastGoalInfo = null;
     this.statsPage = 'team'; // 'team' | 'players' | 'summary' (toggleable on PAUSED and GAME_OVER!)
     this.summaryScroll = 0;
-    this.titleCursor = 0;    // 0: PLAY RECESS | 1: OPTIONS | 2: DEMO MODE
+    this.titleCursor = 0;    // 0: PLAY RECESS | 1: PICK TEAMS | 2: OPTIONS | 3: DEMO MODE
     this.optionsCursor = 0;  // 0..7 rows on the OPTIONS screen
+    this.draftCursor = 0;    // 0..7 slots on TEAM_SELECT (0..3 HOME, 4..7 AWAY)
+    this.draftSlots = [];    // 8 selected classmate names on TEAM_SELECT
     this.period = 1;
     this.clockFrames = this.getCurrentPeriodInfo().seconds * 60;
     this.restartTeam = null;
@@ -642,6 +659,8 @@ export class FootHockeyGame {
     const escapePressed = this.justPressed.has('Escape');
     const replayIntroPressed = this.justPressed.has('KeyI');
     const optionsPressed = this.justPressed.has('KeyO');
+    const teamSelectPressed = this.justPressed.has('KeyL');
+    const tabPressed = this.justPressed.has('Tab');
     const demoPressed = this.justPressed.has('KeyD');
     const exitDemoPressed = escapePressed || this.justPressed.has('KeyP') || quitPressed;
     const menuTogglePressed =
@@ -692,6 +711,8 @@ export class FootHockeyGame {
       escapePressed,
       replayIntroPressed,
       optionsPressed,
+      teamSelectPressed,
+      tabPressed,
       demoPressed,
       exitDemoPressed,
       menuTogglePressed,
@@ -752,6 +773,43 @@ export class FootHockeyGame {
     this.summaryScroll = Math.max(0, Math.min(maxScroll, this.summaryScroll + delta));
   }
 
+  openTeamSelect(useCurrentPlayers = false) {
+    this.isDemo = false;
+    this.titleIdleFrames = 0;
+    this.draftCursor = 0;
+    if (useCurrentPlayers && this.players.length === 8) {
+      const home = this.players.filter((p) => p.team === 'home').map((p) => p.name);
+      const away = this.players.filter((p) => p.team === 'away').map((p) => p.name);
+      this.draftSlots = [...home, ...away];
+    } else {
+      this.randomizeDraftSlots(true);
+    }
+    this.state = 'TEAM_SELECT';
+    sound.playMenuSelect();
+  }
+
+  randomizeDraftSlots(silent = false) {
+    const { homePlayers, awayPlayers } = draftRecessTeams();
+    this.draftSlots = [...homePlayers.map((p) => p.name), ...awayPlayers.map((p) => p.name)];
+    if (!silent) sound.playMenuSelect();
+  }
+
+  cycleDraftSlot(slotIdx, dir = 1) {
+    if (!this.draftSlots || this.draftSlots.length !== 8) return;
+    const curName = this.draftSlots[slotIdx];
+    const curIdx = Math.max(0, CLASSMATES.findIndex((c) => c.name === curName));
+    const takenElsewhere = new Set(this.draftSlots.filter((_, i) => i !== slotIdx));
+    // Step cleanly to the next available (undrafted) classmate without disturbing any other slot!
+    for (let step = 1; step <= CLASSMATES.length; step++) {
+      const candidate = CLASSMATES[(curIdx + dir * step + CLASSMATES.length * 2) % CLASSMATES.length];
+      if (!takenElsewhere.has(candidate.name)) {
+        this.draftSlots[slotIdx] = candidate.name;
+        break;
+      }
+    }
+    sound.playMenuSelect();
+  }
+
   returnToTitle() {
     this.isDemo = false;
     this.titleIdleFrames = 0;
@@ -760,6 +818,17 @@ export class FootHockeyGame {
     this.state = 'TITLE';
     sound.updateMusic('TITLE', false);
     sound.playMenuSelect();
+  }
+
+  returnToBoot() {
+    this.isDemo = false;
+    this.titleIdleFrames = 0;
+    this.kickCharge = 0;
+    this.passTarget = null;
+    this.bootChant = pickBootChant(this.bootChant?.id);
+    this.bootFrames = 0;
+    this.state = 'BOOT';
+    sound.updateMusic('BOOT', false);
   }
 
   // === MAIN FIXED-TIMESTEP UPDATE (60Hz) ===
@@ -820,6 +889,49 @@ export class FootHockeyGame {
       return;
     }
 
+    if (this.state === 'TEAM_SELECT') {
+      if (input.menuUpPressed) {
+        this.draftCursor = (this.draftCursor - 1 + 8) % 8;
+        sound.playMenuSelect();
+        return;
+      }
+      if (input.menuDownPressed) {
+        this.draftCursor = (this.draftCursor + 1) % 8;
+        sound.playMenuSelect();
+        return;
+      }
+      if (input.tabPressed || input.passPressed) {
+        // Quick jump between HOME column (0..3) and AWAY column (4..7) at the same position!
+        this.draftCursor = (this.draftCursor + 4) % 8;
+        sound.playMenuSelect();
+        return;
+      }
+      if (input.statsPagePrevPressed) {
+        this.cycleDraftSlot(this.draftCursor, -1);
+        return;
+      }
+      if (input.statsPageNextPressed && !input.menuDownPressed) {
+        this.cycleDraftSlot(this.draftCursor, 1);
+        return;
+      }
+      if (input.restartPressed) {
+        this.randomizeDraftSlots();
+        return;
+      }
+      if (input.escapePressed || input.quitPressed) {
+        this.returnToTitle();
+        return;
+      }
+      if (input.startPressed || input.kickPressed || input.catchPressed) {
+        sound.playMenuSelect();
+        this.startNewMatch(false, {
+          homeNames: this.draftSlots.slice(0, 4),
+          awayNames: this.draftSlots.slice(4, 8),
+        });
+      }
+      return;
+    }
+
     if (this.state === 'OPTIONS') {
       const OPTION_COUNT = 8;
       if (input.menuUpPressed) {
@@ -858,6 +970,10 @@ export class FootHockeyGame {
         this.state = 'BOOT';
         return;
       }
+      if (input.teamSelectPressed) {
+        this.openTeamSelect(false);
+        return;
+      }
       if (input.optionsPressed) {
         this.titleIdleFrames = 0;
         this.optionsCursor = 0;
@@ -867,13 +983,13 @@ export class FootHockeyGame {
       }
       if (input.menuUpPressed) {
         this.titleIdleFrames = 0;
-        this.titleCursor = (this.titleCursor - 1 + 3) % 3;
+        this.titleCursor = (this.titleCursor - 1 + 4) % 4;
         sound.playMenuSelect();
         return;
       }
       if (input.menuDownPressed) {
         this.titleIdleFrames = 0;
-        this.titleCursor = (this.titleCursor + 1) % 3;
+        this.titleCursor = (this.titleCursor + 1) % 4;
         sound.playMenuSelect();
         return;
       }
@@ -889,10 +1005,12 @@ export class FootHockeyGame {
       if (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed) {
         sound.playMenuSelect();
         if (this.titleCursor === 1) {
+          this.openTeamSelect(false);
+        } else if (this.titleCursor === 2) {
           this.titleIdleFrames = 0;
           this.optionsCursor = 0;
           this.state = 'OPTIONS';
-        } else if (this.titleCursor === 2) {
+        } else if (this.titleCursor === 3) {
           this.startDemoMatch();
         } else {
           this.startNewMatch(false);
@@ -917,8 +1035,12 @@ export class FootHockeyGame {
       }
     }
 
-    // During the opening Starting Lineups card, pressing Enter/Z/X/Space drops the ball right away!
+    // During the opening Starting Lineups card: L edits teams, Enter/Z/X/Space drops the ball right away!
     const lineupOverlayActive = this.state === 'FACEOFF' && this.showLineups && this.stateTimer > 38;
+    if (!this.isDemo && lineupOverlayActive && input.teamSelectPressed) {
+      this.openTeamSelect(true);
+      return;
+    }
     if (
       !this.isDemo &&
       lineupOverlayActive &&
@@ -1025,13 +1147,18 @@ export class FootHockeyGame {
     }
 
     if (this.state === 'GAME_OVER') {
+      this.stateTimer++;
       if (this.isDemo) {
-        this.stateTimer++;
         if (this.stateTimer >= 180) {
           this.isDemo = false;
           this.titleIdleFrames = 0;
           this.state = 'TITLE';
         }
+        return;
+      }
+      // Once Widor's Toccata finishes playing, return cleanly to the BOOT screen instead of restarting it!
+      if (sound.consumePostludeFinished()) {
+        this.returnToBoot();
         return;
       }
       if (input.statsPagePrevPressed) {
@@ -1048,6 +1175,10 @@ export class FootHockeyGame {
       }
       if (this.statsPage === 'summary' && input.summaryScrollDown) {
         this.scrollSummary(1);
+        return;
+      }
+      // Lock exiting the final stats screen for 15 seconds so pressing buttons at the buzzer never skips stats!
+      if (this.stateTimer < MATCH.gameOverLockFrames) {
         return;
       }
       if (input.quitPressed || input.escapePressed) {
@@ -1735,14 +1866,31 @@ export class FootHockeyGame {
       const elapsedSec = Math.max(0, Math.min(pInfo.seconds, pInfo.seconds - remSec));
       const timeStr = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`;
 
+      const assistNames = assisters.map((a) => a.name);
+      const goalCount = this.lastScorer.matchStats ? this.lastScorer.matchStats.goals : 1;
+      this.lastGoalInfo = {
+        team,
+        scorerName: this.lastScorer.name,
+        goalCount,
+        assists: assistNames,
+      };
+
       this.goalLog.push({
         team,
         name: this.lastScorer.name,
-        assists: assisters.map((a) => a.name),
+        goalCount,
+        assists: assistNames,
         period: this.period,
         periodShort: pInfo.short,
         time: timeStr,
       });
+    } else {
+      this.lastGoalInfo = {
+        team,
+        scorerName: null,
+        goalCount: 1,
+        assists: [],
+      };
     }
 
     this.state = 'GOAL_CELEBRATION';

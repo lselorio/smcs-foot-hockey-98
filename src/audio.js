@@ -43,9 +43,13 @@ class SoundEngine {
     this.noiseBuffer = null;
     this.musicTrackIndex = 0;
     this.playingPostlude = false;
+    this.postludeFinished = false;
     this.music = new ChiptuneChoirPlayer(MUSIC_TRACKS[0].score, {
       onTrackEnded: () => {
-        if (this.playingPostlude) return WIDOR_TOCCATA_SCORE;
+        if (this.playingPostlude) {
+          this.postludeFinished = true;
+          return null; // Do not restart Widor Toccata; return to BOOT screen instead!
+        }
         this.musicTrackIndex = (this.musicTrackIndex + 1) % MUSIC_TRACKS.length;
         return this.getMusicTrack().score;
       },
@@ -102,6 +106,7 @@ class SoundEngine {
 
   cycleMusicTrack() {
     this.playingPostlude = false;
+    this.postludeFinished = false;
     this.musicTrackIndex = (this.musicTrackIndex + 1) % MUSIC_TRACKS.length;
     const track = this.getMusicTrack();
     this.music.setScore(track.score);
@@ -110,19 +115,28 @@ class SoundEngine {
     return track;
   }
 
+  consumePostludeFinished() {
+    if (!this.postludeFinished) return false;
+    this.postludeFinished = false;
+    return true;
+  }
+
   updateMusic(state, isFinalSeconds = false) {
     // Automatically strike up Widor's Toccata as the cathedral organ postlude on "ITE, LUDUS FINITUS EST"!
     const wantsPostlude = state === 'GAME_OVER';
     if (wantsPostlude && !this.playingPostlude) {
       this.playingPostlude = true;
-      this.music.setScore(WIDOR_TOCCATA_SCORE);
+      this.postludeFinished = false;
+      this.music.setScore(WIDOR_TOCCATA_SCORE, true);
     } else if (!wantsPostlude && this.playingPostlude) {
       this.playingPostlude = false;
+      this.postludeFinished = false;
       this.music.setScore(this.getMusicTrack().score);
     }
 
     if (this.muted || !this.music.enabled) return;
     if (state === 'BOOT') return;
+    if (this.playingPostlude && this.postludeFinished) return;
     if (!this.ctx || this.ctx.state !== 'running') return;
 
     if (state === 'GAME_OVER') {
@@ -134,6 +148,7 @@ class SoundEngine {
     } else if (
       state === 'TITLE' ||
       state === 'OPTIONS' ||
+      state === 'TEAM_SELECT' ||
       state === 'PERIOD_END'
     ) {
       this.music.setMood({ tempoRate: 1.0, volume: 0.72 });

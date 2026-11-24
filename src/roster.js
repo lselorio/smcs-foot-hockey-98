@@ -37,6 +37,7 @@ export const CLASSMATES = [
     skin: '#9c6644',       // Brown
     hair: '#161416',
     hairStyle: 'part',
+    glasses: true,
     sneakers: '#1d222e',
     gloveColor: '#a65d2a',
     // Excellent ball control, not much else
@@ -85,6 +86,7 @@ export const CLASSMATES = [
     skin: '#9a623f',       // Brown
     hair: '#1a1514',
     hairStyle: 'spiky',
+    glasses: true,
     sneakers: '#1e2430',
     gloveColor: '#8c4b22',
     stats: { speed: 1.84, kick: 5.10, control: 0.83, hands: 0.84, reflex: 0.80, checking: 0.78 },
@@ -113,6 +115,7 @@ export const CLASSMATES = [
     skin: '#f2c4a2',       // White
     hair: '#4a2f1d',
     hairStyle: 'spiky',
+    glasses: true,
     sneakers: '#e8ecf4',
     gloveColor: '#9c5425',
     // Below average, though much better than Istvan
@@ -124,6 +127,7 @@ export const CLASSMATES = [
     skin: '#bd8258',       // Filipino
     hair: '#151316',
     hairStyle: 'part',
+    glasses: true,
     sneakers: '#ffffff',
     gloveColor: '#a65d2a',
     stats: { speed: 1.84, kick: 5.10, control: 0.85, hands: 0.96, reflex: 0.96, checking: 0.80 },
@@ -190,31 +194,7 @@ function shuffled(arr, rng = Math.random) {
 const ROLES = ['C', 'LW', 'RW', 'G'];
 const ROLE_SUFFIX = ['c', 'lw', 'rw', 'g'];
 
-// Pick 8 classmates (4 HOME maroon uniforms vs 4 AWAY colorful jackets),
-// automatically slotting dedicated goaltenders (Lowell & Masangkay) into the two Goalie creases!
-// Remaining undrafted classmates populate the two corner basketball games!
-export function draftRecessTeams(rng = Math.random) {
-  const goalies = shuffled(
-    CLASSMATES.filter((c) => c.preferredRole === 'G'),
-    rng
-  );
-  const skaters = shuffled(
-    CLASSMATES.filter((c) => c.preferredRole !== 'G'),
-    rng
-  );
-
-  // Assign the top two goalies (Lowell & Masangkay) randomly to Home G and Away G!
-  const homeGoalie = goalies[0] || skaters.pop();
-  const awayGoalie = goalies[1] || skaters.pop();
-  const pickedSkaters = skaters.slice(0, 6);
-  const leftoverGoalies = goalies.slice(2);
-  const undraftedPlayers = [...skaters.slice(6), ...leftoverGoalies].map((mate) => ({
-    ...mate,
-    stats: { ...mate.stats },
-  }));
-
-  const homeRoster = [...pickedSkaters.slice(0, 3), homeGoalie];
-  const awayRoster = [...pickedSkaters.slice(3, 6), awayGoalie];
+function assembleTeams(homeRoster, awayRoster, undraftedPlayers, rng = Math.random) {
   const jacketChoices = shuffled(JACKET_PALETTE, rng);
 
   const homePlayers = homeRoster.map((mate, i) => {
@@ -250,6 +230,63 @@ export function draftRecessTeams(rng = Math.random) {
   });
 
   return { homePlayers, awayPlayers, undraftedPlayers };
+}
+
+// Pick 8 classmates (4 HOME maroon uniforms vs 4 AWAY colorful jackets),
+// automatically slotting dedicated goaltenders (Lowell & Masangkay) into the two Goalie creases!
+// Remaining undrafted classmates populate the two corner basketball games!
+export function draftRecessTeams(rng = Math.random) {
+  const goalies = shuffled(
+    CLASSMATES.filter((c) => c.preferredRole === 'G'),
+    rng
+  );
+  const skaters = shuffled(
+    CLASSMATES.filter((c) => c.preferredRole !== 'G'),
+    rng
+  );
+
+  // Assign the top two goalies (Lowell & Masangkay) randomly to Home G and Away G!
+  const homeGoalie = goalies[0] || skaters.pop();
+  const awayGoalie = goalies[1] || skaters.pop();
+  const pickedSkaters = skaters.slice(0, 6);
+  const leftoverGoalies = goalies.slice(2);
+  const undraftedPlayers = [...skaters.slice(6), ...leftoverGoalies].map((mate) => ({
+    ...mate,
+    stats: { ...mate.stats },
+  }));
+
+  const homeRoster = [...pickedSkaters.slice(0, 3), homeGoalie];
+  const awayRoster = [...pickedSkaters.slice(3, 6), awayGoalie];
+  return assembleTeams(homeRoster, awayRoster, undraftedPlayers, rng);
+}
+
+// Build custom player-chosen HOME & AWAY lineups (4 names each: [C, LW, RW, G]),
+// automatically sending the remaining unpicked classmates to the two corner basketball courts!
+export function buildCustomTeams(homeNames, awayNames, rng = Math.random) {
+  const byName = new Map(CLASSMATES.map((c) => [c.name, c]));
+  const used = new Set();
+  const resolveSlot = (name) => {
+    const found = byName.get(name);
+    if (found && !used.has(found.name)) {
+      used.add(found.name);
+      return found;
+    }
+    const fallback = CLASSMATES.find((c) => !used.has(c.name)) || CLASSMATES[0];
+    used.add(fallback.name);
+    return fallback;
+  };
+
+  const homeRoster = [0, 1, 2, 3].map((i) => resolveSlot(homeNames?.[i]));
+  const awayRoster = [0, 1, 2, 3].map((i) => resolveSlot(awayNames?.[i]));
+  const undraftedPlayers = shuffled(
+    CLASSMATES.filter((c) => !used.has(c.name)),
+    rng
+  ).map((mate) => ({
+    ...mate,
+    stats: { ...mate.stats },
+  }));
+
+  return assembleTeams(homeRoster, awayRoster, undraftedPlayers, rng);
 }
 
 const initialDraft = draftRecessTeams();

@@ -177,8 +177,8 @@ export class ChiptuneChoirPlayer {
     this.applyVolume();
   }
 
-  setScore(newScore) {
-    if (!newScore || newScore === this.score) return;
+  setScore(newScore, forceRestart = false) {
+    if (!newScore || (!forceRestart && newScore === this.score)) return;
     this.stopAllActiveNotes();
     this.score = newScore;
     this.songPos = 0;
@@ -250,6 +250,13 @@ export class ChiptuneChoirPlayer {
     if (this.songPos >= loopEnd) {
       if (this.onTrackEnded) {
         const nextScore = this.onTrackEnded();
+        if (nextScore === null) {
+          // One-shot score finished (e.g. Widor Toccata postlude) — stop cleanly without restarting!
+          this.stopAllActiveNotes();
+          this.songPos = loopEnd;
+          this.trackCursors = this.score.tracks.map((tr) => tr.notes.length);
+          return;
+        }
         if (nextScore && nextScore !== this.score) {
           this.score = nextScore;
         }
