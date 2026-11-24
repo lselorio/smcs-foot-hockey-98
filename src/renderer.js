@@ -1767,12 +1767,18 @@ function renderStatsModal(ctx, game, { isFinal }) {
 
   // Action prompts at bottom
   if (isFinal) {
-    const lockRemaining = MATCH.gameOverLockFrames - (game.stateTimer || 0);
-    if (lockRemaining > 0) {
-      const remSec = Math.max(1, Math.ceil(lockRemaining / 60));
-      drawPixelText(ctx, `</>:BROWSE STATS   CONTINUE IN ${remSec}S`, SCREEN_W / 2, y + 189, '#9be8ff', 1, 'center');
-    } else if (Math.floor(game.tick / 22) % 2 === 0) {
-      drawPixelText(ctx, '</>:PAGE  ENTER/Z:REMATCH  Q/ESC:TITLE', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
+    if (game.isDemo) {
+      if (Math.floor(game.tick / 22) % 2 === 0) {
+        drawPixelText(ctx, 'DEMO FINAL - ENTER:PLAY   ESC:TITLE', SCREEN_W / 2, y + 189, '#ffe84d', 1, 'center');
+      }
+    } else {
+      const lockRemaining = MATCH.gameOverLockFrames - (game.stateTimer || 0);
+      if (lockRemaining > 0) {
+        const remSec = Math.max(1, Math.ceil(lockRemaining / 60));
+        drawPixelText(ctx, `</>:BROWSE STATS   CONTINUE IN ${remSec}S`, SCREEN_W / 2, y + 189, '#9be8ff', 1, 'center');
+      } else if (Math.floor(game.tick / 22) % 2 === 0) {
+        drawPixelText(ctx, '</>:PAGE  ENTER/Z:REMATCH  Q/ESC:TITLE', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
+      }
     }
   } else {
     drawPixelText(ctx, '</>:PAGE  P:RESUME  R:RESTART  Q:TITLE', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');

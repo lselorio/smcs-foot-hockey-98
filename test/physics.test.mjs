@@ -848,6 +848,21 @@ test('demo mode runs full CPU-vs-CPU match, auto-starts after title idle, and ex
   assert.equal(game.isDemo, false);
   assert.equal(game.state, 'TITLE');
 
+  // Demo GAME_OVER lingers for 21s, cycling through TEAM -> PLAYERS -> SUMMARY before returning to TITLE
+  game.startDemoMatch();
+  game.state = 'GAME_OVER';
+  game.stateTimer = 0;
+  game.statsPage = 'team';
+  for (let i = 0; i < 420; i++) game.update();
+  assert.equal(game.state, 'GAME_OVER', 'Demo Mode should still linger on final stats after 7 seconds');
+  assert.equal(game.statsPage, 'players', 'Demo Mode final screen should auto-advance to PLAYERS tab');
+  for (let i = 0; i < 420; i++) game.update();
+  assert.equal(game.state, 'GAME_OVER', 'Demo Mode should still linger on final stats after 14 seconds');
+  assert.equal(game.statsPage, 'summary', 'Demo Mode final screen should auto-advance to SUMMARY tab');
+  for (let i = 0; i < MATCH.demoGameOverFrames - 840; i++) game.update();
+  assert.equal(game.state, 'TITLE', 'Demo Mode should return cleanly to TITLE after full final-stats showcase');
+  assert.equal(game.isDemo, false);
+
   // Auto-attract: idling 600 frames on TITLE automatically launches Demo Mode
   for (let i = 0; i < 605; i++) game.update();
   assert.equal(game.isDemo, true, 'Title Screen should auto-launch Demo Mode after idle timeout');

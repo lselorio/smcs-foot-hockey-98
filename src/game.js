@@ -1149,10 +1149,19 @@ export class FootHockeyGame {
     if (this.state === 'GAME_OVER') {
       this.stateTimer++;
       if (this.isDemo) {
-        if (this.stateTimer >= 180) {
+        const pageSpan = Math.floor(MATCH.demoGameOverFrames / STATS_PAGES.length);
+        if (this.stateTimer === pageSpan) {
+          this.statsPage = STATS_PAGES[1]; // PLAYERS
+          this.summaryScroll = 0;
+        } else if (this.stateTimer === pageSpan * 2) {
+          this.statsPage = STATS_PAGES[2]; // SUMMARY
+          this.summaryScroll = 0;
+        }
+        if (this.stateTimer >= MATCH.demoGameOverFrames) {
           this.isDemo = false;
           this.titleIdleFrames = 0;
           this.state = 'TITLE';
+          sound.updateMusic('TITLE', false);
         }
         return;
       }

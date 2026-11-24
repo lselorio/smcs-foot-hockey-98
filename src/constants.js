@@ -73,6 +73,7 @@ export const MATCH = {
   periods: RECESS_PERIODS.length,
   periodSeconds: RECESS_PERIODS[0].seconds,
   gameOverLockFrames: 15 * 60, // 15s lockout on final screen so button mashing at the buzzer never skips stats!
+  demoGameOverFrames: 21 * 60, // 21s on final screen in Demo Mode (7s each on TEAM, PLAYERS, SUMMARY) before Title
 };
 
 // Classic 16-bit Genesis/SNES schoolyard palette
