@@ -8,7 +8,8 @@ function steerToward(p, tx, ty, speedScale = 1, isSnow = false) {
   if (dist < 2) return;
   const nx = dx / dist;
   const ny = dy / dist;
-  const accel = (isSnow ? 0.19 : PHYSICS.playerAccel) * speedScale;
+  const agilityMod = 0.82 + (p.stats.control ?? 0.85) * 0.24;
+  const accel = (isSnow ? 0.19 : PHYSICS.playerAccel) * speedScale * agilityMod;
   const maxSpd = p.stats.speed * speedScale * (isSnow ? 1.06 : 1);
   p.vx += nx * accel;
   p.vy += ny * accel;
@@ -68,6 +69,7 @@ export function updateGoalie(g, game) {
         isBomb: pickDeep,
       });
       game.stats[g.team].passes++;
+      if (g.matchStats) g.matchStats.passes++;
       game.onThrowEffect(g, info.dist > 165);
     }
     return;
@@ -120,19 +122,19 @@ export function updateGoalie(g, game) {
   const ballSpeed = Math.hypot(ball.vx, ball.vy);
 
   const inDepth = Math.abs(outFromNet) < 11.5;
-  const inReach = Math.abs(alongMouth) < 17;
+  const inReach = Math.abs(alongMouth) < 16;
   if (!inDepth || !inReach || ball.z > net.maxZ + 2) return;
 
   // Hard Shots (slap-kicks) & wicked corners are tougher for the goalie to stop!
   const edgeDistance = Math.abs(alongMouth);
   const isHardShot = ball.shotPower >= 6.4 || ballSpeed >= 6.2;
-  let saveChance = g.stats.reflex * 0.94;
-  if (isHardShot && edgeDistance > 9) {
-    saveChance = g.stats.reflex * 0.40;
+  let saveChance = g.stats.reflex * 0.88;
+  if (isHardShot && edgeDistance > 8.5) {
+    saveChance = g.stats.reflex * 0.34;
   } else if (isHardShot) {
-    saveChance = g.stats.reflex * 0.72;
-  } else if (ballSpeed > 5.0 && edgeDistance > 11) {
-    saveChance = g.stats.reflex * 0.56;
+    saveChance = g.stats.reflex * 0.65;
+  } else if (ballSpeed > 5.0 && edgeDistance > 10) {
+    saveChance = g.stats.reflex * 0.50;
   }
 
   if (Math.random() > saveChance) {
@@ -142,6 +144,7 @@ export function updateGoalie(g, game) {
   }
 
   const shooterTeam = ball.lastTouchTeam;
+  const shooterPlayer = ball.lastTouchPlayer;
   const isSlowCreaseScoop = ballSpeed < 2.4 && Math.hypot(relX, relY) < 13;
   const isGloveSide = isSlowCreaseScoop || alongMouth >= 0 || ball.z >= 7;
   if (isGloveSide) {
@@ -149,7 +152,7 @@ export function updateGoalie(g, game) {
     g.gloveTimer = 22;
     g.diveDir = 1;
     g.diveTimer = 10;
-    game.onGoalieSave(g, 'glove', shooterTeam);
+    game.onGoalieSave(g, 'glove', shooterTeam, shooterPlayer);
     if (g.team === 'home' && !game.isDemo) {
       game.controlledId = g.id;
     }
@@ -163,9 +166,22 @@ export function updateGoalie(g, game) {
     ball.vy = ny * rebSpeed + ty * spread;
     ball.vz = 1.6 + Math.random() * 0.8;
     ball.pickupCooldown = 10;
+    // Preserve attacking possession chain on a jacket-block rebound for primary & secondary assist credit!
+    if (ball.possessionTeam && ball.possessionTeam !== g.team && ball.possessionChain.length > 0) {
+      ball.reboundTeam = ball.possessionTeam;
+      ball.reboundChain = [...ball.possessionChain];
+    } else if (shooterPlayer && shooterPlayer.team !== g.team) {
+      ball.reboundTeam = shooterPlayer.team;
+      ball.reboundChain = [shooterPlayer];
+    } else {
+      ball.reboundTeam = null;
+      ball.reboundChain = [];
+    }
+    ball.possessionTeam = null;
+    ball.possessionChain = [];
     ball.lastTouchTeam = g.team;
     ball.lastTouchPlayer = g;
-    game.onGoalieSave(g, 'jacket', shooterTeam);
+    game.onGoalieSave(g, 'jacket', shooterTeam, shooterPlayer);
   }
 }
 
@@ -250,6 +266,7 @@ export function updateSkaterAI(p, game) {
         });
         p.aiDecisionCooldown = 35;
         game.stats[p.team].passes++;
+        if (p.matchStats) p.matchStats.passes++;
         game.onKickEffect(p.x, p.y, null, null, false);
         return;
       }
@@ -325,6 +342,7 @@ export function updateSkaterAI(p, game) {
       catchBall(ball, p);
       p.aiDecisionCooldown = 45;
       game.stats[p.team].catches++;
+      if (p.matchStats) p.matchStats.catches++;
       game.onCatchEffect(p);
       return;
     }

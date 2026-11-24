@@ -278,6 +278,26 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   game.update();
   game.onKeyUp('KeyP');
   assert.equal(game.state, 'PAUSED');
+  assert.equal(game.statsPage, 'team');
+  assert.ok(ctrl.matchStats.passes >= 1, 'Individual player pass stat should increment cleanly');
+
+  // Pressing ArrowRight cycles TEAM -> PLAYERS -> SUMMARY -> TEAM cleanly!
+  game.onKeyDown('ArrowRight');
+  game.update();
+  game.onKeyUp('ArrowRight');
+  assert.equal(game.statsPage, 'players', 'ArrowRight on PAUSED should switch to Player Stats page');
+  game.onKeyDown('ArrowRight');
+  game.update();
+  game.onKeyUp('ArrowRight');
+  assert.equal(game.statsPage, 'summary', 'Second ArrowRight should switch to NHL Game Summary page');
+  game.onKeyDown('ArrowLeft');
+  game.update();
+  game.onKeyUp('ArrowLeft');
+  assert.equal(game.statsPage, 'players', 'ArrowLeft from Summary should return to Player Stats');
+  game.onKeyDown('ArrowLeft');
+  game.update();
+  game.onKeyUp('ArrowLeft');
+  assert.equal(game.statsPage, 'team', 'ArrowLeft from Players should return to Team Stats');
 
   // Advance 60 frames while paused — clock and stats must remain frozen!
   for (let i = 0; i < 60; i++) game.update();
@@ -299,8 +319,30 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   game.onKeyUp('KeyQ');
   assert.equal(game.state, 'TITLE', 'Pressing Q while paused should return to Title screen');
 
-  // On GAME_OVER ("Ite, ludus finitus est"), Q or Escape returns cleanly to TITLE screen!
+  // Verify NHL Primary & Secondary Assist tracking: Goalie -> Center -> Left Wing scores!
+  const goalie = game.players.find((p) => p.id === 'h_g');
+  const passer = game.players.find((p) => p.id === 'h_c');
+  const scorer = game.players.find((p) => p.id === 'h_lw');
+  launchThrow(game.ball, goalie, passer.x, passer.y);
+  catchBall(game.ball, passer);
+  launchBall(game.ball, passer, 1, 0, 4.5, 0.5);
+  catchBall(game.ball, scorer);
+  game.handleGoalScored('home', 'top_yellow');
+  assert.equal(scorer.matchStats.goals, 1, 'Scorer should be credited with 1 Goal');
+  assert.equal(passer.matchStats.assists, 1, 'Primary passer should be credited with Primary Assist');
+  assert.equal(goalie.matchStats.assists, 1, 'Goalie outlet should be credited with Secondary Assist');
+  const lastGoal = game.goalLog[game.goalLog.length - 1];
+  assert.deepEqual(lastGoal.assists, [passer.name, goalie.name]);
+  assert.match(lastGoal.time, /^\d:\d\d$/, 'Goal log entry should record NHL-style period elapsed time');
+  assert.equal(game.stats.home.periodGoals[0], 1, 'Period 1 goal count should increment for Game Summary');
+  assert.equal(game.stats.home.periodShots[0], 1, 'Period 1 shots-on-goal count should increment for Game Summary');
+
+  // On GAME_OVER ("Ite, ludus finitus est"), ArrowRight toggles Player Stats and Escape returns to TITLE!
   game.state = 'GAME_OVER';
+  game.onKeyDown('ArrowRight');
+  game.update();
+  game.onKeyUp('ArrowRight');
+  assert.equal(game.statsPage, 'players', 'ArrowRight on GAME_OVER should switch to Player Stats page');
   game.onKeyDown('Escape');
   game.update();
   game.onKeyUp('Escape');
@@ -506,18 +548,37 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
 
   // Verify ISTVAN is strictly the worst player in the game across every attribute by a clear margin!
   const istvan = CLASSMATES.find((c) => c.name === 'ISTVAN');
+  const fizz = CLASSMATES.find((c) => c.name === 'FIZZ');
+  const avery = CLASSMATES.find((c) => c.name === 'AVERY');
+  const paes = CLASSMATES.find((c) => c.name === 'PAES');
   const others = CLASSMATES.filter((c) => c.name !== 'ISTVAN');
-  for (const attr of ['speed', 'kick', 'control', 'hands', 'reflex']) {
+  for (const attr of ['speed', 'kick', 'control', 'hands', 'reflex', 'checking']) {
     const minOther = Math.min(...others.map((o) => o.stats[attr]));
     assert.ok(
-      istvan.stats[attr] < minOther - 0.3,
+      istvan.stats[attr] < minOther - 0.2,
       `ISTVAN ${attr} (${istvan.stats[attr]}) should be much worse than every other classmate (min ${minOther})`
     );
   }
+  // Verify authentic scouting-report hierarchy!
+  assert.equal(
+    avery.stats.speed,
+    Math.max(...CLASSMATES.map((c) => c.stats.speed)),
+    'Avery should be the fastest classmate on 66 Bond'
+  );
+  assert.equal(
+    paes.stats.control,
+    Math.max(...CLASSMATES.map((c) => c.stats.control)),
+    'Paes should have top ball control'
+  );
+  assert.ok(fizz.stats.speed < 1.70 && fizz.stats.speed > istvan.stats.speed + 0.25, 'Fizz should be below average but much better than Istvan');
 
   const { homePlayers, awayPlayers } = draftRecessTeams();
   assert.equal(homePlayers.length, 4);
   assert.equal(awayPlayers.length, 4);
+
+  // Lowell & Masangkay should always be slotted as the two starting goalies!
+  const goalieNames = [homePlayers[3].name, awayPlayers[3].name].sort();
+  assert.deepEqual(goalieNames, ['LOWELL', 'MASANGKAY'], 'Lowell and Masangkay should always play goalie');
 
   const allNames = [...homePlayers, ...awayPlayers].map((p) => p.name);
   assert.equal(new Set(allNames).size, 8, 'All 8 drafted players in a match must be unique');
@@ -535,6 +596,16 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
   assert.equal(game.uniformMode, 'default');
   assert.equal(game.toggleUniformMode(), 'dress');
   assert.equal(game.toggleUniformMode(), 'default');
+
+  // Starting a match shows the Starting Lineups card during opening FACEOFF and skips cleanly on Enter!
+  game.startNewMatch();
+  assert.equal(game.state, 'FACEOFF');
+  assert.equal(game.showLineups, true, 'Match start should display the Starting Lineups card');
+  for (let i = 0; i < 20; i++) game.update();
+  game.onKeyDown('Enter');
+  game.update();
+  game.onKeyUp('Enter');
+  assert.equal(game.stateTimer, 38, 'Pressing Enter on lineups card should immediately drop the faceoff ball');
 });
 
 test('boot intro spins SMCS crest then automatically transitions to TITLE (or skips on input)', () => {

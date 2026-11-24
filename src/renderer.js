@@ -226,9 +226,13 @@ export function renderGame(ctx, game) {
 
   // === STATE OVERLAYS ===
   if (game.state === 'FACEOFF') {
-    const pInfo = game.getCurrentPeriodInfo();
-    const atk = game.getAttackNet('home');
-    drawBanner(ctx, pInfo.name, `66 BOND - SHOOT AT ${atk.label}`, '#ffe84d');
+    if (game.showLineups && game.stateTimer > 38) {
+      renderStartingLineups(ctx, game);
+    } else {
+      const pInfo = game.getCurrentPeriodInfo();
+      const atk = game.getAttackNet('home');
+      drawBanner(ctx, pInfo.name, `66 BOND - SHOOT AT ${atk.label}`, '#ffe84d');
+    }
   } else if (game.state === 'BASEMENT_56') {
     const awarded = game.restartTeam === 'home' ? TEAMS.home : TEAMS.away;
     drawBanner(ctx, 'BASEMENT 56!', `${awarded.name} BALL AT STAIRS!`, '#d9ff2e');
@@ -826,6 +830,92 @@ function drawBanner(ctx, title, subtitle, accent) {
   drawPixelText(ctx, subtitle, SCREEN_W / 2, 126, '#f4f7ff', 1, 'center');
 }
 
+// Classic 16-bit NHL '94 Starting Lineups Card shown at the start of every recess match!
+function renderStartingLineups(ctx, game) {
+  // Dim playfield slightly behind the lineup card
+  ctx.fillStyle = 'rgba(6, 9, 18, 0.62)';
+  ctx.fillRect(0, HUD_H, SCREEN_W, VIEW_H);
+
+  const x = 16;
+  const y = 32;
+  const w = SCREEN_W - 32;
+  const h = 186;
+  ctx.fillStyle = 'rgba(10, 14, 28, 0.96)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#ffd84d';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+  const pInfo = game.getCurrentPeriodInfo();
+  const atk = game.getAttackNet('home');
+  drawPixelText(ctx, 'STARTING LINEUPS - 66 BOND', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
+  drawPixelText(ctx, `${pInfo.name} - SHOOT AT ${atk.label}`, SCREEN_W / 2, y + 19, '#9be8ff', 1, 'center');
+
+  // Left & right team headers
+  const colW = 128;
+  const leftX = x + 10;
+  const rightX = x + w - 10 - colW;
+  ctx.fillStyle = TEAMS.home.primary;
+  ctx.fillRect(leftX, y + 32, colW, 14);
+  ctx.fillStyle = TEAMS.home.trim;
+  ctx.fillRect(leftX, y + 45, colW, 2);
+  drawPixelText(ctx, TEAMS.home.name, leftX + colW / 2, y + 36, '#ffffff', 1, 'center');
+
+  ctx.fillStyle = TEAMS.away.primary;
+  ctx.fillRect(rightX, y + 32, colW, 14);
+  ctx.fillStyle = TEAMS.away.trim;
+  ctx.fillRect(rightX, y + 45, colW, 2);
+  drawPixelText(ctx, TEAMS.away.name, rightX + colW / 2, y + 36, '#ffffff', 1, 'center');
+
+  // Vertical center divider
+  ctx.fillStyle = '#324066';
+  ctx.fillRect(SCREEN_W / 2, y + 32, 1, 86);
+
+  const homeRoster = game.players.filter((p) => p.team === 'home');
+  const awayRoster = game.players.filter((p) => p.team === 'away');
+
+  for (let i = 0; i < 4; i++) {
+    const ry = y + 54 + i * 16;
+    if (i % 2 === 0) {
+      ctx.fillStyle = 'rgba(34, 46, 78, 0.40)';
+      ctx.fillRect(leftX, ry - 2, colW, 12);
+      ctx.fillRect(rightX, ry - 2, colW, 12);
+    }
+    const hp = homeRoster[i];
+    if (hp) {
+      const roleCol = hp.role === 'G' ? '#ffd84d' : '#ff9cb2';
+      drawPixelText(ctx, hp.role, leftX + 4, ry, roleCol, 1, 'left', null);
+      drawPixelText(ctx, hp.name, leftX + 24, ry, '#ffffff', 1, 'left', null);
+    }
+    const ap = awayRoster[i];
+    if (ap) {
+      const roleCol = ap.role === 'G' ? '#ffd84d' : '#7ae8ff';
+      drawPixelText(ctx, ap.role, rightX + 4, ry, roleCol, 1, 'left', null);
+      drawPixelText(ctx, ap.name, rightX + 24, ry, '#ffffff', 1, 'left', null);
+    }
+  }
+
+  // Undrafted classmates playing corner hoops!
+  ctx.fillStyle = '#324066';
+  ctx.fillRect(x + 10, y + 123, w - 20, 1);
+  const hoopsKids = game.hoopsGames ? game.hoopsGames.flatMap((hg) => hg.kids.map((k) => k.name)) : [];
+  if (hoopsKids.length > 0) {
+    drawPixelText(ctx, 'CORNER HOOPS (UNDRAFTED):', SCREEN_W / 2, y + 129, '#f58c38', 1, 'center', null);
+    const line1 = hoopsKids.slice(0, 3).join(', ');
+    const line2 = hoopsKids.slice(3, 6).join(', ');
+    drawPixelText(ctx, line1, SCREEN_W / 2, y + 140, '#e3ebfa', 1, 'center', null);
+    if (line2) {
+      drawPixelText(ctx, line2, SCREEN_W / 2, y + 150, '#e3ebfa', 1, 'center', null);
+    }
+  }
+
+  // Action prompt at bottom
+  if (Math.floor(game.tick / 18) % 2 === 0) {
+    const prompt = game.isDemo ? 'DEMO MODE - PRESS ENTER TO PLAY' : 'ENTER / Z / SPACE: DROP BALL!';
+    drawPixelText(ctx, prompt, SCREEN_W / 2, y + 168, '#d9ff2e', 1, 'center');
+  }
+}
+
 // Iconic 16-bit EA Sports-style Boot Splash with 360° spinning SMCS Circular Crest
 // synced dynamically to sung "Gloria in excelsis Deo!" or "Magnificat" -> deep announcer "IN LUDO EST!"
 function renderBootIntro(ctx, game) {
@@ -1000,7 +1090,7 @@ function formatScorerSummary(goalLog) {
   return full.length > 34 ? full.slice(0, 33) + '.' : full;
 }
 
-// Shared 16-bit NHL '94-style Match Stats modal (used for PAUSE "Stats To Date" and FINAL Box Score!)
+// Shared 16-bit NHL '94-style Match Stats modal (TEAM STATS + PLAYER STATS pages on PAUSE and FINAL!)
 function renderStatsModal(ctx, game, { isFinal }) {
   // Dim playfield behind modal
   ctx.fillStyle = 'rgba(6, 9, 18, 0.72)';
@@ -1008,9 +1098,9 @@ function renderStatsModal(ctx, game, { isFinal }) {
 
   // Outer 16-bit scoreboard panel
   const x = 18;
-  const y = 30;
+  const y = 26;
   const w = SCREEN_W - 36;
-  const h = 200;
+  const h = 206;
   ctx.fillStyle = 'rgba(10, 14, 28, 0.96)';
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = isFinal ? '#ffd84d' : '#48b8ff';
@@ -1030,65 +1120,226 @@ function renderStatsModal(ctx, game, { isFinal }) {
         : game.score.away > game.score.home
         ? `${TEAMS.away.name} WINS RECESS!`
         : 'RECESS TIE GAME!';
-    drawPixelText(ctx, 'ITE, LUDUS FINITUS EST', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
-    drawPixelText(ctx, verdict, SCREEN_W / 2, y + 19, '#48b8ff', 1, 'center');
+    drawPixelText(ctx, 'ITE, LUDUS FINITUS EST', SCREEN_W / 2, y + 6, '#ffe84d', 1, 'center');
+    drawPixelText(ctx, verdict, SCREEN_W / 2, y + 16, '#48b8ff', 1, 'center');
   } else {
-    drawPixelText(ctx, 'PAUSED - STATS TO DATE', SCREEN_W / 2, y + 8, '#ffe84d', 1, 'center');
-    drawPixelText(ctx, `${periodName}  ${mm}:${ss} LEFT`, SCREEN_W / 2, y + 19, '#9be8ff', 1, 'center');
+    drawPixelText(ctx, 'PAUSED - STATS TO DATE', SCREEN_W / 2, y + 6, '#ffe84d', 1, 'center');
+    drawPixelText(ctx, `${periodName}  ${mm}:${ss} LEFT`, SCREEN_W / 2, y + 16, '#9be8ff', 1, 'center');
   }
 
-  // Team banners & current score
-  ctx.fillStyle = TEAMS.home.primary;
-  ctx.fillRect(x + 10, y + 32, 84, 18);
-  ctx.fillStyle = TEAMS.away.primary;
-  ctx.fillRect(x + w - 94, y + 32, 84, 18);
-  drawPixelText(ctx, TEAMS.home.name, x + 52, y + 38, '#ffffff', 1, 'center');
-  drawPixelText(ctx, TEAMS.away.name, x + w - 52, y + 38, '#ffffff', 1, 'center');
-  drawPixelText(ctx, `${game.score.home} - ${game.score.away}`, SCREEN_W / 2, y + 34, '#ffe84d', 2, 'center');
-
-  // Divider line
-  ctx.fillStyle = '#324066';
-  ctx.fillRect(x + 10, y + 55, w - 20, 1);
-
-  // Possession percentages
-  const totalPoss = game.stats.home.possessionFrames + game.stats.away.possessionFrames;
-  const homePossPct = totalPoss > 0 ? Math.round((game.stats.home.possessionFrames / totalPoss) * 100) : 50;
-  const awayPossPct = totalPoss > 0 ? 100 - homePossPct : 50;
-
-  const rows = [
-    ['SHOTS', String(game.stats.home.shots), String(game.stats.away.shots), '#ffffff'],
-    ['PASSES', String(game.stats.home.passes), String(game.stats.away.passes), '#9be8ff'],
-    ['CATCHES', String(game.stats.home.catches), String(game.stats.away.catches), '#d9ff2e'],
-    ['STEAL/CHK', `${game.stats.home.steals}/${game.stats.home.checks}`, `${game.stats.away.steals}/${game.stats.away.checks}`, '#ff8c42'],
-    ['GLOVE SAVES', String(game.stats.home.gloveSaves), String(game.stats.away.gloveSaves), '#ffd84d'],
-    ['JACKET BLOCKS', String(game.stats.home.jacketBlocks), String(game.stats.away.jacketBlocks), '#6ef0a4'],
-    ['POSSESSION', `${homePossPct}%`, `${awayPossPct}%`, '#ffffff'],
+  // 3-Page switcher tabs: TEAM  |  PLAYERS  |  SUMMARY
+  const page = game.statsPage || 'team';
+  const tabY = y + 26;
+  const tabW = 84;
+  const tabH = 12;
+  const tabs = [
+    { id: 'team', label: 'TEAM', tx: x + 10 },
+    { id: 'players', label: 'PLAYERS', tx: x + 100 },
+    { id: 'summary', label: 'SUMMARY', tx: x + 190 },
   ];
-
-  let ry = y + 62;
-  for (let i = 0; i < rows.length; i++) {
-    const [label, hVal, aVal, color] = rows[i];
-    if (i % 2 === 0) {
-      ctx.fillStyle = 'rgba(34, 46, 78, 0.42)';
-      ctx.fillRect(x + 10, ry - 2, w - 20, 11);
-    }
-    drawPixelText(ctx, hVal, x + 52, ry, color, 1, 'center');
-    drawPixelText(ctx, label, SCREEN_W / 2, ry, '#8fa1c7', 1, 'center');
-    drawPixelText(ctx, aVal, x + w - 52, ry, color, 1, 'center');
-    ry += 13;
+  ctx.lineWidth = 1;
+  for (const t of tabs) {
+    const active = page === t.id;
+    ctx.fillStyle = active ? '#243563' : '#11182c';
+    ctx.fillRect(t.tx, tabY, tabW, tabH);
+    ctx.strokeStyle = active ? '#ffd84d' : '#324066';
+    ctx.strokeRect(t.tx + 0.5, tabY + 0.5, tabW - 1, tabH - 1);
+    drawPixelText(ctx, t.label, t.tx + tabW / 2, tabY + 3, active ? '#ffe84d' : '#7f90b5', 1, 'center', null);
   }
 
-  // Goal scorers strip
-  ctx.fillStyle = '#324066';
-  ctx.fillRect(x + 10, y + 155, w - 20, 1);
-  drawPixelText(ctx, `GOALS: ${formatScorerSummary(game.goalLog)}`, SCREEN_W / 2, y + 161, '#ffe84d', 1, 'center', null);
+  if (page === 'summary') {
+    // === PAGE 3: NHL-STYLE GAME SUMMARY (PERIOD LINESCORE, SHOTS/PERIOD & SCORING LOG!) ===
+    const ty = y + 43;
+
+    // Left table: GOALS BY PERIOD (1, 2, 3, T)
+    drawPixelText(ctx, 'GOALS', x + 10, ty, '#ffe84d', 1, 'left', null);
+    drawPixelText(ctx, '1', x + 58, ty, '#8fa1c7', 1, 'center', null);
+    drawPixelText(ctx, '2', x + 78, ty, '#8fa1c7', 1, 'center', null);
+    drawPixelText(ctx, '3', x + 98, ty, '#8fa1c7', 1, 'center', null);
+    drawPixelText(ctx, 'T', x + 120, ty, '#ffe84d', 1, 'center', null);
+
+    // Center divider between Goals & Shots tables
+    ctx.fillStyle = '#324066';
+    ctx.fillRect(x + 141, ty - 1, 1, 35);
+
+    // Right table: SHOTS BY PERIOD (1, 2, 3, T)
+    drawPixelText(ctx, 'SHOTS', x + 148, ty, '#9be8ff', 1, 'left', null);
+    drawPixelText(ctx, '1', x + 196, ty, '#8fa1c7', 1, 'center', null);
+    drawPixelText(ctx, '2', x + 216, ty, '#8fa1c7', 1, 'center', null);
+    drawPixelText(ctx, '3', x + 236, ty, '#8fa1c7', 1, 'center', null);
+    drawPixelText(ctx, 'T', x + 258, ty, '#9be8ff', 1, 'center', null);
+
+    const teamRows = [
+      { key: 'home', color: '#ff9cb2', rowY: ty + 12 },
+      { key: 'away', color: '#7ae8ff', rowY: ty + 24 },
+    ];
+    for (let r = 0; r < teamRows.length; r++) {
+      const tr = teamRows[r];
+      const st = game.stats[tr.key];
+      const pg = st.periodGoals || [0, 0, 0];
+      const ps = st.periodShots || [0, 0, 0];
+      if (r === 0) {
+        ctx.fillStyle = 'rgba(34, 46, 78, 0.38)';
+        ctx.fillRect(x + 8, tr.rowY - 2, w - 16, 10);
+      }
+      drawPixelText(ctx, TEAMS[tr.key].short, x + 10, tr.rowY, tr.color, 1, 'left', null);
+      drawPixelText(ctx, String(pg[0]), x + 58, tr.rowY, '#ffffff', 1, 'center', null);
+      drawPixelText(ctx, String(pg[1]), x + 78, tr.rowY, game.period >= 2 ? '#ffffff' : '#556380', 1, 'center', null);
+      drawPixelText(ctx, String(pg[2]), x + 98, tr.rowY, game.period >= 3 ? '#ffffff' : '#556380', 1, 'center', null);
+      drawPixelText(ctx, String(game.score[tr.key]), x + 120, tr.rowY, '#ffe84d', 1, 'center', null);
+
+      drawPixelText(ctx, TEAMS[tr.key].short, x + 148, tr.rowY, tr.color, 1, 'left', null);
+      drawPixelText(ctx, String(ps[0]), x + 196, tr.rowY, '#ffffff', 1, 'center', null);
+      drawPixelText(ctx, String(ps[1]), x + 216, tr.rowY, game.period >= 2 ? '#ffffff' : '#556380', 1, 'center', null);
+      drawPixelText(ctx, String(ps[2]), x + 236, tr.rowY, game.period >= 3 ? '#ffffff' : '#556380', 1, 'center', null);
+      drawPixelText(ctx, String(st.shots), x + 258, tr.rowY, '#9be8ff', 1, 'center', null);
+    }
+
+    // Divider before Scoring Summary log
+    ctx.fillStyle = '#324066';
+    ctx.fillRect(x + 8, y + 81, w - 16, 1);
+
+    const goals = game.goalLog || [];
+    const maxVisible = 7;
+    const scroll = Math.max(0, Math.min(Math.max(0, goals.length - maxVisible), game.summaryScroll || 0));
+    const headerTitle =
+      goals.length > maxVisible
+        ? `SCORING SUMMARY (${scroll + 1}-${Math.min(goals.length, scroll + maxVisible)}/${goals.length} ^/V)`
+        : 'SCORING SUMMARY';
+    drawPixelText(ctx, headerTitle, x + 10, y + 86, '#ffe84d', 1, 'left', null);
+
+    if (goals.length === 0) {
+      drawPixelText(ctx, 'NO GOALS SCORED YET', SCREEN_W / 2, y + 124, '#7f90b5', 1, 'center', null);
+    } else {
+      const visible = goals.slice(scroll, scroll + maxVisible);
+      for (let i = 0; i < visible.length; i++) {
+        const g = visible[i];
+        const gy = y + 98 + i * 12;
+        if (i % 2 === 0) {
+          ctx.fillStyle = 'rgba(34, 46, 78, 0.36)';
+          ctx.fillRect(x + 8, gy - 1, w - 16, 10);
+        }
+        const tag = g.team === 'home' ? 'H' : 'A';
+        const tagCol = g.team === 'home' ? '#ff7090' : '#48c6ff';
+        const timeText = `P${g.period} ${g.time || '0:00'}`;
+        drawPixelText(ctx, timeText, x + 10, gy, '#9be8ff', 1, 'left', null);
+        drawPixelText(ctx, tag, x + 56, gy, tagCol, 1, 'left', null);
+
+        const assistList = Array.isArray(g.assists) && g.assists.length > 0 ? g.assists.join(', ') : 'UNASSISTED';
+        const detail = `${g.name} (${assistList})`;
+        const trimmed = detail.length > 34 ? detail.slice(0, 33) + '.' : detail;
+        drawPixelText(ctx, trimmed, x + 66, gy, '#ffffff', 1, 'left', null);
+      }
+    }
+  } else if (page === 'players') {
+    // === PAGE 2: INDIVIDUAL PLAYER BOX SCORE (G, A, SOG, PAS, CAT, CHK — plus SV for goalies only!) ===
+    const colRole = x + 10;
+    const colName = x + 26;
+    const colG = x + 128;
+    const colA = x + 150;
+    const colSog = x + 176;
+    const colPas = x + 204;
+    const colCat = x + 232;
+    const colChk = x + 260;
+
+    // Column headers
+    const hy = y + 43;
+    drawPixelText(ctx, 'PLAYER', colName, hy, '#8fa1c7', 1, 'left', null);
+    drawPixelText(ctx, 'G', colG, hy, '#ffe84d', 1, 'center', null);
+    drawPixelText(ctx, 'A', colA, hy, '#ffd06b', 1, 'center', null);
+    drawPixelText(ctx, 'SOG', colSog, hy, '#ffffff', 1, 'center', null);
+    drawPixelText(ctx, 'PAS', colPas, hy, '#9be8ff', 1, 'center', null);
+    drawPixelText(ctx, 'CAT', colCat, hy, '#d9ff2e', 1, 'center', null);
+    drawPixelText(ctx, 'CHK', colChk, hy, '#ff8c42', 1, 'center', null);
+
+    const drawTeamBlock = (teamKey, startY) => {
+      const team = TEAMS[teamKey];
+      ctx.fillStyle = team.primary;
+      ctx.fillRect(x + 8, startY, w - 16, 10);
+      drawPixelText(ctx, `${team.name} (${game.score[teamKey]})`, x + 12, startY + 2, '#ffffff', 1, 'left', null);
+
+      const list = game.players.filter((p) => p.team === teamKey);
+      for (let i = 0; i < list.length; i++) {
+        const p = list[i];
+        const ms = p.matchStats || { goals: 0, assists: 0, shots: 0, passes: 0, catches: 0, checks: 0, saves: 0 };
+        const ry = startY + 12 + i * 12;
+        if (i % 2 === 0) {
+          ctx.fillStyle = 'rgba(34, 46, 78, 0.36)';
+          ctx.fillRect(x + 8, ry - 1, w - 16, 10);
+        }
+        const roleCol = p.role === 'G' ? '#ffd84d' : teamKey === 'home' ? '#ff9cb2' : '#7ae8ff';
+        drawPixelText(ctx, p.role, colRole, ry, roleCol, 1, 'left', null);
+        drawPixelText(ctx, p.name, colName, ry, '#ffffff', 1, 'left', null);
+        drawPixelText(ctx, String(ms.goals), colG, ry, ms.goals > 0 ? '#ffe84d' : '#96a5c4', 1, 'center', null);
+        drawPixelText(ctx, String(ms.assists), colA, ry, ms.assists > 0 ? '#ffd06b' : '#96a5c4', 1, 'center', null);
+        drawPixelText(ctx, String(ms.shots), colSog, ry, '#e3ebfa', 1, 'center', null);
+        drawPixelText(ctx, String(ms.passes), colPas, ry, '#9be8ff', 1, 'center', null);
+        if (p.role === 'G') {
+          // Goalies show SV right on their row instead of CAT/CHK!
+          drawPixelText(ctx, `SV:${ms.saves}`, Math.round((colCat + colChk) / 2), ry, '#6ef0a4', 1, 'center', null);
+        } else {
+          drawPixelText(ctx, String(ms.catches), colCat, ry, '#d9ff2e', 1, 'center', null);
+          drawPixelText(ctx, String(ms.checks), colChk, ry, '#ff8c42', 1, 'center', null);
+        }
+      }
+    };
+
+    drawTeamBlock('home', y + 54);
+    drawTeamBlock('away', y + 116);
+  } else {
+    // === PAGE 1: TEAM STATS ===
+    ctx.fillStyle = TEAMS.home.primary;
+    ctx.fillRect(x + 10, y + 43, 84, 16);
+    ctx.fillStyle = TEAMS.away.primary;
+    ctx.fillRect(x + w - 94, y + 43, 84, 16);
+    drawPixelText(ctx, TEAMS.home.name, x + 52, y + 48, '#ffffff', 1, 'center');
+    drawPixelText(ctx, TEAMS.away.name, x + w - 52, y + 48, '#ffffff', 1, 'center');
+    drawPixelText(ctx, `${game.score.home} - ${game.score.away}`, SCREEN_W / 2, y + 44, '#ffe84d', 2, 'center');
+
+    // Divider line
+    ctx.fillStyle = '#324066';
+    ctx.fillRect(x + 10, y + 63, w - 20, 1);
+
+    // Possession percentages
+    const totalPoss = game.stats.home.possessionFrames + game.stats.away.possessionFrames;
+    const homePossPct = totalPoss > 0 ? Math.round((game.stats.home.possessionFrames / totalPoss) * 100) : 50;
+    const awayPossPct = totalPoss > 0 ? 100 - homePossPct : 50;
+
+    const rows = [
+      ['SHOTS', String(game.stats.home.shots), String(game.stats.away.shots), '#ffffff'],
+      ['PASSES', String(game.stats.home.passes), String(game.stats.away.passes), '#9be8ff'],
+      ['CATCHES', String(game.stats.home.catches), String(game.stats.away.catches), '#d9ff2e'],
+      ['STEAL/CHK', `${game.stats.home.steals}/${game.stats.home.checks}`, `${game.stats.away.steals}/${game.stats.away.checks}`, '#ff8c42'],
+      ['GLOVE SAVES', String(game.stats.home.gloveSaves), String(game.stats.away.gloveSaves), '#ffd84d'],
+      ['JACKET BLOCKS', String(game.stats.home.jacketBlocks), String(game.stats.away.jacketBlocks), '#6ef0a4'],
+      ['POSSESSION', `${homePossPct}%`, `${awayPossPct}%`, '#ffffff'],
+    ];
+
+    let ry = y + 69;
+    for (let i = 0; i < rows.length; i++) {
+      const [label, hVal, aVal, color] = rows[i];
+      if (i % 2 === 0) {
+        ctx.fillStyle = 'rgba(34, 46, 78, 0.42)';
+        ctx.fillRect(x + 10, ry - 2, w - 20, 11);
+      }
+      drawPixelText(ctx, hVal, x + 52, ry, color, 1, 'center');
+      drawPixelText(ctx, label, SCREEN_W / 2, ry, '#8fa1c7', 1, 'center');
+      drawPixelText(ctx, aVal, x + w - 52, ry, color, 1, 'center');
+      ry += 13;
+    }
+
+    // Goal scorers strip
+    ctx.fillStyle = '#324066';
+    ctx.fillRect(x + 10, y + 162, w - 20, 1);
+    drawPixelText(ctx, `GOALS: ${formatScorerSummary(game.goalLog)}`, SCREEN_W / 2, y + 168, '#ffe84d', 1, 'center', null);
+  }
 
   // Action prompts at bottom
   if (isFinal) {
     if (Math.floor(game.tick / 22) % 2 === 0) {
-      drawPixelText(ctx, 'ENTER/Z: REMATCH   Q/ESC: TITLE', SCREEN_W / 2, y + 181, '#d9ff2e', 1, 'center');
+      drawPixelText(ctx, '</>:PAGE  ENTER/Z:REMATCH  Q/ESC:TITLE', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
     }
   } else {
-    drawPixelText(ctx, 'P/ESC:RESUME  R:RESTART  Q:TITLE', SCREEN_W / 2, y + 181, '#d9ff2e', 1, 'center');
+    drawPixelText(ctx, '</>:PAGE  P:RESUME  R:RESTART  Q:TITLE', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
   }
 }

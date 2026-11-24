@@ -10,6 +10,7 @@ import {
   dropHeldBall,
   launchBall,
   launchThrow,
+  recordBallTouch,
   stepBallPhysics,
 } from './physics.js';
 import { updateGoalie, updateSkaterAI } from './ai.js';
@@ -25,8 +26,12 @@ function createEmptyTeamStats() {
     gloveSaves: 0,
     jacketBlocks: 0,
     possessionFrames: 0,
+    periodGoals: [0, 0, 0],
+    periodShots: [0, 0, 0],
   };
 }
+
+const STATS_PAGES = ['team', 'players', 'summary'];
 
 export class FootHockeyGame {
   constructor() {
@@ -42,6 +47,8 @@ export class FootHockeyGame {
       away: createEmptyTeamStats(),
     };
     this.goalLog = [];
+    this.statsPage = 'team'; // 'team' | 'players' | 'summary' (toggleable on PAUSED and GAME_OVER!)
+    this.summaryScroll = 0;
 
     this.court = createBond66Court();
     this.period = 1;
@@ -205,6 +212,7 @@ export class FootHockeyGame {
           stunTimer: 0,
           stunDir: 1,
           animOffset: idx * 1.7,
+          matchStats: { goals: 0, assists: 0, shots: 0, passes: 0, catches: 0, checks: 0, saves: 0 },
         });
       });
     }
@@ -226,6 +234,8 @@ export class FootHockeyGame {
       away: createEmptyTeamStats(),
     };
     this.goalLog = [];
+    this.statsPage = 'team'; // 'team' | 'players' | 'summary' (toggleable on PAUSED and GAME_OVER!)
+    this.summaryScroll = 0;
     this.period = 1;
     this.clockFrames = this.getCurrentPeriodInfo().seconds * 60;
     this.restartTeam = null;
@@ -233,7 +243,7 @@ export class FootHockeyGame {
     this.callouts = [];
     this.hoopsGames = createCornerBasketballGames(this.court, this.undraftedPlayers);
     this.hoops = this.hoopsGames[0];
-    this.startFaceoff();
+    this.startFaceoff(true); // Show the starting lineups card at the beginning of each match!
     sound.playRecessBell();
   }
 
@@ -241,11 +251,12 @@ export class FootHockeyGame {
     this.startNewMatch(true);
   }
 
-  startFaceoff() {
+  startFaceoff(showLineups = false) {
     this.resetPositionsForFaceoff();
     this.restartTeam = null;
     this.state = 'FACEOFF';
-    this.stateTimer = 58;
+    this.showLineups = Boolean(showLineups);
+    this.stateTimer = this.showLineups ? (this.isDemo ? 105 : 210) : 58;
     sound.playFaceoffDrop();
   }
 
@@ -611,6 +622,16 @@ export class FootHockeyGame {
     const menuTogglePressed =
       this.justPressed.has('ArrowLeft') ||
       this.justPressed.has('ArrowRight');
+    const statsPagePrevPressed =
+      this.justPressed.has('ArrowLeft') ||
+      this.justPressed.has('KeyA');
+    const statsPageNextPressed =
+      this.justPressed.has('ArrowRight') ||
+      this.justPressed.has('KeyD') ||
+      this.justPressed.has('KeyS') ||
+      this.justPressed.has('Tab');
+    const summaryScrollUp = this.justPressed.has('ArrowUp') || this.justPressed.has('KeyW');
+    const summaryScrollDown = this.justPressed.has('ArrowDown');
 
     const selectPressed = Boolean(gp?.selectDown && !this._prevGpSelect);
     if (selectPressed) {
@@ -646,7 +667,25 @@ export class FootHockeyGame {
       demoPressed,
       exitDemoPressed,
       menuTogglePressed,
+      statsPagePrevPressed,
+      statsPageNextPressed,
+      summaryScrollUp,
+      summaryScrollDown,
     };
+  }
+
+  toggleStatsPage(dir = 1) {
+    const idx = STATS_PAGES.indexOf(this.statsPage);
+    const nextIdx = (idx + dir + STATS_PAGES.length) % STATS_PAGES.length;
+    this.statsPage = STATS_PAGES[nextIdx];
+    this.summaryScroll = 0;
+    sound.playMenuSelect();
+    return this.statsPage;
+  }
+
+  scrollSummary(delta) {
+    const maxScroll = Math.max(0, this.goalLog.length - 7);
+    this.summaryScroll = Math.max(0, Math.min(maxScroll, this.summaryScroll + delta));
   }
 
   returnToTitle() {
@@ -668,7 +707,15 @@ export class FootHockeyGame {
     sound.updateMusic(this.state, this.state === 'PLAYING' && this.clockFrames <= 15 * 60);
 
     if (this.state === 'PAUSED') {
-      if (input.pausePressed) {
+      if (input.statsPagePrevPressed) {
+        this.toggleStatsPage(-1);
+      } else if (input.statsPageNextPressed) {
+        this.toggleStatsPage(1);
+      } else if (this.statsPage === 'summary' && input.summaryScrollUp) {
+        this.scrollSummary(-1);
+      } else if (this.statsPage === 'summary' && input.summaryScrollDown) {
+        this.scrollSummary(1);
+      } else if (input.pausePressed) {
         this.state = this.prevState;
         sound.playMenuSelect();
       } else if (input.restartPressed) {
@@ -750,6 +797,19 @@ export class FootHockeyGame {
       }
     }
 
+    // During the opening Starting Lineups card, pressing Enter/Z/X/Space drops the ball right away!
+    const lineupOverlayActive = this.state === 'FACEOFF' && this.showLineups && this.stateTimer > 38;
+    if (
+      !this.isDemo &&
+      lineupOverlayActive &&
+      this.stateTimer < 196 &&
+      (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed)
+    ) {
+      sound.playMenuSelect();
+      this.stateTimer = 38;
+      return;
+    }
+
     if (
       !this.isDemo &&
       input.pausePressed &&
@@ -781,6 +841,7 @@ export class FootHockeyGame {
       }
       this.updateCamera();
       if (this.stateTimer <= 0) {
+        this.showLineups = false;
         this.state = 'PLAYING';
       }
       return;
@@ -851,6 +912,22 @@ export class FootHockeyGame {
           this.titleIdleFrames = 0;
           this.state = 'TITLE';
         }
+        return;
+      }
+      if (input.statsPagePrevPressed) {
+        this.toggleStatsPage(-1);
+        return;
+      }
+      if (input.statsPageNextPressed) {
+        this.toggleStatsPage(1);
+        return;
+      }
+      if (this.statsPage === 'summary' && input.summaryScrollUp) {
+        this.scrollSummary(-1);
+        return;
+      }
+      if (this.statsPage === 'summary' && input.summaryScrollDown) {
+        this.scrollSummary(1);
         return;
       }
       if (input.quitPressed || input.escapePressed) {
@@ -1069,7 +1146,8 @@ export class FootHockeyGame {
       const ny = input.my / mag;
       const isSnow = this.weather === 'snow';
       const speedMod = p.holdingBall ? 0.45 : p.windupFrames >= SHOT.hardMinFrames ? 0.56 : 1;
-      const accel = (isSnow ? 0.19 : PHYSICS.playerAccel) * speedMod;
+      const agilityMod = 0.82 + (p.stats.control ?? 0.85) * 0.24;
+      const accel = (isSnow ? 0.19 : PHYSICS.playerAccel) * speedMod * agilityMod;
       const maxSpd = p.stats.speed * speedMod * (isSnow ? 1.07 : 1);
       p.vx += nx * accel;
       p.vy += ny * accel;
@@ -1116,6 +1194,7 @@ export class FootHockeyGame {
         p.windupFrames = 0;
         catchBall(ball, p);
         this.stats.home.catches++;
+        if (p.matchStats) p.matchStats.catches++;
         this.onCatchEffect(p);
         return;
       }
@@ -1187,14 +1266,31 @@ export class FootHockeyGame {
     }
 
     // CATCH / INTERCEPT! Press C / Space to snag a loose, bouncing, or thrown tennis ball!
+    // Hands rating scales catch reach, snag height, and cleanly catching blistering fast shots!
     if (input.catchPressed) {
       p.catchAnim = 12;
       const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
       const isOppGoalieClear = ball.isThrow && ball.lastTouchTeam !== p.team && ball.throwGrace > 0;
-      const catchRadius = ball.passTargetId === p.id ? PHYSICS.catchReach + 9 : PHYSICS.catchReach + 4;
-      if (!ball.owner && !isOppGoalieClear && dist <= catchRadius && ball.z <= PHYSICS.catchMaxZ) {
+      const hands = p.stats.hands ?? 0.85;
+      const baseReach = ball.passTargetId === p.id ? PHYSICS.catchReach + 9 : PHYSICS.catchReach + 4;
+      const catchRadius = baseReach * (0.78 + hands * 0.28);
+      const catchMaxZ = PHYSICS.catchMaxZ * (0.78 + hands * 0.28);
+      if (!ball.owner && !isOppGoalieClear && dist <= catchRadius && ball.z <= catchMaxZ) {
+        const ballSpeed = Math.hypot(ball.vx, ball.vy);
+        const bobbleRisk = ballSpeed > 5.5 && hands < 0.72 ? (0.75 - hands) * 0.85 : 0;
+        if (bobbleRisk > 0 && Math.random() < bobbleRisk) {
+          // Butterfingers! Bobbles a blistering shot instead of catching cleanly
+          ball.vx = p.facingX * 1.4 + (Math.random() - 0.5) * 1.8;
+          ball.vy = p.facingY * 1.4 + (Math.random() - 0.5) * 1.8;
+          ball.vz = 1.6;
+          ball.pickupCooldown = 10;
+          sound.playBounce(0.7);
+          this.addCallout(p.x, p.y - 18, 'BOBBLED!', '#ffbe3b');
+          return;
+        }
         catchBall(ball, p);
         this.stats.home.catches++;
+        if (p.matchStats) p.matchStats.catches++;
         this.onCatchEffect(p);
         return;
       }
@@ -1236,12 +1332,14 @@ export class FootHockeyGame {
       });
       this.controlledId = target.id;
       this.stats[p.team].passes++;
+      if (p.matchStats) p.matchStats.passes++;
       sound.playPass();
       this.spawnParticles(p.x, p.y, '#7ae8ff', 5);
     } else {
       const aim = this.getAimVector(p, input);
       launchBall(ball, p, aim.x, aim.y, 4.4, 0.7, { shotPower: 0 });
       this.stats[p.team].passes++;
+      if (p.matchStats) p.matchStats.passes++;
       sound.playPass();
     }
   }
@@ -1269,6 +1367,7 @@ export class FootHockeyGame {
       this.controlledId = receiver.id;
     }
     this.stats[g.team].passes++;
+    if (g.matchStats) g.matchStats.passes++;
     this.onThrowEffect(g, info.dist > 165 || isBomb);
   }
 
@@ -1344,19 +1443,25 @@ export class FootHockeyGame {
       const nx = dx / dist;
       const ny = dy / dist;
 
-      targetOpp.vx = nx * 4.2;
-      targetOpp.vy = ny * 4.2;
-      targetOpp.stunTimer = 36;
+      // Checking attribute governs knockback power, stun duration, hit resistance & left-wall flex!
+      const hitterChk = p.stats.checking ?? 0.80;
+      const victimChk = targetOpp.stats.checking ?? 0.80;
+      const impact = Math.max(0.55, Math.min(1.45, 0.88 + (hitterChk - victimChk) * 0.65 + (hitterChk - 0.78) * 0.50));
+
+      targetOpp.vx = nx * (4.2 * impact);
+      targetOpp.vy = ny * (4.2 * impact);
+      targetOpp.stunTimer = Math.round(36 * impact);
       targetOpp.stunDir = nx >= 0 ? 1 : -1;
       targetOpp.windupFrames = 0;
-      targetOpp.stealCooldown = 36;
+      targetOpp.stealCooldown = Math.round(36 * impact);
       this.stats[p.team].checks++;
-      this.screenShake = 7;
+      if (p.matchStats) p.matchStats.checks++;
+      this.screenShake = Math.round(6 * impact);
       sound.playBodyCheck();
 
       const nearLeftWall = targetOpp.x <= this.court.bounds.left + 48;
       if (nearLeftWall && (targetOpp.x <= this.court.bounds.left + 22 || nx < -0.15)) {
-        this.triggerLeftWallGive(targetOpp.y, 1.0);
+        this.triggerLeftWallGive(targetOpp.y, Math.min(1.2, impact));
       }
       this.spawnParticles(targetOpp.x, targetOpp.y, this.weather === 'snow' ? '#ffffff' : '#ffe84d', 12);
       this.addCallout(
@@ -1374,8 +1479,7 @@ export class FootHockeyGame {
         ball.vy = ny * 2.2 + (Math.random() - 0.5) * 1.4;
         ball.vz = 1.8;
         ball.pickupCooldown = 8;
-        ball.lastTouchTeam = p.team;
-        ball.lastTouchPlayer = p;
+        recordBallTouch(ball, p);
       }
       return;
     }
@@ -1388,11 +1492,20 @@ export class FootHockeyGame {
     if (ball.owner && ball.owner.team !== p.team && ball.owner.role !== 'G') {
       const victim = ball.owner;
       if (!victim.holdingBall) {
+        // High ball control (e.g. Paes 0.97, Avery 0.96) resists casual poke-steals; low control (Istvan) gets stripped cleanly!
+        const attCtrl = p.stats.control ?? 0.82;
+        const defCtrl = victim.stats.control ?? 0.82;
+        const stealChance = Math.max(0.45, Math.min(1.0, 0.88 + (attCtrl - defCtrl) * 0.75 - Math.max(0, defCtrl - 0.90) * 2.5));
+        if (Math.random() > stealChance) {
+          victim.vx += (victim.x - p.x) * 0.08;
+          victim.vy += (victim.y - p.y) * 0.08;
+          this.addCallout(victim.x, victim.y - 16, 'DEKED!', '#9be8ff');
+          return;
+        }
         victim.stealCooldown = 26;
         victim.windupFrames = 0;
         ball.owner = p;
-        ball.lastTouchTeam = p.team;
-        ball.lastTouchPlayer = p;
+        recordBallTouch(ball, p);
         this.stats[p.team].steals++;
         this.spawnParticles(ball.x, ball.y, '#ffe84d', 6);
         this.addCallout(p.x, p.y - 16, 'STEAL!', '#48b8ff');
@@ -1422,8 +1535,7 @@ export class FootHockeyGame {
       const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
       if (dist < maxDist) {
         ball.owner = p;
-        ball.lastTouchTeam = p.team;
-        ball.lastTouchPlayer = p;
+        recordBallTouch(ball, p);
         ball.passTargetId = null;
         ball.passTimer = 0;
         ball.shotPower = 0;
@@ -1461,8 +1573,11 @@ export class FootHockeyGame {
   }
 
   handleGoalScored(team, goalSide) {
+    const pIdx = Math.max(0, Math.min(2, this.period - 1));
     this.score[team]++;
     this.stats[team].shots++; // True hockey Shot on Goal!
+    this.stats[team].periodGoals[pIdx]++;
+    this.stats[team].periodShots[pIdx]++;
     this.lastGoalTeam = team;
     this.lastScorer =
       this.ball.lastTouchPlayer && this.ball.lastTouchPlayer.team === team
@@ -1470,10 +1585,37 @@ export class FootHockeyGame {
         : this.players.find((p) => p.team === team && p.role === 'C');
 
     if (this.lastScorer) {
+      if (this.lastScorer.matchStats) {
+        this.lastScorer.matchStats.goals++;
+        this.lastScorer.matchStats.shots++;
+      }
+      // Credit Primary & Secondary Assists (true NHL rules: up to 2 distinct teammates prior to scorer!)
+      const activeChain =
+        this.ball.possessionTeam === team
+          ? this.ball.possessionChain
+          : this.ball.reboundTeam === team
+          ? this.ball.reboundChain
+          : [];
+      const assisters = activeChain
+        .filter((m) => m && m.team === team && m.id !== this.lastScorer.id)
+        .slice(-2)
+        .reverse(); // [primaryAssist, secondaryAssist]
+      for (const a of assisters) {
+        if (a.matchStats) a.matchStats.assists++;
+      }
+      // Compute NHL-style elapsed time in the current recess period (e.g. "0:24", "1:12")
+      const pInfo = this.getCurrentPeriodInfo();
+      const remSec = Math.max(0, Math.ceil(this.clockFrames / 60));
+      const elapsedSec = Math.max(0, Math.min(pInfo.seconds, pInfo.seconds - remSec));
+      const timeStr = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`;
+
       this.goalLog.push({
         team,
         name: this.lastScorer.name,
+        assists: assisters.map((a) => a.name),
         period: this.period,
+        periodShort: pInfo.short,
+        time: timeStr,
       });
     }
 
@@ -1540,12 +1682,18 @@ export class FootHockeyGame {
     this.addCallout(x, y - 16, 'HEY!!', '#ff9642');
   }
 
-  onGoalieSave(g, type, shooterTeam = null) {
+  onGoalieSave(g, type, shooterTeam = null, shooterPlayer = null) {
     const oppTeam = g.team === 'home' ? 'away' : 'home';
     // Only credit a Shot on Goal & Save when stopping an opponent's shot (not a teammate's back-pass!)
     if (shooterTeam !== g.team) {
+      const pIdx = Math.max(0, Math.min(2, this.period - 1));
       this.stats[oppTeam].shots++;
+      this.stats[oppTeam].periodShots[pIdx]++;
       this.stats[g.team].saves++;
+      if (g.matchStats) g.matchStats.saves++;
+      if (shooterPlayer && shooterPlayer.team === oppTeam && shooterPlayer.matchStats) {
+        shooterPlayer.matchStats.shots++;
+      }
       if (type === 'glove') {
         this.stats[g.team].gloveSaves++;
       } else {

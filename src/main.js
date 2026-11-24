@@ -36,6 +36,7 @@ const PREVENT_KEYS = new Set([
   'ArrowLeft',
   'ArrowRight',
   'Space',
+  'Tab',
 ]);
 
 window.addEventListener('keydown', (e) => {

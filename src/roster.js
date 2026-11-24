@@ -29,7 +29,8 @@ export const JACKET_PALETTE = [
   { color: '#47b847', trim: '#2a782a' }, // Kelly green windbreaker
 ];
 
-// Master pool of St. Michael's classmates — easy to add more players anytime!
+// Master pool of St. Michael's classmates — authentic 66 Bond recess scouting report!
+// preferredRole: 'G' slots Lowell & Masangkay in net (one per team!) whenever recess teams are drafted.
 export const CLASSMATES = [
   {
     name: 'PAES',
@@ -38,7 +39,8 @@ export const CLASSMATES = [
     hairStyle: 'part',
     sneakers: '#1d222e',
     gloveColor: '#a65d2a',
-    stats: { speed: 1.88, kick: 5.3, control: 0.91, hands: 0.90, reflex: 0.87 },
+    // Excellent ball control, not much else
+    stats: { speed: 1.72, kick: 4.75, control: 0.97, hands: 0.78, reflex: 0.76, checking: 0.68 },
   },
   {
     name: 'KWONG',
@@ -47,16 +49,17 @@ export const CLASSMATES = [
     hairStyle: 'spiky',
     sneakers: '#ffffff',
     gloveColor: '#8c4b22',
-    stats: { speed: 1.94, kick: 5.0, control: 0.94, hands: 0.93, reflex: 0.88 },
+    stats: { speed: 1.85, kick: 5.05, control: 0.85, hands: 0.84, reflex: 0.80, checking: 0.76 },
   },
   {
     name: 'MASANGKAY',
+    preferredRole: 'G',    // One of the two best goaltenders — starts in net!
     skin: '#b97e54',       // Filipino
     hair: '#161416',
     hairStyle: 'messy',
     sneakers: '#e8ecf4',
     gloveColor: '#a65d2a',
-    stats: { speed: 1.84, kick: 5.5, control: 0.90, hands: 0.92, reflex: 0.86 },
+    stats: { speed: 1.82, kick: 5.15, control: 0.84, hands: 0.95, reflex: 0.95, checking: 0.82 },
   },
   {
     name: 'STEVE',
@@ -65,7 +68,7 @@ export const CLASSMATES = [
     hairStyle: 'part',
     sneakers: '#232836',
     gloveColor: '#7a3f1a',
-    stats: { speed: 1.80, kick: 5.6, control: 0.88, hands: 0.86, reflex: 0.85 },
+    stats: { speed: 1.81, kick: 5.20, control: 0.82, hands: 0.82, reflex: 0.80, checking: 0.82 },
   },
   {
     name: 'BLAIR',
@@ -74,7 +77,8 @@ export const CLASSMATES = [
     hairStyle: 'messy',
     sneakers: '#ffffff',
     gloveColor: '#9c5425',
-    stats: { speed: 1.86, kick: 5.2, control: 0.89, hands: 0.89, reflex: 0.87 },
+    // Good all-around athlete
+    stats: { speed: 1.92, kick: 5.50, control: 0.89, hands: 0.90, reflex: 0.86, checking: 0.88 },
   },
   {
     name: 'SEAN',
@@ -83,7 +87,7 @@ export const CLASSMATES = [
     hairStyle: 'spiky',
     sneakers: '#1e2430',
     gloveColor: '#8c4b22',
-    stats: { speed: 1.90, kick: 5.1, control: 0.87, hands: 0.91, reflex: 0.86 },
+    stats: { speed: 1.84, kick: 5.10, control: 0.83, hands: 0.84, reflex: 0.80, checking: 0.78 },
   },
   {
     name: 'DANIEL',
@@ -92,7 +96,8 @@ export const CLASSMATES = [
     hairStyle: 'part',
     sneakers: '#222633',
     gloveColor: '#a65d2a',
-    stats: { speed: 1.78, kick: 5.1, control: 0.92, hands: 0.95, reflex: 0.91 },
+    // Good forward, though not especially fast
+    stats: { speed: 1.73, kick: 5.55, control: 0.91, hands: 0.91, reflex: 0.82, checking: 0.84 },
   },
   {
     name: 'ADAM',
@@ -101,7 +106,7 @@ export const CLASSMATES = [
     hairStyle: 'buzz',
     sneakers: '#ffffff',
     gloveColor: '#7a3f1a',
-    stats: { speed: 1.82, kick: 5.4, control: 0.88, hands: 0.90, reflex: 0.89 },
+    stats: { speed: 1.82, kick: 5.15, control: 0.82, hands: 0.83, reflex: 0.81, checking: 0.80 },
   },
   {
     name: 'FIZZ',
@@ -110,16 +115,18 @@ export const CLASSMATES = [
     hairStyle: 'spiky',
     sneakers: '#e8ecf4',
     gloveColor: '#9c5425',
-    stats: { speed: 1.96, kick: 5.2, control: 0.91, hands: 0.88, reflex: 0.85 },
+    // Below average, though much better than Istvan
+    stats: { speed: 1.62, kick: 4.50, control: 0.68, hands: 0.66, reflex: 0.66, checking: 0.62 },
   },
   {
     name: 'LOWELL',
+    preferredRole: 'G',    // One of the two best goaltenders — starts in net!
     skin: '#bd8258',       // Filipino
     hair: '#151316',
     hairStyle: 'part',
     sneakers: '#ffffff',
     gloveColor: '#a65d2a',
-    stats: { speed: 1.89, kick: 5.5, control: 0.94, hands: 0.94, reflex: 0.90 },
+    stats: { speed: 1.84, kick: 5.10, control: 0.85, hands: 0.96, reflex: 0.96, checking: 0.80 },
   },
   {
     name: 'JIMMY',
@@ -128,7 +135,7 @@ export const CLASSMATES = [
     hairStyle: 'spiky',
     sneakers: '#ffffff',
     gloveColor: '#8c4b22',
-    stats: { speed: 1.91, kick: 5.3, control: 0.90, hands: 0.89, reflex: 0.86 },
+    stats: { speed: 1.85, kick: 5.15, control: 0.84, hands: 0.83, reflex: 0.80, checking: 0.78 },
   },
   {
     name: 'AVERY',
@@ -137,7 +144,8 @@ export const CLASSMATES = [
     hairStyle: 'buzz',
     sneakers: '#232836',
     gloveColor: '#a65d2a',
-    stats: { speed: 1.87, kick: 5.2, control: 0.93, hands: 0.92, reflex: 0.88 },
+    // Fastest on 66 Bond with legit soccer skills — best pure foot hockey player!
+    stats: { speed: 2.04, kick: 5.75, control: 0.96, hands: 0.90, reflex: 0.85, checking: 0.82 },
   },
   {
     name: 'RICH',
@@ -146,7 +154,7 @@ export const CLASSMATES = [
     hairStyle: 'buzz',
     sneakers: '#1d222e',
     gloveColor: '#7a3f1a',
-    stats: { speed: 1.83, kick: 5.7, control: 0.89, hands: 0.90, reflex: 0.87 },
+    stats: { speed: 1.80, kick: 5.25, control: 0.82, hands: 0.83, reflex: 0.80, checking: 0.83 },
   },
   {
     name: 'JOHNNY ZORRO',
@@ -155,7 +163,8 @@ export const CLASSMATES = [
     hairStyle: 'messy',
     sneakers: '#ffffff',
     gloveColor: '#9c5425',
-    stats: { speed: 1.95, kick: 5.5, control: 0.93, hands: 0.91, reflex: 0.88 },
+    // Good all-around athlete
+    stats: { speed: 1.94, kick: 5.45, control: 0.90, hands: 0.91, reflex: 0.86, checking: 0.86 },
   },
   {
     name: 'ISTVAN',
@@ -165,7 +174,7 @@ export const CLASSMATES = [
     sneakers: '#2a2e38',
     gloveColor: '#6e3d1e',
     // Undisputed worst player in the game by a fair margin!
-    stats: { speed: 1.28, kick: 3.4, control: 0.42, hands: 0.38, reflex: 0.36 },
+    stats: { speed: 1.28, kick: 3.40, control: 0.42, hands: 0.38, reflex: 0.36, checking: 0.35 },
   },
 ];
 
@@ -181,18 +190,34 @@ function shuffled(arr, rng = Math.random) {
 const ROLES = ['C', 'LW', 'RW', 'G'];
 const ROLE_SUFFIX = ['c', 'lw', 'rw', 'g'];
 
-// Pick any collection of 8 classmates (4 HOME maroon uniforms vs 4 AWAY colorful jackets),
-// plus return the remaining undrafted classmates to populate the two corner basketball games!
+// Pick 8 classmates (4 HOME maroon uniforms vs 4 AWAY colorful jackets),
+// automatically slotting dedicated goaltenders (Lowell & Masangkay) into the two Goalie creases!
+// Remaining undrafted classmates populate the two corner basketball games!
 export function draftRecessTeams(rng = Math.random) {
-  const pool = shuffled(CLASSMATES, rng);
-  const picked = pool.slice(0, 8);
-  const undraftedPlayers = pool.slice(8).map((mate) => ({
+  const goalies = shuffled(
+    CLASSMATES.filter((c) => c.preferredRole === 'G'),
+    rng
+  );
+  const skaters = shuffled(
+    CLASSMATES.filter((c) => c.preferredRole !== 'G'),
+    rng
+  );
+
+  // Assign the top two goalies (Lowell & Masangkay) randomly to Home G and Away G!
+  const homeGoalie = goalies[0] || skaters.pop();
+  const awayGoalie = goalies[1] || skaters.pop();
+  const pickedSkaters = skaters.slice(0, 6);
+  const leftoverGoalies = goalies.slice(2);
+  const undraftedPlayers = [...skaters.slice(6), ...leftoverGoalies].map((mate) => ({
     ...mate,
     stats: { ...mate.stats },
   }));
+
+  const homeRoster = [...pickedSkaters.slice(0, 3), homeGoalie];
+  const awayRoster = [...pickedSkaters.slice(3, 6), awayGoalie];
   const jacketChoices = shuffled(JACKET_PALETTE, rng);
 
-  const homePlayers = picked.slice(0, 4).map((mate, i) => {
+  const homePlayers = homeRoster.map((mate, i) => {
     const shield = jacketChoices[(i + 4) % jacketChoices.length];
     return {
       ...mate,
@@ -208,7 +233,7 @@ export function draftRecessTeams(rng = Math.random) {
     };
   });
 
-  const awayPlayers = picked.slice(4, 8).map((mate, i) => {
+  const awayPlayers = awayRoster.map((mate, i) => {
     const coat = jacketChoices[i % jacketChoices.length];
     const shield = jacketChoices[(i + 2) % jacketChoices.length];
     return {

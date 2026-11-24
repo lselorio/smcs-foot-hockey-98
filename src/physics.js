@@ -11,6 +11,10 @@ export function createBall(x = COURT.centerX, y = COURT.centerY, z = 14) {
     owner: null,        // Player currently dribbling at their feet OR holding in hands
     lastTouchTeam: null,
     lastTouchPlayer: null,
+    possessionTeam: null,  // Active team touch chain (up to 3 distinct players for Goal + Primary & Secondary Assists!)
+    possessionChain: [],
+    reboundTeam: null,     // Preserves attacking chain across a goalie jacket-block rebound!
+    reboundChain: [],
     pickupCooldown: 0,  // Brief immunity for kicker so ball leaves their foot cleanly
     passTargetId: null, // For NHL '94 one-timer window & deliberate pass tracking
     passTimer: 0,
@@ -21,11 +25,49 @@ export function createBall(x = COURT.centerX, y = COURT.centerY, z = 14) {
   };
 }
 
+// Track possession chains accurately for true NHL Primary + Secondary Assists!
+export function recordBallTouch(ball, player) {
+  if (!player) return;
+  if (ball.possessionTeam === player.team) {
+    // Move player to most-recent end of chain (deduplicating so give-and-go never double-credits!)
+    ball.possessionChain = ball.possessionChain.filter((m) => m.id !== player.id);
+    ball.possessionChain.push(player);
+    if (ball.possessionChain.length > 3) ball.possessionChain.shift();
+  } else if (ball.reboundTeam === player.team && ball.reboundChain.length > 0) {
+    // Attacking team burying a rebound off the opposing goalie keeps both primary & secondary assist credit!
+    ball.possessionTeam = player.team;
+    ball.possessionChain = ball.reboundChain.filter((m) => m.id !== player.id);
+    ball.possessionChain.push(player);
+    if (ball.possessionChain.length > 3) ball.possessionChain.shift();
+  } else {
+    // Opposing turnover resets the assist chain cleanly
+    ball.possessionTeam = player.team;
+    ball.possessionChain = [player];
+  }
+  ball.reboundTeam = null;
+  ball.reboundChain = [];
+  ball.lastTouchTeam = player.team;
+  ball.lastTouchPlayer = player;
+}
+
 // Kick or pass the ball from a player (works for quick shot, hard shot, pass, drop-kick, and one-timer!)
 export function launchBall(ball, player, dirX, dirY, speed, loftZ = 0, options = {}) {
   const mag = Math.hypot(dirX, dirY) || 1;
-  const nx = dirX / mag;
-  const ny = dirY / mag;
+  let nx = dirX / mag;
+  let ny = dirY / mag;
+
+  // Player ball control governs kick/pass aim precision (Paes & Avery fire lasers; low control sprays slightly!)
+  const ctrl = player.stats?.control ?? 0.85;
+  const maxSpread = Math.max(0, 0.91 - ctrl) * 0.48;
+  if (maxSpread > 0.005 && !options.exactAim) {
+    const angleOffset = (Math.random() - 0.5) * 2 * maxSpread;
+    const cos = Math.cos(angleOffset);
+    const sin = Math.sin(angleOffset);
+    const rx = nx * cos - ny * sin;
+    const ry = nx * sin + ny * cos;
+    nx = rx;
+    ny = ry;
+  }
 
   ball.owner = null;
   ball.x = player.x + nx * 7;
@@ -34,8 +76,7 @@ export function launchBall(ball, player, dirX, dirY, speed, loftZ = 0, options =
   ball.vx = nx * speed + player.vx * 0.25;
   ball.vy = ny * speed + player.vy * 0.25;
   ball.vz = loftZ;
-  ball.lastTouchTeam = player.team;
-  ball.lastTouchPlayer = player;
+  recordBallTouch(ball, player);
   ball.pickupCooldown = options.cooldown ?? 10;
   ball.passTargetId = options.passTargetId ?? null;
   ball.passTimer = options.passTargetId ? (options.passTimer ?? PHYSICS.oneTimerWindow) : 0;
@@ -55,8 +96,21 @@ export function launchThrow(ball, thrower, targetX, targetY, options = {}) {
   const dx = targetX - thrower.x;
   const dy = targetY - thrower.y;
   const dist = Math.hypot(dx, dy) || 1;
-  const nx = dx / dist;
-  const ny = dy / dist;
+  let nx = dx / dist;
+  let ny = dy / dist;
+
+  // Goalie hands rating governs overhand throw precision (Lowell & Masangkay drop dimes!)
+  const hands = thrower.stats?.hands ?? 0.88;
+  const throwSpread = Math.max(0, 0.93 - hands) * 0.36;
+  if (throwSpread > 0.005) {
+    const off = (Math.random() - 0.5) * 2 * throwSpread;
+    const cos = Math.cos(off);
+    const sin = Math.sin(off);
+    const rx = nx * cos - ny * sin;
+    const ry = nx * sin + ny * cos;
+    nx = rx;
+    ny = ry;
+  }
 
   const isBomb = Boolean(options.isBomb);
   // High overhand baseball release so the throw clears skaters standing near the crease!
@@ -84,8 +138,7 @@ export function launchThrow(ball, thrower, targetX, targetY, options = {}) {
   ball.vx = nx * speed;
   ball.vy = ny * speed;
   ball.vz = vz;
-  ball.lastTouchTeam = thrower.team;
-  ball.lastTouchPlayer = thrower;
+  recordBallTouch(ball, thrower);
   ball.pickupCooldown = 14;
   ball.passTargetId = options.passTargetId ?? null;
   ball.passTimer = options.passTargetId ? T + 22 : 0;
@@ -111,8 +164,7 @@ export function catchBall(ball, player) {
   ball.z = 8;
   ball.x = player.x;
   ball.y = player.y;
-  ball.lastTouchTeam = player.team;
-  ball.lastTouchPlayer = player;
+  recordBallTouch(ball, player);
   ball.passTargetId = null;
   ball.passTimer = 0;
   ball.shotPower = 0;
@@ -166,11 +218,12 @@ export function stepBallPhysics(ball, callbacks = {}, court = null, teamNetMap =
       ball.vy = p.vy;
       ball.vz = 0;
     } else {
-      // Dribbling at feet with subtle tennis-ball roll/bob!
+      // Dribbling at feet with subtle tennis-ball roll/bob — high control keeps the ball glued on sharp cuts!
       const targetX = p.x + p.facingX * PHYSICS.dribbleDist;
       const targetY = p.y + p.facingY * PHYSICS.dribbleDist;
-      ball.x += (targetX - ball.x) * 0.55;
-      ball.y += (targetY - ball.y) * 0.55;
+      const tightness = 0.34 + (p.stats?.control ?? 0.85) * 0.30;
+      ball.x += (targetX - ball.x) * tightness;
+      ball.y += (targetY - ball.y) * tightness;
       ball.vx = p.vx;
       ball.vy = p.vy;
 
