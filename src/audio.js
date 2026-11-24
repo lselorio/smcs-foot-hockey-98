@@ -3,12 +3,14 @@
 
 import { SICUT_CERVUS_SCORE } from './music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from './music/gloria-viii.js';
+import { SALVE_REGINA_SCORE } from './music/salve-regina.js';
 import { WIDOR_TOCCATA_SCORE } from './music/widor-toccata.js';
 import { ChiptuneChoirPlayer } from './music-player.js';
 
 export const MUSIC_TRACKS = [
   { id: 'sicut_cervus', label: 'SICUT CERVUS', score: SICUT_CERVUS_SCORE },
   { id: 'gloria_viii', label: 'GLORIA VIII', score: GLORIA_VIII_SCORE },
+  { id: 'salve_regina', label: 'SALVE REGINA', score: SALVE_REGINA_SCORE },
 ];
 
 export const BOOT_CHANTS = [

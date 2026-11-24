@@ -13,6 +13,7 @@ import { FootHockeyGame } from '../src/game.js';
 import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams } from '../src/roster.js';
 import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
+import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';
 import { WIDOR_TOCCATA_SCORE } from '../src/music/widor-toccata.js';
 import { ChiptuneChoirPlayer } from '../src/music-player.js';
 import { sound } from '../src/audio.js';
@@ -408,10 +409,25 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   // Final Amen includes the signature B-flat (70)
   assert.ok(GLORIA_VIII_SCORE.tracks[0].notes.some((n) => n[2] === 70), 'Gloria VIII Amen should include Bb4');
 
-  // Default track should be Sicut Cervus, and cycling / auto-advancing switches cleanly to Gloria VIII!
+  // Verify Gregorian Salve Regina (Simple Tone, Mode V) 4-voice chiptune score!
+  assert.equal(SALVE_REGINA_SCORE.tracks.length, 4, 'Salve Regina should have 4 SATB voices');
+  const srMedians = {};
+  for (const tr of SALVE_REGINA_SCORE.tracks) {
+    assert.ok(tr.notes.length > 40, `Expected >40 notes in Salve Regina ${tr.role}`);
+    const sorted = tr.notes.map((n) => n[2]).sort((a, b) => a - b);
+    srMedians[tr.role] = sorted[Math.floor(sorted.length / 2)];
+  }
+  assert.ok(srMedians.soprano > srMedians.alto, 'Salve Regina Soprano should sit above Alto');
+  assert.ok(srMedians.alto > srMedians.tenor, 'Salve Regina Alto should sit above Tenor');
+  assert.ok(srMedians.tenor > srMedians.bass, 'Salve Regina Tenor should sit above Bass');
+  // Iconic opening "Sal-ve, Re-gi-na" in Eb Major: Eb4 G4 Bb4 C5 Bb4
+  const srOpening = SALVE_REGINA_SCORE.tracks[0].notes.slice(0, 5).map((n) => n[2]);
+  assert.deepEqual(srOpening, [63, 67, 70, 72, 70]);
+
+  // Default track should be Sicut Cervus, and cycling / auto-advancing moves Sicut Cervus -> Gloria VIII -> Salve Regina -> Sicut Cervus!
   assert.equal(sound.getMusicTrack().id, 'sicut_cervus', 'Default BGM track should be Sicut Cervus');
-  const nextTrack = sound.cycleMusicTrack().id;
-  assert.equal(nextTrack, 'gloria_viii');
+  assert.equal(sound.cycleMusicTrack().id, 'gloria_viii');
+  assert.equal(sound.cycleMusicTrack().id, 'salve_regina');
   // Simulate track ending -> auto-advances back to Sicut Cervus!
   const autoNext = sound.music.onTrackEnded();
   assert.equal(autoNext, SICUT_CERVUS_SCORE);
