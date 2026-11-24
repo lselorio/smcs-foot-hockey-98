@@ -2,7 +2,7 @@ import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from
 import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
 import { TEAMS, draftRecessTeams } from './roster.js';
-import { sound } from './audio.js';
+import { pickBootChant, sound } from './audio.js';
 import {
   catchBall,
   clampPlayerToCourt,
@@ -34,6 +34,7 @@ export class FootHockeyGame {
     this.prevState = 'PLAYING';
     this.tick = 0;
     this.bootFrames = 0;
+    this.bootChant = pickBootChant(); // Randomly picks Gloria or Magnificat on bootup!
 
     this.score = { home: 0, away: 0 };
     this.stats = {
@@ -660,19 +661,23 @@ export class FootHockeyGame {
 
     if (this.state === 'BOOT') {
       this.bootFrames++;
+      const chant = this.bootChant;
       if (this.bootFrames === 1) {
         sound.preloadBootVoice();
+        sound.playBootChant(chant.id);
       }
-      if (this.bootFrames === 82) {
+      // Fallback synth sting only if the sung chant clip isn't loaded
+      if (this.bootFrames === chant.spinFrames && !sound.hasBootChant(chant.id)) {
         sound.playBootSting();
       }
-      if (this.bootFrames === 96) {
+      // Right as Gloria / Magnificat finishes & the spinning crest locks in -> "IN LUDO EST!"
+      if (this.bootFrames === chant.voiceFrame) {
         sound.playBootVoice();
       }
       const skip =
         this.bootFrames > 14 &&
         (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed);
-      if (skip || this.bootFrames >= 280) {
+      if (skip || this.bootFrames >= chant.totalFrames) {
         if (skip) sound.stopBootVoice();
         this.state = 'TITLE';
       }
@@ -684,6 +689,7 @@ export class FootHockeyGame {
       if (input.replayIntroPressed) {
         sound.ensureContext();
         this.titleIdleFrames = 0;
+        this.bootChant = pickBootChant(this.bootChant?.id);
         this.bootFrames = 0;
         this.state = 'BOOT';
         return;

@@ -440,15 +440,18 @@ test('boot intro spins SMCS crest then automatically transitions to TITLE (or sk
   assert.equal(game.state, 'BOOT');
   assert.equal(game.bootFrames, 0);
 
-  // Advance full boot animation -> should land on TITLE
-  for (let i = 0; i < 285; i++) game.update();
+  // Advance full boot animation (random Gloria or Magnificat spin + "In Ludo Est!") -> should land on TITLE
+  const initialChantId = game.bootChant.id;
+  assert.ok(['gloria', 'magnificat'].includes(initialChantId), 'Boot intro should randomly pick Gloria or Magnificat');
+  for (let i = 0; i < game.bootChant.totalFrames + 5; i++) game.update();
   assert.equal(game.state, 'TITLE');
 
-  // Pressing I on TITLE replays the boot intro
+  // Pressing I on TITLE replays the boot intro and switches to the other chant!
   game.onKeyDown('KeyI');
   game.update();
   game.onKeyUp('KeyI');
   assert.equal(game.state, 'BOOT');
+  assert.notEqual(game.bootChant.id, initialChantId, 'Replaying intro with I should showcase the other chant');
 
   // Verify skipping on keypress after brief intro
   const gameSkip = new FootHockeyGame();

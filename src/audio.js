@@ -4,6 +4,31 @@
 import { SICUT_CERVUS_SCORE } from './music/sicut-cervus.js';
 import { ChiptuneChoirPlayer } from './music-player.js';
 
+export const BOOT_CHANTS = [
+  {
+    id: 'gloria',
+    label: 'Gloria in excelsis Deo',
+    url: './assets/audio/boot-gloria.ogg',
+    spinFrames: 290,  // ~4.83s — crest locks cleanly on "Deo!"
+    voiceFrame: 304,  // ~5.07s — "IN LUDO EST!" drops right as reverb settles
+    totalFrames: 470, // ~7.83s — smooth fade into Title Screen
+  },
+  {
+    id: 'magnificat',
+    label: 'Magnificat',
+    url: './assets/audio/boot-magnificat.ogg',
+    spinFrames: 228,  // ~3.80s — crest locks cleanly at end of Magnificat!
+    voiceFrame: 242,  // ~4.03s — "IN LUDO EST!" drops right as reverb settles
+    totalFrames: 408, // ~6.80s — smooth fade into Title Screen
+  },
+];
+
+export function pickBootChant(excludeId = null) {
+  const pool = excludeId ? BOOT_CHANTS.filter((c) => c.id !== excludeId) : BOOT_CHANTS;
+  const list = pool.length > 0 ? pool : BOOT_CHANTS;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 class SoundEngine {
   constructor() {
     this.ctx = null;
@@ -13,6 +38,10 @@ class SoundEngine {
     this.bootVoiceBuffer = null;
     this.bootVoiceChecked = false;
     this.bootVoiceSource = null;
+    this.bootChantBuffers = new Map();
+    this.bootChantsChecked = false;
+    this.bootChantSource = null;
+    this.pendingBootChantId = null;
   }
 
   ensureContext() {
@@ -264,8 +293,33 @@ class SoundEngine {
     }
   }
 
-  // Silently check if a custom recorded boot announcer file exists in assets/audio/
+  // Silently preload all custom recorded boot chants (Gloria & Magnificat) in parallel!
+  async preloadBootChants() {
+    if (this.bootChantsChecked || typeof fetch === 'undefined') return;
+    this.bootChantsChecked = true;
+    await Promise.all(
+      BOOT_CHANTS.map(async (chant) => {
+        try {
+          const res = await fetch(chant.url);
+          if (!res.ok) return;
+          const arr = await res.arrayBuffer();
+          const ctx = this.ensureContext();
+          if (!ctx) return;
+          const buf = await ctx.decodeAudioData(arr);
+          this.bootChantBuffers.set(chant.id, buf);
+          if (this.pendingBootChantId === chant.id && !this.muted && ctx.state === 'running') {
+            this.pendingBootChantId = null;
+            this.playBootChant(chant.id);
+          }
+        } catch {
+          // Optional chant clip not present
+        }
+      })
+    );
+  }
+
   async preloadBootVoice() {
+    this.preloadBootChants();
     if (this.bootVoiceChecked || typeof fetch === 'undefined') return;
     this.bootVoiceChecked = true;
     const candidates = [
@@ -288,7 +342,56 @@ class SoundEngine {
     }
   }
 
+  hasBootChant(chantId) {
+    return this.bootChantBuffers.has(chantId);
+  }
+
+  playBootChant(chantId = 'gloria') {
+    if (this.muted) return false;
+    this.stopBootChant();
+    const ctx = this.ensureContext();
+    if (!ctx) return false;
+    const buf = this.bootChantBuffers.get(chantId);
+    if (!buf) {
+      this.pendingBootChantId = chantId;
+      this.preloadBootChants();
+      return false;
+    }
+    if (ctx.state !== 'running') {
+      this.pendingBootChantId = chantId;
+      return false;
+    }
+
+    this.pendingBootChantId = null;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(1.0, ctx.currentTime);
+    src.connect(gain);
+    gain.connect(ctx.destination);
+
+    this.bootChantSource = src;
+    src.onended = () => {
+      if (this.bootChantSource === src) this.bootChantSource = null;
+    };
+    src.start();
+    return true;
+  }
+
+  stopBootChant() {
+    this.pendingBootChantId = null;
+    if (this.bootChantSource) {
+      try {
+        this.bootChantSource.stop();
+      } catch {
+        // already stopped
+      }
+      this.bootChantSource = null;
+    }
+  }
+
   stopBootVoice() {
+    this.stopBootChant();
     if (this.bootVoiceSource) {
       try {
         this.bootVoiceSource.stop();

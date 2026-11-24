@@ -12,6 +12,7 @@ import {
   drawTennisBall,
 } from './sprites.js';
 import { drawSpinningSmcsCrest } from './smcs-crest.js';
+import { sound } from './audio.js';
 import {
   HOOPS_TEAM_STYLE,
   drawBasketball,
@@ -777,39 +778,43 @@ function drawBanner(ctx, title, subtitle, accent) {
   drawPixelText(ctx, subtitle, SCREEN_W / 2, 126, '#f4f7ff', 1, 'center');
 }
 
-// Iconic 16-bit EA Sports-style Boot Splash with 360° spinning SMCS Circular Crest + Latin Motto!
+// Iconic 16-bit EA Sports-style Boot Splash with 360° spinning SMCS Circular Crest
+// synced dynamically to sung "Gloria in excelsis Deo!" or "Magnificat" -> deep announcer "IN LUDO EST!"
 function renderBootIntro(ctx, game) {
   const f = game.bootFrames;
+  const chant = game.bootChant || { spinFrames: 290, voiceFrame: 304, totalFrames: 470 };
+  const spinDur = chant.spinFrames;
+  const voiceF = chant.voiceFrame;
+  const totalF = chant.totalFrames;
 
   // Classic Genesis sports boot dark cathedral-navy backdrop with subtle gold spotlight
   ctx.fillStyle = '#070a14';
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
-  // Subtle radial spotlight behind the crest
-  const glowAlpha = Math.min(0.28, (f / 45) * 0.28);
-  const grad = ctx.createRadialGradient(160, 96, 8, 160, 96, 120);
-  grad.addColorStop(0, `rgba(134, 38, 51, ${(glowAlpha * 1.4).toFixed(2)})`);
-  grad.addColorStop(0.55, `rgba(208, 173, 103, ${(glowAlpha * 0.45).toFixed(2)})`);
+  // Subtle radial cathedral spotlight blooming behind the spinning crest
+  const glowAlpha = Math.min(0.32, (f / 90) * 0.32);
+  const grad = ctx.createRadialGradient(160, 96, 8, 160, 96, 128);
+  grad.addColorStop(0, `rgba(134, 38, 51, ${(glowAlpha * 1.45).toFixed(2)})`);
+  grad.addColorStop(0.55, `rgba(208, 173, 103, ${(glowAlpha * 0.48).toFixed(2)})`);
   grad.addColorStop(1, 'rgba(7, 10, 20, 0)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
-  // Phase 1 (frames 0..84): Smooth eased 360° horizontal medallion spin + zoom in!
-  const spinDur = 84;
+  // Phase 1 (frames 0..spinDur): Majestic 2 full 360° spins synced to the chosen chant!
   const t = Math.min(1, f / spinDur);
-  // Smooth ease-out cubic so the spin whips cleanly and locks into place at exactly 360°!
-  const ease = 1 - Math.pow(1 - t, 3);
-  const angle = ease * Math.PI * 2;
-  const radius = 12 + ease * 36; // zooms from 12px to crisp 48px radius (96px diameter!)
+  // Smooth ease-out curve so the medallion rotates gracefully and locks cleanly on the final note!
+  const ease = 1 - Math.pow(1 - t, 2.4);
+  const angle = ease * Math.PI * 4; // 2 full 360° rotations!
+  const radius = 12 + ease * 36;    // zooms from 12px up to crisp 48px radius (96px diameter!)
 
-  // Phase 2 (frames 84..116): Bright gold sheen sweeps across the settled crest
-  const sheen = f >= 84 && f <= 116 ? (f - 84) / 32 : -1;
+  // Phase 2: Bright gold sheen sweeps across the settled crest right at lock-in
+  const sheen = f >= spinDur && f <= spinDur + 36 ? (f - spinDur) / 36 : -1;
 
   drawSpinningSmcsCrest(ctx, SCREEN_W / 2, 92, radius, angle, sheen);
 
-  // Phase 3 (frames 98+): Punchy EA Sports-style Latin tagline — "IN LUDO EST!" ("It's in the game!")
-  if (f >= 98) {
-    const a = Math.min(1, (f - 98) / 14);
+  // Phase 3: Punchy EA Sports-style Latin tagline — "IN LUDO EST!" ("It's in the game!")
+  if (f >= voiceF) {
+    const a = Math.min(1, (f - voiceF) / 14);
     const slide = Math.round((1 - a) * 10);
     ctx.save();
     ctx.globalAlpha = a;
@@ -818,15 +823,22 @@ function renderBootIntro(ctx, game) {
   }
 
   // Gold decorative rule sweeping out right under "IN LUDO EST!"
-  if (f >= 118) {
-    const lineW = Math.min(156, (f - 118) * 10);
+  if (f >= voiceF + 18) {
+    const lineW = Math.min(156, (f - (voiceF + 18)) * 10);
     ctx.fillStyle = '#d0ad67';
     ctx.fillRect(Math.round(SCREEN_W / 2 - lineW / 2), 184, lineW, 2);
   }
 
-  // Smooth fade-out into Title Screen during final 28 frames (252..280)
-  if (f > 252) {
-    const fade = Math.min(1, (f - 252) / 28);
+  // Subtle prompt ONLY if browser autoplay policy muted initial load so user can click to restart with sound
+  if (!sound.isAudioUnlocked() && f < totalF - 30) {
+    const pulse = Math.floor(f / 20) % 2 === 0 ? '#d0ad67' : '#7b87a8';
+    drawPixelText(ctx, 'CLICK FOR SOUND  -  ENTER: SKIP', SCREEN_W / 2, 224, pulse, 1, 'center', null);
+  }
+
+  // Smooth fade-out into Title Screen during final 28 frames
+  const fadeStart = totalF - 28;
+  if (f > fadeStart) {
+    const fade = Math.min(1, (f - fadeStart) / 28);
     ctx.fillStyle = `rgba(7, 10, 20, ${fade.toFixed(2)})`;
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   }

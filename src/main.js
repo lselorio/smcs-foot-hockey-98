@@ -48,9 +48,24 @@ window.addEventListener('keyup', (e) => {
 sound.ensureContext();
 sound.preloadBootVoice();
 
-// Fallback unlock on first gesture if the browser's autoplay policy initially suspended audio
+// Fallback unlock on first gesture if the browser's autoplay policy initially suspended audio.
+// If clicked during the boot intro while audio was still locked, restart the boot spin cleanly with sound!
 window.addEventListener('pointerdown', () => {
-  sound.ensureContext();
+  const wasLocked = !sound.isAudioUnlocked();
+  const ctx = sound.ensureContext();
+  if (wasLocked && game.state === 'BOOT') {
+    const restartWithSound = () => {
+      if (game.state === 'BOOT') {
+        sound.stopBootVoice();
+        game.bootFrames = 0; // Frame 1 immediately fires playBootGloria() cleanly!
+      }
+    };
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().then(restartWithSound).catch(() => {});
+    } else {
+      restartWithSound();
+    }
+  }
 });
 
 // Warm up browser speech synthesis voices asynchronously so the boot announcer has voices ready
