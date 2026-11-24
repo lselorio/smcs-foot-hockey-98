@@ -55,6 +55,7 @@ export class FootHockeyGame {
     this.cameraY = this.court.faceoffY - VIEW_H / 2;
     this.goalShake = {};
     this.screenShake = 0;
+    this.leftWallImpact = { y: this.court.bounds.centerY, timer: 0, maxTimer: 40, strength: 0 };
 
     this.players = [];
     this.controlledId = 'h_c';
@@ -912,6 +913,10 @@ export class FootHockeyGame {
       p.y += p.vy;
       p.vx *= skaterFriction;
       p.vy *= skaterFriction;
+
+      // Checked skater slamming into the flexible left wall makes it bow & ripple from impact!
+      const slammedLeftWall = p.stunTimer > 0 && p.x <= this.court.bounds.left + 8 && p.vx < -0.5;
+      const impactVx = Math.abs(p.vx);
       clampPlayerToCourt(
         p,
         this.court.bounds,
@@ -919,6 +924,11 @@ export class FootHockeyGame {
         this.court.cornerStairs,
         this.court.protrudingRoom
       );
+      if (slammedLeftWall) {
+        this.triggerLeftWallGive(p.y, Math.min(1.15, Math.max(0.65, impactVx / 2.8)));
+        // Springy wall flex rebounds the checked player gently back onto the blacktop!
+        p.vx = impactVx * 0.42 + 0.95;
+      }
 
       // Kick up crisp white snow spray when carving hard in Snow Day weather!
       if (isSnow && Math.hypot(p.vx, p.vy) > 1.25 && this.tick % 5 === 0) {
@@ -955,6 +965,9 @@ export class FootHockeyGame {
         onFenceHit: () => {
           sound.playFenceHit();
           this.spawnParticles(this.ball.x, this.ball.y, '#b9c4d0', 4);
+          if (this.ball.x <= this.court.bounds.left + 8 && Math.abs(this.ball.vx) > 2.0) {
+            this.triggerLeftWallGive(this.ball.y, Math.min(0.55, Math.abs(this.ball.vx) / 9), true);
+          }
         },
         onGrillHit: () => {
           sound.playPostHit();
@@ -1076,7 +1089,6 @@ export class FootHockeyGame {
         // Signature schoolyard DROP-KICK volley!
         const aim = this.getAimVector(p, input);
         launchBall(ball, p, aim.x, aim.y, p.stats.kick * 1.18, 3.1, { startZ: 5 });
-        this.stats.home.shots++;
         this.onKickEffect(p.x, p.y, 'DROP-KICK!', '#d9ff2e', true);
         return;
       }
@@ -1130,7 +1142,6 @@ export class FootHockeyGame {
             shotPower: speed,
             kickTimer: 15,
           });
-          this.stats.home.shots++;
           this.onKickEffect(p.x, p.y, chargeRatio > 0.75 ? 'SLAP-KICK!' : 'HARD SHOT!', '#ff6d2e', true);
         } else {
           // Instant crisp QUICK SHOT!
@@ -1139,7 +1150,6 @@ export class FootHockeyGame {
             shotPower: speed,
             kickTimer: 9,
           });
-          this.stats.home.shots++;
           this.onKickEffect(p.x, p.y, 'QUICK SHOT', '#ffe84d', false);
         }
         this.kickCharge = 0;
@@ -1167,7 +1177,6 @@ export class FootHockeyGame {
       const aimY = targetNet.centerY + targetNet.normalX * (input.my * 20) - p.y;
       const speed = p.stats.kick * 1.38;
       launchBall(ball, p, aimX, aimY, speed, targetNet.maxZ > 22 ? 2.5 : 1.7, { startZ: 3, shotPower: speed });
-      this.stats.home.shots++;
       this.onKickEffect(p.x, p.y, 'ONE-TIMER!', '#ff8c2e', true);
       return;
     }
@@ -1341,6 +1350,9 @@ export class FootHockeyGame {
       sound.playBodyCheck();
 
       const nearLeftWall = targetOpp.x <= this.court.bounds.left + 48;
+      if (nearLeftWall && (targetOpp.x <= this.court.bounds.left + 22 || nx < -0.15)) {
+        this.triggerLeftWallGive(targetOpp.y, 1.0);
+      }
       this.spawnParticles(targetOpp.x, targetOpp.y, this.weather === 'snow' ? '#ffffff' : '#ffe84d', 12);
       this.addCallout(
         targetOpp.x,
@@ -1445,6 +1457,7 @@ export class FootHockeyGame {
 
   handleGoalScored(team, goalSide) {
     this.score[team]++;
+    this.stats[team].shots++; // True hockey Shot on Goal!
     this.lastGoalTeam = team;
     this.lastScorer =
       this.ball.lastTouchPlayer && this.ball.lastTouchPlayer.team === team
@@ -1455,7 +1468,6 @@ export class FootHockeyGame {
       this.goalLog.push({
         team,
         name: this.lastScorer.name,
-        number: this.lastScorer.number,
         period: this.period,
       });
     }
@@ -1523,15 +1535,23 @@ export class FootHockeyGame {
     this.addCallout(x, y - 16, 'HEY!!', '#ff9642');
   }
 
-  onGoalieSave(g, type) {
-    this.stats[g.team].saves++;
+  onGoalieSave(g, type, shooterTeam = null) {
+    const oppTeam = g.team === 'home' ? 'away' : 'home';
+    // Only credit a Shot on Goal & Save when stopping an opponent's shot (not a teammate's back-pass!)
+    if (shooterTeam !== g.team) {
+      this.stats[oppTeam].shots++;
+      this.stats[g.team].saves++;
+      if (type === 'glove') {
+        this.stats[g.team].gloveSaves++;
+      } else {
+        this.stats[g.team].jacketBlocks++;
+      }
+    }
     if (type === 'glove') {
-      this.stats[g.team].gloveSaves++;
       sound.playGloveSave();
       this.spawnParticles(g.x + 10, g.y - 8, '#f0b86e', 9);
       this.addCallout(g.x, g.y - 20, 'GLOVE SAVE!', '#ffd84d');
     } else {
-      this.stats[g.team].jacketBlocks++;
       sound.playJacketBlock();
       this.spawnParticles(g.x - 10, g.y - 6, g.jacketColor || '#22a65b', 9);
       this.addCallout(g.x, g.y - 20, 'JACKET BLOCK!', '#6ef0a4');
@@ -1566,11 +1586,30 @@ export class FootHockeyGame {
     });
   }
 
+  triggerLeftWallGive(impactY, strength = 1.0, silent = false) {
+    const b = this.court.bounds;
+    const clampedY = Math.max(b.top + 8, Math.min(b.bottom - 8, impactY));
+    const maxTimer = strength >= 0.7 ? 42 : 24;
+    this.leftWallImpact = {
+      y: clampedY,
+      timer: maxTimer,
+      maxTimer,
+      strength: Math.max(0.25, Math.min(1.2, strength)),
+    };
+    if (!silent) {
+      sound.playLeftWallFlex();
+      this.spawnParticles(b.left + 1, clampedY, this.weather === 'snow' ? '#ffffff' : '#cfd7e6', 8);
+    }
+  }
+
   updateEffects() {
     for (const k of Object.keys(this.goalShake)) {
       if (this.goalShake[k] > 0) this.goalShake[k]--;
     }
     if (this.screenShake > 0) this.screenShake--;
+    if (this.leftWallImpact && this.leftWallImpact.timer > 0) {
+      this.leftWallImpact.timer--;
+    }
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const pt = this.particles[i];

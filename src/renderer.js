@@ -182,8 +182,8 @@ export function renderGame(ctx, game) {
     const sx = game.passTarget.x - game.cameraX;
     const sy = HUD_H + (game.passTarget.y - game.cameraY);
     if (sx < 8 || sx > SCREEN_W - 8 || sy < HUD_H + 8 || sy > SCREEN_H - 8) {
-      const label = `${game.passTarget.name} #${game.passTarget.number}`;
-      const pillW = Math.max(56, label.length * 6 + 8);
+      const label = game.passTarget.name;
+      const pillW = Math.max(48, label.length * 6 + 8);
       const halfW = Math.ceil(pillW / 2);
       const ax = Math.max(halfW + 4, Math.min(SCREEN_W - halfW - 4, Math.round(sx)));
       const ay = Math.max(HUD_H + 10, Math.min(SCREEN_H - 12, Math.round(sy)));
@@ -256,7 +256,7 @@ export function renderGame(ctx, game) {
   } else if (game.state === 'GOAL_CELEBRATION') {
     const team = TEAMS[game.lastGoalTeam];
     const scorerLabel = game.lastScorer
-      ? `${game.lastScorer.name} #${game.lastScorer.number} SCORES!`
+      ? `${game.lastScorer.name} SCORES!`
       : `${team.name} SCORES!`;
     drawBanner(ctx, 'GOAL!!', scorerLabel, team.ringColor);
   } else if (game.state === 'PERIOD_END') {
@@ -505,17 +505,46 @@ function drawSchoolyard(ctx, game) {
   ctx.fillStyle = rightDefTeam.ringColor;
   ctx.fillRect(b.right - 3, rightNet.minCoord + 2, 2, rightNet.span - 4);
 
-  // === LEFT WALL (BODY-CHECK BOARDS!) & BOTTOM CHAIN-LINK FENCE ===
-  // Sturdy left brick/concrete wall along 66 Bond where body checks are legal!
-  ctx.fillStyle = '#3b3e47';
-  ctx.fillRect(0, b.top - 2, b.left, b.bottom - b.top + 6);
-  ctx.fillStyle = '#535866';
-  for (let row = 0; row < Math.ceil((b.bottom - b.top) / 8); row++) {
-    const wy = b.top + row * 8;
-    ctx.fillRect(2 + (row % 2) * 5, wy, b.left - 8, 5);
+  // === LEFT WALL (FLEXIBLE BODY-CHECK BOARDS THAT GIVE & SHAKE FROM POINT OF IMPACT!) ===
+  // Drawn in 4px vertical segments so body checks visibly bow the wall inward and send a wobble wave outward!
+  const imp = game.leftWallImpact;
+  const sliceH = 4;
+  // Dark recess behind the flexing wall so when it bows inward you see the give clearly!
+  ctx.fillStyle = '#1f222a';
+  ctx.fillRect(0, b.top - 2, b.left + 1, b.bottom - b.top + 6);
+
+  for (let wy = b.top; wy < b.bottom; wy += sliceH) {
+    const h = Math.min(sliceH, b.bottom - wy);
+    const flex = Math.round(getLeftWallFlexOffset(imp, wy + h * 0.5));
+    const wallRight = b.left + flex;
+
+    // Main flexing wall panel backing
+    ctx.fillStyle = '#3b3e47';
+    ctx.fillRect(0, wy, Math.max(4, wallRight), h);
+
+    // Panel ribbing / board seams that visibly ripple along with the wave
+    const rowIdx = Math.floor((wy - b.top) / 8);
+    if ((wy - b.top) % 8 < 5) {
+      ctx.fillStyle = '#535866';
+      const panelX = Math.max(0, 2 + (rowIdx % 2) * 5 + flex);
+      const panelW = Math.max(0, wallRight - 3 - panelX);
+      if (panelW > 0) ctx.fillRect(panelX, wy, panelW, h);
+    }
+
+    // Crisp flexing front lip along the blacktop edge (flashes warm right at impact!)
+    let lipColor = isSnow ? '#ffffff' : '#7b8394';
+    if (imp && imp.timer > imp.maxTimer - 10 && Math.abs(wy - imp.y) < 18) {
+      lipColor = '#ffe84d';
+    } else if (Math.abs(flex) >= 2) {
+      lipColor = isSnow ? '#ffffff' : '#a8b3c7';
+    }
+    ctx.fillStyle = lipColor;
+    ctx.fillRect(Math.max(2, wallRight - 2), wy, 2, h);
+
+    // Cast shadow strip just right of the flexing boards
+    ctx.fillStyle = 'rgba(10, 12, 18, 0.30)';
+    ctx.fillRect(Math.max(4, wallRight), wy, 2, h);
   }
-  ctx.fillStyle = isSnow ? '#ffffff' : '#7b8394';
-  ctx.fillRect(b.left - 2, b.top, 2, b.bottom - b.top);
 
   // === BOTTOM WALL: RED BRICK WALL + "BASEMENT 56" DOWNSTAIRS STAIRCASE & GREEN BARRIER! ===
   // Red brick wall running all along the bottom edge of 66 Bond
@@ -652,10 +681,26 @@ function drawSchoolyard(ctx, game) {
   }
 
   // === SIDELINE CLASSMATES WATCHING RECESS ===
+  // Left-wall spectators jolt gently along with the flexing boards when someone gets boarded nearby!
   const celebrating = game.state === 'GOAL_CELEBRATION';
   for (const spec of game.spectators) {
-    drawSpectator(ctx, spec, game.tick, celebrating);
+    const wobble = Math.round(getLeftWallFlexOffset(game.leftWallImpact, spec.y) * 0.65);
+    drawSpectator(ctx, wobble !== 0 ? { ...spec, x: spec.x + wobble } : spec, game.tick, celebrating);
   }
+}
+
+// Compute elastic give & traveling ripple displacement along the flexible left wall of 66 Bond!
+function getLeftWallFlexOffset(imp, y) {
+  if (!imp || imp.timer <= 0 || imp.strength <= 0) return 0;
+  const elapsed = imp.maxTimer - imp.timer;
+  const distY = Math.abs(y - imp.y);
+  // Wavefront radiates upward & downward from the exact point of impact
+  const waveDelay = distY * 0.08;
+  if (elapsed < waveDelay) return 0;
+  const localT = elapsed - waveDelay;
+  const decay = Math.exp(-distY / 72) * Math.exp(-localT * 0.085);
+  // Deep initial give inward to the left (-7px max) followed by springy reverberating rattle!
+  return -Math.sin(localT * 0.62) * 7.5 * imp.strength * decay;
 }
 
 // Draw the small red-brick room protruding out of the right wall just above the square cage net
@@ -752,7 +797,7 @@ function renderHud(ctx, game) {
 
   // Show controlled player name & context prompt (or DEMO badge during CPU-vs-CPU!)
   const ctrl = game.getControlledPlayer();
-  let statusText = `${ctrl.name} #${ctrl.number}`;
+  let statusText = ctrl.name;
   let statusColor = '#9be8ff';
   if (game.isDemo) {
     statusText = game.ball.owner ? `${game.ball.owner.name} (CPU)` : 'DEMO CPU VS CPU';
@@ -944,7 +989,7 @@ function formatScorerSummary(goalLog) {
   if (!goalLog || goalLog.length === 0) return 'NO GOALS YET';
   const counts = new Map();
   for (const g of goalLog) {
-    const key = `${g.name} #${g.number}`;
+    const key = g.name;
     counts.set(key, (counts.get(key) || 0) + 1);
   }
   const parts = [];

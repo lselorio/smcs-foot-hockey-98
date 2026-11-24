@@ -252,6 +252,14 @@ class SoundEngine {
     this.noise(0.11, 520, 'lowpass', 0.28);
   }
 
+  // Hollow, springy left-wall flex & rattle radiating outward from the point of impact!
+  playLeftWallFlex() {
+    this.tone(118, 56, 0.22, 'triangle', 0.24);
+    this.tone(64, 98, 0.18, 'sine', 0.18, 0.08);
+    this.noise(0.24, 950, 'bandpass', 0.20, 0.02);
+    this.noise(0.18, 1650, 'bandpass', 0.12, 0.12);
+  }
+
   // Descending echo bounces as the tennis ball tumbles down the stairs into Basement 56!
   playBasement56() {
     const bounces = [

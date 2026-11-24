@@ -243,7 +243,7 @@ export class ChiptuneChoirPlayer {
       return;
     }
 
-    const prevPos = this.songPos;
+    let prevPos = this.songPos;
     this.songPos += dt * this.tempoRate;
 
     const loopEnd = this.score.duration + 1.6;
@@ -254,6 +254,7 @@ export class ChiptuneChoirPlayer {
           this.score = nextScore;
         }
       }
+      prevPos = 0;
       this.songPos = 0;
       this.trackCursors = this.score.tracks.map(() => 0);
     }

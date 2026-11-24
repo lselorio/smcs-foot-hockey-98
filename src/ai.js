@@ -141,6 +141,7 @@ export function updateGoalie(g, game) {
     return;
   }
 
+  const shooterTeam = ball.lastTouchTeam;
   const isSlowCreaseScoop = ballSpeed < 2.4 && Math.hypot(relX, relY) < 13;
   const isGloveSide = isSlowCreaseScoop || alongMouth >= 0 || ball.z >= 7;
   if (isGloveSide) {
@@ -148,7 +149,7 @@ export function updateGoalie(g, game) {
     g.gloveTimer = 22;
     g.diveDir = 1;
     g.diveTimer = 10;
-    game.onGoalieSave(g, 'glove');
+    game.onGoalieSave(g, 'glove', shooterTeam);
     if (g.team === 'home' && !game.isDemo) {
       game.controlledId = g.id;
     }
@@ -164,7 +165,7 @@ export function updateGoalie(g, game) {
     ball.pickupCooldown = 10;
     ball.lastTouchTeam = g.team;
     ball.lastTouchPlayer = g;
-    game.onGoalieSave(g, 'jacket');
+    game.onGoalieSave(g, 'jacket', shooterTeam);
   }
 }
 
@@ -204,7 +205,6 @@ export function updateSkaterAI(p, game) {
         const aimY = attackNet.centerY + attackNet.normalX * spread - p.y;
         const loft = attackNet.maxZ > 22 ? 3.2 : 2.1;
         launchBall(ball, p, aimX, aimY, p.stats.kick * 1.04, loft, { startZ: 5 });
-        game.stats[p.team].shots++;
         game.onKickEffect(p.x, p.y, 'DROP-KICK!', '#d9ff2e', true);
       } else {
         dropHeldBall(ball, p);
@@ -228,7 +228,6 @@ export function updateSkaterAI(p, game) {
       const loft = attackNet.maxZ > 22 ? (Math.random() > 0.35 ? 2.7 : 1.4) : (Math.random() > 0.55 ? 1.8 : 0.9);
       launchBall(ball, p, aimX, aimY, p.stats.kick * (0.94 + Math.random() * 0.14), loft);
       p.aiDecisionCooldown = 35;
-      game.stats[p.team].shots++;
       game.onKickEffect(p.x, p.y, null, null, false);
       return;
     }

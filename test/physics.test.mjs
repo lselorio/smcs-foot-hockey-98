@@ -119,6 +119,7 @@ test('two-tier shooting: tap produces quick shot, hold produces faster hard slap
     const shooter = g.getControlledPlayer();
     shooter.x = 160;
     shooter.y = 260;
+    shooter.stats.kick = 5.3; // Normalize shooter kick stat across quick vs hard instances (in case Istvan gets drafted!)
     // Move defenders away so shooter has open space to wind up cleanly
     for (const p of g.players) {
       if (p.team === 'away' && p.role !== 'G') {
@@ -148,6 +149,20 @@ test('two-tier shooting: tap produces quick shot, hold produces faster hard slap
   const hardSpeed = Math.hypot(gHard.ball.vx, gHard.ball.vy);
 
   assert.ok(hardSpeed > quickSpeed * 1.3, `Hard shot (${hardSpeed.toFixed(2)}) should be much faster than quick shot (${quickSpeed.toFixed(2)})`);
+  // Open-court kick away from net must NOT count as a Shot on Goal!
+  assert.equal(gQuick.stats.home.shots, 0, 'Shot attempt that neither scores nor is saved must not count as a Shot on Goal');
+  assert.equal(gHard.stats.home.shots, 0, 'Open-court hard kick must not count as a Shot on Goal');
+
+  // Goalie save -> +1 Shot on Goal for attacking team; Goal -> +1 Shot on Goal for scoring team!
+  const awayGoalie = gHard.players.find((p) => p.id === 'a_g');
+  gHard.onGoalieSave(awayGoalie, 'glove', 'home');
+  assert.equal(gHard.stats.home.shots, 1, 'Goalie save of opponent shot should credit 1 Shot on Goal');
+  assert.equal(gHard.stats.away.saves, 1);
+  // Teammate back-pass caught by own goalie must NOT credit opponent with a Shot on Goal
+  gHard.onGoalieSave(awayGoalie, 'glove', 'away');
+  assert.equal(gHard.stats.home.shots, 1, 'Own teammate pass scooped by goalie must not count as opponent Shot on Goal');
+  gHard.handleGoalScored('home', 'top_yellow');
+  assert.equal(gHard.stats.home.shots, 2, 'Scoring a goal should credit 1 Shot on Goal (SOG = goals + saves)');
 });
 
 test('deliberate directional pass selects the teammate in the aimed direction', () => {
@@ -337,6 +352,21 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   const autoNext = sound.music.onTrackEnded();
   assert.equal(autoNext, SICUT_CERVUS_SCORE);
   assert.equal(sound.getMusicTrack().id, 'sicut_cervus');
+
+  // Regression test: when Sicut Cervus reaches loopEnd in tick(), Gloria VIII must start playing from note 0 (not skip all notes!)
+  const scheduled = [];
+  const transitionPlayer = new ChiptuneChoirPlayer(SICUT_CERVUS_SCORE, {
+    onTrackEnded: () => GLORIA_VIII_SCORE,
+  });
+  transitionPlayer.playing = true;
+  transitionPlayer.songPos = SICUT_CERVUS_SCORE.duration + 1.59;
+  transitionPlayer.lastAudioTime = 10.0;
+  transitionPlayer.scheduleNote = (role, startTime, dur, midi) => scheduled.push({ role, midi });
+  transitionPlayer.tick({ state: 'running', currentTime: 10.05 });
+  assert.equal(transitionPlayer.score, GLORIA_VIII_SCORE, 'Should auto-switch score to Gloria VIII at end of Sicut Cervus');
+  assert.ok(scheduled.length > 0, 'Gloria VIII opening notes must be scheduled right after Sicut Cervus ends');
+  assert.equal(scheduled[0].midi, 72, 'First scheduled note of Gloria VIII should be C5 (72)');
+  assert.ok(transitionPlayer.trackCursors[0] < 5, 'Soprano cursor must stay at start of Gloria VIII, not skip to end');
 });
 
 test('three recess periods: Morning, double-length Lunch, and Afternoon', () => {
@@ -694,6 +724,10 @@ test('body checking is legal along the left wall on clear days and legal everywh
   assert.ok(victim.stunTimer > 0, 'Left-wall body check should stun opponent');
   assert.equal(game.ball.owner, null, 'Body check should pop the tennis ball loose');
   assert.equal(game.stats.home.checks, 1);
+  assert.ok(
+    game.leftWallImpact.timer > 0 && Math.abs(game.leftWallImpact.y - victim.y) < 10,
+    'Checking a player into the left wall should trigger the elastic wall-flex wave at point of impact'
+  );
 
   // Toggle to Snow weather -> body checking is now legal EVERYWHERE!
   assert.equal(game.toggleWeather(), 'snow');

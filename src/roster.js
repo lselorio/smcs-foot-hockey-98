@@ -33,9 +33,8 @@ export const JACKET_PALETTE = [
 export const CLASSMATES = [
   {
     name: 'PAES',
-    number: 7,
-    skin: '#d99e73',
-    hair: '#1e1815',
+    skin: '#9c6644',       // Brown
+    hair: '#161416',
     hairStyle: 'part',
     sneakers: '#1d222e',
     gloveColor: '#a65d2a',
@@ -43,9 +42,8 @@ export const CLASSMATES = [
   },
   {
     name: 'KWONG',
-    number: 11,
-    skin: '#f0c6a2',
-    hair: '#151416',
+    skin: '#f0cb9e',       // Chinese
+    hair: '#141316',
     hairStyle: 'spiky',
     sneakers: '#ffffff',
     gloveColor: '#8c4b22',
@@ -53,9 +51,8 @@ export const CLASSMATES = [
   },
   {
     name: 'MASANGKAY',
-    number: 24,
-    skin: '#cfa07a',
-    hair: '#181414',
+    skin: '#b97e54',       // Filipino
+    hair: '#161416',
     hairStyle: 'messy',
     sneakers: '#e8ecf4',
     gloveColor: '#a65d2a',
@@ -63,8 +60,7 @@ export const CLASSMATES = [
   },
   {
     name: 'STEVE',
-    number: 19,
-    skin: '#f2c49e',
+    skin: '#f4c8a6',       // White
     hair: '#6e4120',
     hairStyle: 'part',
     sneakers: '#232836',
@@ -73,8 +69,7 @@ export const CLASSMATES = [
   },
   {
     name: 'BLAIR',
-    number: 8,
-    skin: '#f4cbb0',
+    skin: '#f6cfb4',       // White
     hair: '#b87a2e',
     hairStyle: 'messy',
     sneakers: '#ffffff',
@@ -83,9 +78,8 @@ export const CLASSMATES = [
   },
   {
     name: 'SEAN',
-    number: 22,
-    skin: '#ecc09d',
-    hair: '#8f4722',
+    skin: '#9a623f',       // Brown
+    hair: '#1a1514',
     hairStyle: 'spiky',
     sneakers: '#1e2430',
     gloveColor: '#8c4b22',
@@ -93,9 +87,8 @@ export const CLASSMATES = [
   },
   {
     name: 'DANIEL',
-    number: 1,
-    skin: '#e8b690',
-    hair: '#3b2618',
+    skin: '#a16945',       // Brown
+    hair: '#191514',
     hairStyle: 'part',
     sneakers: '#222633',
     gloveColor: '#a65d2a',
@@ -103,8 +96,7 @@ export const CLASSMATES = [
   },
   {
     name: 'ADAM',
-    number: 30,
-    skin: '#f1c5a4',
+    skin: '#f3c8a8',       // White
     hair: '#c9933a',
     hairStyle: 'buzz',
     sneakers: '#ffffff',
@@ -113,9 +105,8 @@ export const CLASSMATES = [
   },
   {
     name: 'FIZZ',
-    number: 14,
-    skin: '#dba57c',
-    hair: '#241a15',
+    skin: '#f2c4a2',       // White
+    hair: '#4a2f1d',
     hairStyle: 'spiky',
     sneakers: '#e8ecf4',
     gloveColor: '#9c5425',
@@ -123,9 +114,8 @@ export const CLASSMATES = [
   },
   {
     name: 'LOWELL',
-    number: 98,
-    skin: '#d9a178',
-    hair: '#1a1514',
+    skin: '#bd8258',       // Filipino
+    hair: '#151316',
     hairStyle: 'part',
     sneakers: '#ffffff',
     gloveColor: '#a65d2a',
@@ -133,9 +123,8 @@ export const CLASSMATES = [
   },
   {
     name: 'JIMMY',
-    number: 9,
-    skin: '#ecc09d',
-    hair: '#2b1f18',
+    skin: '#f3c7a6',       // White
+    hair: '#5e3820',
     hairStyle: 'spiky',
     sneakers: '#ffffff',
     gloveColor: '#8c4b22',
@@ -143,18 +132,16 @@ export const CLASSMATES = [
   },
   {
     name: 'AVERY',
-    number: 16,
-    skin: '#d69c72',
-    hair: '#191618',
-    hairStyle: 'part',
+    skin: '#6b4028',       // Black
+    hair: '#121114',
+    hairStyle: 'buzz',
     sneakers: '#232836',
     gloveColor: '#a65d2a',
     stats: { speed: 1.87, kick: 5.2, control: 0.93, hands: 0.92, reflex: 0.88 },
   },
   {
     name: 'RICH',
-    number: 27,
-    skin: '#f0c49e',
+    skin: '#f2c6a4',       // White
     hair: '#5c381c',
     hairStyle: 'buzz',
     sneakers: '#1d222e',
@@ -163,9 +150,8 @@ export const CLASSMATES = [
   },
   {
     name: 'JOHNNY ZORRO',
-    number: 99,
-    skin: '#e5b38c',
-    hair: '#161416',
+    skin: '#b87c52',       // Filipino
+    hair: '#151316',
     hairStyle: 'messy',
     sneakers: '#ffffff',
     gloveColor: '#9c5425',
@@ -173,8 +159,7 @@ export const CLASSMATES = [
   },
   {
     name: 'ISTVAN',
-    number: 0,
-    skin: '#f2c8a8',
+    skin: '#f5ccb0',       // White
     hair: '#785028',
     hairStyle: 'messy',
     sneakers: '#2a2e38',
