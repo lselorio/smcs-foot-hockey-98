@@ -1270,6 +1270,10 @@ test('mobile touch controls: analog stick deadzone/clamping, context utility sho
     ['KeyP', 'KeyB', 'KeyN', 'KeyM']
   );
   assert.deepEqual(
+    getUtilityButtonsForState('PAUSED', false).map((b) => b.code),
+    ['KeyP', 'KeyR', 'KeyQ', 'KeyM']
+  );
+  assert.deepEqual(
     getUtilityButtonsForState('GAME_OVER', false).map((b) => b.code),
     ['Enter', 'KeyQ', 'KeyI', 'KeyM']
   );
@@ -1277,6 +1281,19 @@ test('mobile touch controls: analog stick deadzone/clamping, context utility sho
     getUtilityButtonsForState('TEAM_SELECT', false).map((b) => b.code),
     ['Enter', 'Tab', 'KeyR', 'Escape']
   );
+
+  // Utility tap flow: PLAYING -> PAUSE (KeyP) -> END GAME (KeyQ) -> GAME_OVER
+  const pauseGame = new FootHockeyGame();
+  pauseGame.startNewMatch();
+  pauseGame.state = 'PLAYING';
+  pauseGame.onKeyDown('KeyP');
+  pauseGame.update();
+  pauseGame.onKeyUp('KeyP');
+  assert.equal(pauseGame.state, 'PAUSED');
+  pauseGame.onKeyDown('KeyQ');
+  pauseGame.update();
+  pauseGame.onKeyUp('KeyQ');
+  assert.equal(pauseGame.state, 'GAME_OVER', 'END GAME utility tap on PAUSED must transition to GAME_OVER');
 
   // Virtual thumbstick drives skater movement in both normal & rotated Lunch Recess views!
   const game = new FootHockeyGame();

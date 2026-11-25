@@ -202,9 +202,34 @@ export function initTouchControls(game, sound) {
     }
   };
 
-  // Global release listener guarantees keys never stick even if a utility button re-renders on state change!
+  // One-shot tap for utility buttons (PAUSE, RESUME, SNOW, AMEN, etc.):
+  // Always forces a clean fresh key edge so rapid taps or state changes can never swallow a press!
+  const tapUtilityKey = (pointerId, code, el) => {
+    if (!code) return;
+    sound.ensureContext();
+    sound.preloadBootVoice();
+    game.onKeyUp(code);
+    game.onKeyDown(code);
+    if (el) el.classList.add('pressed');
+    const release = () => {
+      if (el) el.classList.remove('pressed');
+      game.onKeyUp(code);
+      activeUtilityTaps.delete(pointerId);
+    };
+    const timer = setTimeout(release, 140);
+    activeUtilityTaps.set(pointerId, { release, timer });
+  };
+
+  const activeUtilityTaps = new Map(); // pointerId -> { release, timer }
+
+  // Global release listener guarantees keys never stick even if a button re-renders or thumb slides off!
   const onGlobalPointerEnd = (e) => {
     releaseVirtualPointer(e.pointerId);
+    const tap = activeUtilityTaps.get(e.pointerId);
+    if (tap) {
+      clearTimeout(tap.timer);
+      tap.release();
+    }
   };
   window.addEventListener('pointerup', onGlobalPointerEnd, { passive: true });
   window.addEventListener('pointercancel', onGlobalPointerEnd, { passive: true });
@@ -322,16 +347,12 @@ export function initTouchControls(game, sound) {
 
   const renderUtilityButtons = (state, isDemo) => {
     if (!utilityEl) return;
-    const sig = `${state}:${isDemo ? 1 : 0}`;
+    const specs = getUtilityButtonsForState(state, isDemo);
+    // Key off the rendered button layout rather than raw state so FACEOFF -> PLAYING -> RESTART never tears down PAUSE mid-tap!
+    const sig = specs.map((s) => `${s.label}:${s.code || ''}:${s.disabled ? 1 : 0}`).join('|');
     if (sig === lastUtilitySignature) return;
     lastUtilitySignature = sig;
 
-    // Release any held utility button before replacing DOM nodes so keys never stick across state swaps
-    for (const [pid, entry] of Array.from(activeKeyPointers.entries())) {
-      if (entry.isUtility) releaseVirtualPointer(pid);
-    }
-
-    const specs = getUtilityButtonsForState(state, isDemo);
     utilityEl.textContent = '';
     for (const spec of specs) {
       const btn = document.createElement('button');
@@ -344,14 +365,8 @@ export function initTouchControls(game, sound) {
         btn.addEventListener('pointerdown', (e) => {
           e.preventDefault();
           enableTouchMode();
-          pressVirtualKey(e.pointerId, spec.code, btn, true);
+          tapUtilityKey(e.pointerId, spec.code, btn);
         });
-        const onEnd = (e) => {
-          e.preventDefault();
-          releaseVirtualPointer(e.pointerId);
-        };
-        btn.addEventListener('pointerup', onEnd);
-        btn.addEventListener('pointercancel', onEnd);
       }
       utilityEl.appendChild(btn);
     }
@@ -361,6 +376,10 @@ export function initTouchControls(game, sound) {
     releaseStick();
     for (const pointerId of Array.from(activeKeyPointers.keys())) {
       releaseVirtualPointer(pointerId);
+    }
+    for (const tap of Array.from(activeUtilityTaps.values())) {
+      clearTimeout(tap.timer);
+      tap.release();
     }
   };
 

@@ -1119,11 +1119,13 @@ export class FootHockeyGame {
 
     if (
       !this.isDemo &&
-      input.pausePressed &&
-      (this.state === 'PLAYING' ||
-        this.state === 'FACEOFF' ||
-        this.state === 'RESTART' ||
-        this.state === 'GOAL_CELEBRATION')
+      ((input.pausePressed &&
+        (this.state === 'PLAYING' ||
+          this.state === 'FACEOFF' ||
+          this.state === 'RESTART' ||
+          this.state === 'GOAL_CELEBRATION' ||
+          this.state === 'BASEMENT_56')) ||
+        (this.state === 'PERIOD_END' && input.pausePressed && !input.startPressed))
     ) {
       this.prevState = this.state;
       this.state = 'PAUSED';

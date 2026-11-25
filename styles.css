@@ -168,12 +168,14 @@ body.touch-mode .play-column {
 }
 
 body.touch-mode .screen-bezel {
-  width: min(96vw, calc((100dvh - 232px) * 4 / 3));
+  width: min(96vw, calc((100dvh - 242px) * 4 / 3));
   border-width: 4px;
   border-radius: 8px;
 }
 
 body.touch-mode .touch-utility {
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -184,9 +186,12 @@ body.touch-mode .touch-utility {
 
 .touch-util-btn {
   flex: 1 1 0;
-  max-width: 108px;
-  height: 30px;
-  border-radius: 5px;
+  min-width: 0;
+  max-width: 112px;
+  height: 38px;
+  padding: 0 4px;
+  white-space: nowrap;
+  border-radius: 6px;
   border: 1px solid #3c4870;
   border-bottom-width: 3px;
   background: #171e36;
@@ -194,7 +199,7 @@ body.touch-mode .touch-utility {
   font-family: inherit;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.05s ease, filter 0.05s ease;
@@ -398,7 +403,7 @@ body.touch-mode .touch-controls {
 @media (orientation: landscape) {
   body.touch-mode .cabinet {
     display: grid;
-    grid-template-columns: minmax(132px, 1fr) auto minmax(168px, 1fr);
+    grid-template-columns: minmax(124px, 1fr) auto minmax(164px, 1fr);
     align-items: center;
     justify-items: center;
     gap: 8px;
@@ -416,24 +421,27 @@ body.touch-mode .touch-controls {
     order: 2;
     width: auto;
     gap: 5px;
+    z-index: 10;
   }
 
   body.touch-mode .touch-right {
     order: 3;
+    width: 162px;
+    height: 136px;
   }
 
   body.touch-mode .screen-bezel {
-    width: min(calc((100dvh - 54px) * 4 / 3), calc(100vw - 332px));
+    width: min(calc((100dvh - 60px) * 4 / 3), calc(100vw - 348px));
     border-width: 4px;
   }
 
   body.touch-mode .touch-utility {
-    max-width: 360px;
+    max-width: 380px;
     gap: 5px;
   }
 
   .touch-util-btn {
-    height: 26px;
+    height: 34px;
     font-size: 10px;
   }
 }
