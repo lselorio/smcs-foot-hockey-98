@@ -88,6 +88,7 @@ export class FootHockeyGame {
     // Input states
     this.keys = new Set();
     this.justPressed = new Set();
+    this.touchMove = { mx: 0, my: 0 };
     this.kickCharge = 0;
     this.passTarget = null; // Highlighted teammate for deliberate passes & goalie throws
     this.gamepadName = null;
@@ -554,6 +555,11 @@ export class FootHockeyGame {
     this.keys.delete(code);
   }
 
+  setTouchMove(mx, my) {
+    this.touchMove.mx = Math.max(-1, Math.min(1, Number(mx) || 0));
+    this.touchMove.my = Math.max(-1, Math.min(1, Number(my) || 0));
+  }
+
   toggleCrt() {
     this.crtEnabled = !this.crtEnabled;
     if (typeof document !== 'undefined') {
@@ -635,6 +641,10 @@ export class FootHockeyGame {
     if (gp && (gp.ax !== 0 || gp.ay !== 0)) {
       mx = gp.ax;
       my = gp.ay;
+    }
+    if (this.touchMove && (this.touchMove.mx !== 0 || this.touchMove.my !== 0)) {
+      mx = this.touchMove.mx;
+      my = this.touchMove.my;
     }
 
     const kickPressed =

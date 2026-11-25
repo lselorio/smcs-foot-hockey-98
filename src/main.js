@@ -1,11 +1,13 @@
 import { FootHockeyGame } from './game.js';
 import { renderGame } from './renderer.js';
 import { sound } from './audio.js';
+import { initTouchControls } from './touch-controls.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const padBadge = document.getElementById('pad-status');
 const game = new FootHockeyGame();
+const touchControls = initTouchControls(game, sound);
 if (typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location?.hostname || '')) {
   window.game = game;
 }
@@ -102,6 +104,7 @@ function frame(now) {
     updatePadBadge(lastPadName);
   }
 
+  touchControls.syncState(game.state, game.isDemo);
   renderGame(ctx, game);
   requestAnimationFrame(frame);
 }

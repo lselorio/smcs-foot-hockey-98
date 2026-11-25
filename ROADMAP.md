@@ -12,14 +12,14 @@
 2. **Classmate Roster & Player Attributes** *(26 St. Mike's classmates with Pick Teams, traits & REGULAR/DRESS uniforms; expand or tune attributes anytime)*
    - Distinct playable classmates with individualized player attributes (speed, kick power, ball control, catching/hands, goalie reflexes, checking, glasses & tall/short/beefy/thin builds).
 
-3. **Mobile Touch Controls & Public Hosting Prep** *(Safari macOS/iOS `.mp3` audio done!)*
-   - Auto-detected on-screen retro controls for phones/tablets (left virtual thumbstick/D-pad, right `SHOOT`/`PASS`/`CATCH` buttons, portrait & landscape responsive layout, `touch-action: none`).
-   - Deploy as a zero-backend static site (e.g. GitHub Pages / Netlify) to share with classmates.
-
-4. **Two Play Surfaces: "66 Bond" & "67 Bond"** *(66 Bond complete; 67 Bond lower priority for now)*
+3. **Two Play Surfaces: "66 Bond" & "67 Bond"** *(66 Bond complete; 67 Bond lower priority for now)*
    - Add **67 Bond** as a second selectable schoolyard court with its own dimensions and net layout.
 
 ## Completed Milestones
+
+4. ~~**Mobile Touch Controls & GitHub Pages Hosting**~~ *(Done)*
+   - Auto-detected 16-bit handheld touch controller for phones/tablets (multi-touch analog virtual thumbstick, `SHOOT`/`PASS`/`CATCH` arcade buttons, context-aware utility bar, responsive portrait & landscape layout, `touch-action: none`, safe-area insets).
+   - Live static site on GitHub Pages (`smcs-foot-hockey-98`) with SMCS tennis-ball favicon and social link-preview tags.
 
 5. ~~**Safari macOS/iOS Audio & Browser Compatibility**~~ *(Done)*
    - Mastered `.mp3` versions of `boot-gloria`, `boot-magnificat`, and `boot-voice` alongside `.ogg`, with automatic format-order detection (`.mp3` first on Safari), WebKit-safe `decodeAudioData`, gesture audio unlock on `keydown`/`pointerdown`, and Safari pixel-art rendering polish.

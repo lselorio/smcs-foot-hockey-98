@@ -21,6 +21,11 @@ import { WIDOR_TOCCATA_SCORE } from '../src/music/widor-toccata.js';
 import { MARCELLI_AMEN_SCORE, MARCELLI_AMEN_TIMING } from '../src/music/marcelli-amen.js';
 import { ChiptuneChoirPlayer } from '../src/music-player.js';
 import { BOOT_CHANTS, getAudioCandidates, getAudioFormatOrder, sound } from '../src/audio.js';
+import {
+  computeStickVector,
+  getUtilityButtonsForState,
+  shouldEnableTouchMode,
+} from '../src/touch-controls.js';
 
 test('tennis ball bounces realistically on asphalt under gravity', () => {
   const ball = createBall(COURT.centerX, COURT.centerY, 16);
@@ -1232,4 +1237,66 @@ test('Safari audio compatibility: prefers MP3 when Ogg is unsupported and ships 
       assert.ok(statSync(assetPath).size > 4096, `Expected non-empty boot audio asset: ${baseUrl}.${ext}`);
     }
   }
+});
+
+test('mobile touch controls: analog stick deadzone/clamping, context utility shortcuts, and skating integration', () => {
+  // Deadzone suppresses tiny thumb jitter
+  const dead = computeStickVector(4, -3, 44, 0.2);
+  assert.equal(dead.mx, 0);
+  assert.equal(dead.my, 0);
+  assert.equal(dead.dirKey, null);
+
+  // Full pull right clamps cleanly to maxRadius and fires ArrowRight menu edge
+  const right = computeStickVector(120, 0, 44, 0.2);
+  assert.equal(right.mx, 1);
+  assert.equal(right.my, 0);
+  assert.equal(right.knobX, 44);
+  assert.equal(right.dirKey, 'ArrowRight');
+
+  // Diagonal pull stays unit-bounded
+  const diag = computeStickVector(-50, -50, 44, 0.2);
+  assert.ok(Math.hypot(diag.mx, diag.my) <= 1.001, 'Diagonal analog magnitude must stay <= 1');
+  assert.ok(diag.mx < -0.6 && diag.my < -0.6);
+
+  // Touch mode auto-detection and URL override
+  assert.equal(shouldEnableTouchMode({ maxTouchPoints: 0, coarsePointer: false, search: '' }), false);
+  assert.equal(shouldEnableTouchMode({ maxTouchPoints: 5, coarsePointer: true, search: '' }), true);
+  assert.equal(shouldEnableTouchMode({ maxTouchPoints: 0, coarsePointer: false, search: '?touch=1' }), true);
+  assert.equal(shouldEnableTouchMode({ maxTouchPoints: 5, coarsePointer: true, search: '?touch=0' }), false);
+
+  // Context utility bar exposes the right actions for every screen
+  assert.deepEqual(
+    getUtilityButtonsForState('PLAYING', false).map((b) => b.code),
+    ['KeyP', 'KeyB', 'KeyN', 'KeyM']
+  );
+  assert.deepEqual(
+    getUtilityButtonsForState('GAME_OVER', false).map((b) => b.code),
+    ['Enter', 'KeyQ', 'KeyI', 'KeyM']
+  );
+  assert.deepEqual(
+    getUtilityButtonsForState('TEAM_SELECT', false).map((b) => b.code),
+    ['Enter', 'Tab', 'KeyR', 'Escape']
+  );
+
+  // Virtual thumbstick drives skater movement in both normal & rotated Lunch Recess views!
+  const game = new FootHockeyGame();
+  game.startNewMatch();
+  game.state = 'PLAYING';
+  const skater = game.getControlledPlayer();
+  skater.x = 220;
+  skater.y = 220;
+  skater.vx = 0;
+  skater.vy = 0;
+  game.setTouchMove(0, -1);
+  game.update();
+  assert.ok(skater.vy < 0, 'Pushing touch stick UP in Period 1 should skate -Y');
+
+  // Rotated Lunch Recess: pushing touch stick UP drives +X toward the right cage net!
+  game.period = 2;
+  skater.vx = 0;
+  skater.vy = 0;
+  game.setTouchMove(0, -1);
+  game.update();
+  assert.ok(skater.vx > 0, 'Pushing touch stick UP in rotated Lunch Recess should skate +X');
+  game.setTouchMove(0, 0);
 });

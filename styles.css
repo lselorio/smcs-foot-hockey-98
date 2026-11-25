@@ -123,3 +123,345 @@ kbd {
   color: #6ef0a4;
   border-color: #2da866;
 }
+
+/* Desktop keeps touch controls completely hidden */
+.play-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.touch-utility,
+.touch-controls {
+  display: none;
+}
+
+/* === AUTO-DETECTED 16-BIT HANDHELD TOUCH MODE (iOS Safari & Android Chrome) === */
+body.touch-mode,
+body.touch-mode .cabinet {
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body.touch-mode .controls-bar {
+  display: none;
+}
+
+body.touch-mode .cabinet {
+  justify-content: space-between;
+  padding:
+    max(8px, env(safe-area-inset-top))
+    max(10px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom))
+    max(10px, env(safe-area-inset-left));
+  gap: 8px;
+}
+
+body.touch-mode .play-column {
+  width: 100%;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+body.touch-mode .screen-bezel {
+  width: min(96vw, calc((100dvh - 232px) * 4 / 3));
+  border-width: 4px;
+  border-radius: 8px;
+}
+
+body.touch-mode .touch-utility {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.touch-util-btn {
+  flex: 1 1 0;
+  max-width: 108px;
+  height: 30px;
+  border-radius: 5px;
+  border: 1px solid #3c4870;
+  border-bottom-width: 3px;
+  background: #171e36;
+  color: #d7e2f8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.05s ease, filter 0.05s ease;
+}
+
+.touch-util-btn.tone-accent {
+  background: #1e2d54;
+  border-color: #5578c7;
+  color: #d9ff2e;
+}
+
+.touch-util-btn.tone-gold {
+  background: #332612;
+  border-color: #b89138;
+  color: #ffe84d;
+}
+
+.touch-util-btn.tone-danger {
+  background: #3d1522;
+  border-color: #a63854;
+  color: #ff9cb2;
+}
+
+.touch-util-btn:disabled {
+  opacity: 0.6;
+}
+
+.touch-util-btn.pressed {
+  transform: translateY(1px);
+  filter: brightness(1.32);
+}
+
+body.touch-mode .touch-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 520px;
+  flex: 1 1 auto;
+  min-height: 150px;
+  padding: 4px 6px;
+  gap: 12px;
+}
+
+.touch-left,
+.touch-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+/* Left Virtual Analog Thumbstick + Embossed Retro Crosshair */
+.touch-stick {
+  position: relative;
+  width: 126px;
+  height: 126px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, #1d2645 0%, #101629 72%, #0a0e1b 100%);
+  border: 3px solid #3c4870;
+  box-shadow:
+    inset 0 4px 12px rgba(0, 0, 0, 0.72),
+    0 4px 14px rgba(0, 0, 0, 0.55);
+  touch-action: none;
+}
+
+.touch-stick.active {
+  border-color: #ffd84d;
+  box-shadow:
+    inset 0 4px 12px rgba(0, 0, 0, 0.72),
+    0 0 14px rgba(255, 216, 77, 0.32);
+}
+
+.stick-cross {
+  position: absolute;
+  inset: 20px;
+  pointer-events: none;
+}
+
+.stick-cross::before,
+.stick-cross::after {
+  content: '';
+  position: absolute;
+  background: rgba(143, 161, 199, 0.2);
+  border-radius: 4px;
+}
+
+.stick-cross::before {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  transform: translateX(-50%);
+}
+
+.stick-cross::after {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 18px;
+  transform: translateY(-50%);
+}
+
+.stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  margin-left: -26px;
+  margin-top: -26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #4f6294 0%, #263154 68%, #161d36 100%);
+  border: 2px solid #8fa1c7;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.touch-stick.active .stick-knob {
+  border-color: #ffe84d;
+  background: radial-gradient(circle at 38% 34%, #6c83bf 0%, #314373 70%, #1b2647 100%);
+}
+
+/* Right 3-Button Sega/SNES Arcade Arc */
+.touch-right {
+  position: relative;
+  width: 174px;
+  height: 142px;
+}
+
+.touch-btn {
+  position: absolute;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-family: inherit;
+  font-weight: 800;
+  border-style: solid;
+  border-width: 3px;
+  box-shadow:
+    0 5px 12px rgba(0, 0, 0, 0.65),
+    inset 0 2px 4px rgba(255, 255, 255, 0.16);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.05s ease, filter 0.05s ease;
+}
+
+.touch-btn .btn-title {
+  font-size: 12px;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+}
+
+.touch-btn .btn-sub {
+  font-size: 8px;
+  line-height: 1;
+  opacity: 0.85;
+  letter-spacing: 0.03em;
+}
+
+.touch-btn.pressed {
+  transform: scale(0.93) translateY(2px);
+  filter: brightness(1.3);
+}
+
+.btn-shoot {
+  width: 74px;
+  height: 74px;
+  right: 4px;
+  top: 28px;
+  background: radial-gradient(circle at 36% 30%, #b53447 0%, #7d1a2a 72%, #4f0d18 100%);
+  border-color: #ffd84d;
+  color: #fff5c4;
+}
+
+.btn-pass {
+  width: 66px;
+  height: 66px;
+  left: 10px;
+  bottom: 4px;
+  background: radial-gradient(circle at 36% 30%, #266fb8 0%, #15467d 72%, #0c294d 100%);
+  border-color: #7ae8ff;
+  color: #e8f9ff;
+}
+
+.btn-catch {
+  width: 62px;
+  height: 62px;
+  left: 24px;
+  top: 2px;
+  background: radial-gradient(circle at 36% 30%, #268c57 0%, #165936 72%, #0b331e 100%);
+  border-color: #6ef0a4;
+  color: #e9fff2;
+}
+
+/* Landscape Handheld Mode (3-column Sega Nomad / Switch layout!) */
+@media (orientation: landscape) {
+  body.touch-mode .cabinet {
+    display: grid;
+    grid-template-columns: minmax(132px, 1fr) auto minmax(168px, 1fr);
+    align-items: center;
+    justify-items: center;
+    gap: 8px;
+  }
+
+  body.touch-mode .touch-controls {
+    display: contents;
+  }
+
+  body.touch-mode .touch-left {
+    order: 1;
+  }
+
+  body.touch-mode .play-column {
+    order: 2;
+    width: auto;
+    gap: 5px;
+  }
+
+  body.touch-mode .touch-right {
+    order: 3;
+  }
+
+  body.touch-mode .screen-bezel {
+    width: min(calc((100dvh - 54px) * 4 / 3), calc(100vw - 332px));
+    border-width: 4px;
+  }
+
+  body.touch-mode .touch-utility {
+    max-width: 360px;
+    gap: 5px;
+  }
+
+  .touch-util-btn {
+    height: 26px;
+    font-size: 10px;
+  }
+}
+
+/* Compact phone screens (e.g. iPhone SE) */
+@media (max-height: 680px) and (orientation: portrait) {
+  .touch-stick {
+    width: 112px;
+    height: 112px;
+  }
+
+  .touch-right {
+    width: 162px;
+    height: 132px;
+  }
+
+  .btn-shoot {
+    width: 68px;
+    height: 68px;
+  }
+
+  .btn-pass {
+    width: 60px;
+    height: 60px;
+  }
+
+  .btn-catch {
+    width: 56px;
+    height: 56px;
+  }
+}

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>FOOT HOCKEY 98</title>
   <meta name="description" content="16-bit recess foot hockey on 66 Bond — inspired by St. Michael's Choir School." />
   <meta name="theme-color" content="#121933" />
@@ -17,10 +17,36 @@
 </head>
 <body>
   <main class="cabinet">
-    <div class="screen-bezel">
-      <canvas id="game" width="320" height="240" aria-label="Foot Hockey 98 game screen"></canvas>
-      <div id="crt-overlay" class="crt-overlay active" aria-hidden="true"></div>
+    <div class="play-column">
+      <div class="screen-bezel">
+        <canvas id="game" width="320" height="240" aria-label="Foot Hockey 98 game screen"></canvas>
+        <div id="crt-overlay" class="crt-overlay active" aria-hidden="true"></div>
+      </div>
+      <div id="touch-utility" class="touch-utility" aria-label="Game menu shortcuts"></div>
     </div>
+
+    <section id="touch-controls" class="touch-controls" aria-label="On-screen touch controls">
+      <div class="touch-left">
+        <div id="touch-stick" class="touch-stick" role="application" aria-label="Move thumbstick">
+          <div class="stick-cross" aria-hidden="true"></div>
+          <div id="touch-knob" class="stick-knob" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div class="touch-right">
+        <button type="button" class="touch-btn btn-catch" data-touch-key="KeyC">
+          <span class="btn-title">CATCH</span>
+          <span class="btn-sub">DROP</span>
+        </button>
+        <button type="button" class="touch-btn btn-pass" data-touch-key="KeyX">
+          <span class="btn-title">PASS</span>
+          <span class="btn-sub">SWITCH</span>
+        </button>
+        <button type="button" class="touch-btn btn-shoot" data-touch-key="KeyZ">
+          <span class="btn-title">SHOOT</span>
+          <span class="btn-sub">HOLD HARD</span>
+        </button>
+      </div>
+    </section>
 
     <footer class="controls-bar">
       <div class="control-group">
