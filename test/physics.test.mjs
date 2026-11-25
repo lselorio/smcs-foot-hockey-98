@@ -312,7 +312,7 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   game.onKeyUp('Escape');
   assert.equal(game.state, 'PLAYING');
 
-  // Pause and press Q -> quits cleanly back to TITLE screen!
+  // Pause and press Q -> ends match cleanly into GAME_OVER final stats (with Widor Toccata)!
   game.onKeyDown('KeyP');
   game.update();
   game.onKeyUp('KeyP');
@@ -320,7 +320,13 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   game.onKeyDown('KeyQ');
   game.update();
   game.onKeyUp('KeyQ');
-  assert.equal(game.state, 'TITLE', 'Pressing Q while paused should return to Title screen');
+  assert.equal(game.state, 'GAME_OVER', 'Pressing Q while paused should end the match to the final stats screen');
+  assert.equal(sound.music.score, WIDOR_TOCCATA_SCORE, 'Ending match from Pause should strike up Widor Toccata');
+  // Pressing Q again on the unlocked GAME_OVER screen returns cleanly to TITLE!
+  game.onKeyDown('KeyQ');
+  game.update();
+  game.onKeyUp('KeyQ');
+  assert.equal(game.state, 'TITLE', 'Pressing Q on unlocked GAME_OVER should return to Title screen');
 
   // Verify NHL Primary & Secondary Assist tracking: Goalie -> Center -> Left Wing scores!
   const goalie = game.players.find((p) => p.id === 'h_g');
@@ -510,6 +516,16 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   assert.equal(postludeGame.state, 'BOOT', 'Finishing the Amen post-credits scene should return cleanly to BOOT');
   assert.equal(postludeGame.bootFrames, 0, 'Returning to BOOT should start the boot sequence fresh');
   assert.equal(sound.music.score, SICUT_CERVUS_SCORE, 'Returning to BOOT should restore regular BGM track');
+  // Shift+I on GAME_OVER (Widor Toccata screen) also jumps cleanly to the Amen post-credits scene!
+  postludeGame.state = 'GAME_OVER';
+  postludeGame.stateTimer = 10;
+  postludeGame.onKeyDown('ShiftLeft');
+  postludeGame.onKeyDown('KeyI');
+  postludeGame.update();
+  postludeGame.onKeyUp('KeyI');
+  postludeGame.onKeyUp('ShiftLeft');
+  assert.equal(postludeGame.state, 'POST_CREDITS', 'Shift+I on GAME_OVER should launch the Amen post-credits scene');
+  postludeGame.returnToBoot();
   sound.music.playing = false;
 });
 

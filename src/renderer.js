@@ -1898,6 +1898,6 @@ function renderStatsModal(ctx, game, { isFinal }) {
       }
     }
   } else {
-    drawPixelText(ctx, '</>:PAGE  P:RESUME  R:RESTART  Q:TITLE', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
+    drawPixelText(ctx, '</>:PAGE  P:RESUME  R:RESTART  Q:END GAME', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
   }
 }

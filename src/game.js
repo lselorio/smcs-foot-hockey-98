@@ -828,6 +828,17 @@ export class FootHockeyGame {
     sound.playMenuSelect();
   }
 
+  endMatchEarly() {
+    this.isDemo = false;
+    this.kickCharge = 0;
+    this.passTarget = null;
+    this.state = 'GAME_OVER';
+    // Deliberately ending from Pause skips the 15s buzzer-mashing lockout while still playing Widor & showing final stats!
+    this.stateTimer = MATCH.gameOverLockFrames;
+    sound.updateMusic('GAME_OVER', false);
+    sound.playMenuSelect();
+  }
+
   returnToBoot() {
     this.isDemo = false;
     this.titleIdleFrames = 0;
@@ -886,7 +897,7 @@ export class FootHockeyGame {
         sound.playMenuSelect();
         this.startNewMatch();
       } else if (input.quitPressed) {
-        this.returnToTitle();
+        this.endMatchEarly();
       }
       return;
     }
@@ -1200,8 +1211,12 @@ export class FootHockeyGame {
         }
         return;
       }
-      // Once Widor's Toccata finishes playing, launch the uninterruptible Palestrina "Amen" post-credits scene!
-      if (sound.consumePostludeFinished()) {
+      // Once Widor's Toccata finishes playing (or on Shift+I shortcut), launch the uninterruptible Palestrina "Amen" post-credits scene!
+      if (
+        sound.consumePostludeFinished() ||
+        (input.replayIntroPressed && (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')))
+      ) {
+        sound.ensureContext();
         this.startPostCredits();
         return;
       }
