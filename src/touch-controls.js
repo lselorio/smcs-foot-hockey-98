@@ -147,8 +147,25 @@ export function initTouchControls(game, sound) {
   const enableTouchMode = () => {
     if (touchModeEnabled) return;
     touchModeEnabled = true;
+    document.documentElement.classList.add('touch-mode');
     document.body.classList.add('touch-mode');
   };
+
+  // Prevent iOS Safari & Android Chrome accidental pinch-zoom / double-tap zoom while playing with two thumbs
+  const preventPinchZoom = (e) => {
+    if (touchModeEnabled) e.preventDefault();
+  };
+  document.addEventListener('gesturestart', preventPinchZoom, { passive: false });
+  document.addEventListener('gesturechange', preventPinchZoom, { passive: false });
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (touchModeEnabled && e.touches && e.touches.length > 1) {
+        e.preventDefault();
+      }
+    },
+    { passive: false }
+  );
 
   const coarsePointer = Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   if (

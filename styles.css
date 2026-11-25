@@ -138,8 +138,9 @@ kbd {
 }
 
 /* === AUTO-DETECTED 16-BIT HANDHELD TOUCH MODE (iOS Safari & Android Chrome) === */
+html.touch-mode,
 body.touch-mode,
-body.touch-mode .cabinet {
+body.touch-mode * {
   overscroll-behavior: none;
   touch-action: none;
   -webkit-touch-callout: none;
