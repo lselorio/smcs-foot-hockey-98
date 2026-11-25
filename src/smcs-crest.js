@@ -54,21 +54,21 @@ export function drawSpinningSmcsCrest(ctx, cx, cy, radius, angleRad, sheenProgre
   ctx.ellipse(0, 0, radius + 12, radius + 12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 3D metallic gold coin edge (visible as the crest turns edge-on at 90° and 270°!)
+  // 3D metallic gold circular coin edge (strictly elliptical — zero protruding square corners!)
   if (rimThickness > 0.6) {
     const edgeSign = sinA >= 0 ? 1 : -1;
+    const ringScale = 0.926; // Exact outer radius of the gold ring inside the 96x96 crest sprite (38.9 / 42)
+    const rx = Math.max(1.8, radius * ringScale * scaleX);
+    const ry = radius * ringScale;
     ctx.fillStyle = '#9e7c36';
     ctx.beginPath();
-    ctx.ellipse(edgeSign * rimThickness * 0.5, 0, Math.max(2, radius * scaleX), radius, 0, 0, Math.PI * 2);
+    ctx.ellipse(edgeSign * rimThickness * 0.55, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#f2d388';
-    ctx.fillRect(
-      Math.round(Math.min(0, edgeSign * rimThickness * 0.5) - Math.max(1.5, radius * scaleX)),
-      Math.round(-radius),
-      Math.round(Math.abs(rimThickness * 0.5) + Math.max(3, radius * scaleX * 2)),
-      Math.round(radius * 2)
-    );
+    ctx.fillStyle = '#e6c57a';
+    ctx.beginPath();
+    ctx.ellipse(edgeSign * rimThickness * 0.25, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // Front / back circular crest face scaled horizontally by cos(angle) for authentic 360° spin
