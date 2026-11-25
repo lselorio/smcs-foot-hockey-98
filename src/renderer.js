@@ -13,6 +13,7 @@ import {
 } from './sprites.js';
 import { drawSpinningSmcsCrest } from './smcs-crest.js';
 import { sound } from './audio.js';
+import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
   HOOPS_TEAM_STYLE,
   drawBasketball,
@@ -46,6 +47,11 @@ export function renderGame(ctx, game) {
 
   if (game.state === 'BOOT') {
     renderBootIntro(ctx, game);
+    return;
+  }
+
+  if (game.state === 'POST_CREDITS') {
+    renderPostCredits(ctx, game);
     return;
   }
 
@@ -1191,6 +1197,63 @@ function renderBootIntro(ctx, game) {
   if (f > fadeStart) {
     const fade = Math.min(1, (f - fadeStart) / 28);
     ctx.fillStyle = `rgba(7, 10, 20, ${fade.toFixed(2)})`;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  }
+}
+
+// Uninterruptible secret post-credits stinger after Widor's Toccata:
+// SMCS circular crest rises out of cathedral darkness, rotating gracefully and locking upright
+// at the exact final C Major chord of Palestrina's Missa Papae Marcelli Gloria "Amen"!
+function renderPostCredits(ctx, game) {
+  const f = game.postCreditsFrames || 0;
+  const lockF = MARCELLI_AMEN_TIMING.lockFrames;
+  const totalF = MARCELLI_AMEN_TIMING.totalFrames;
+
+  // Deep cathedral midnight-navy backdrop
+  ctx.fillStyle = '#050710';
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // Warm maroon-and-gold cathedral halo blooming steadily with the 6-voice Amen swell
+  const swell = Math.min(1, f / lockF);
+  const glowAlpha = 0.08 + swell * 0.28;
+  const grad = ctx.createRadialGradient(160, 102, 10, 160, 102, 134);
+  grad.addColorStop(0, `rgba(148, 42, 56, ${(glowAlpha * 1.4).toFixed(2)})`);
+  grad.addColorStop(0.55, `rgba(218, 182, 108, ${(glowAlpha * 0.52).toFixed(2)})`);
+  grad.addColorStop(1, 'rgba(5, 7, 16, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // Two majestic 360-degree revolutions easing cleanly to an exact upright stop on the final chord!
+  const t = Math.min(1, f / lockF);
+  const ease = 1 - Math.pow(1 - t, 2.6);
+  const angle = ease * Math.PI * 4;
+  const radius = 26 + ease * 26; // grows serenely from 26px to full 52px radius (104px diameter!)
+
+  // Golden cathedral sheen sweeps across the settled crest right as the final C Major chord strikes!
+  const sheen = f >= lockF && f <= lockF + 48 ? (f - lockF) / 48 : -1;
+
+  drawSpinningSmcsCrest(ctx, SCREEN_W / 2, 98, radius, angle, sheen);
+
+  // Dignified "AMEN." fades gently in underneath right as the crest locks upright
+  if (f >= lockF) {
+    const a = Math.min(1, (f - lockF) / 36);
+    const ruleW = Math.min(120, Math.round(a * 120));
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#d0ad67';
+    ctx.fillRect(Math.round(SCREEN_W / 2 - ruleW / 2), 164, ruleW, 1);
+    drawPixelText(ctx, 'AMEN', SCREEN_W / 2, 174, '#f5e4b8', 2, 'center');
+    ctx.restore();
+  }
+
+  // Gentle fade-in over first 30 frames & smooth fade-out over final 54 frames into BOOT
+  if (f < 30) {
+    const fadeIn = 1 - f / 30;
+    ctx.fillStyle = `rgba(5, 7, 16, ${fadeIn.toFixed(2)})`;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  } else if (f > totalF - 54) {
+    const fadeOut = Math.min(1, (f - (totalF - 54)) / 54);
+    ctx.fillStyle = `rgba(5, 7, 16, ${fadeOut.toFixed(2)})`;
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   }
 }

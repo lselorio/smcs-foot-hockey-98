@@ -5,6 +5,7 @@ import { SICUT_CERVUS_SCORE } from './music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from './music/gloria-viii.js';
 import { SALVE_REGINA_SCORE } from './music/salve-regina.js';
 import { WIDOR_TOCCATA_SCORE } from './music/widor-toccata.js';
+import { MARCELLI_AMEN_SCORE } from './music/marcelli-amen.js';
 import { ChiptuneChoirPlayer } from './music-player.js';
 
 export const MUSIC_TRACKS = [
@@ -44,13 +45,19 @@ class SoundEngine {
     this.muted = false;
     this.noiseBuffer = null;
     this.musicTrackIndex = 0;
+    this.musicMode = 'bgm'; // 'bgm' | 'widor' | 'amen'
     this.playingPostlude = false;
     this.postludeFinished = false;
+    this.amenFinished = false;
     this.music = new ChiptuneChoirPlayer(MUSIC_TRACKS[0].score, {
       onTrackEnded: () => {
-        if (this.playingPostlude) {
+        if (this.musicMode === 'widor') {
           this.postludeFinished = true;
-          return null; // Do not restart Widor Toccata; return to BOOT screen instead!
+          return null; // Do not restart Widor Toccata; trigger Amen post-credits stinger!
+        }
+        if (this.musicMode === 'amen') {
+          this.amenFinished = true;
+          return null; // One-shot Palestrina Amen post-credits; never loops!
         }
         this.musicTrackIndex = (this.musicTrackIndex + 1) % MUSIC_TRACKS.length;
         return this.getMusicTrack().score;
@@ -107,8 +114,10 @@ class SoundEngine {
   }
 
   cycleMusicTrack() {
+    this.musicMode = 'bgm';
     this.playingPostlude = false;
     this.postludeFinished = false;
+    this.amenFinished = false;
     this.musicTrackIndex = (this.musicTrackIndex + 1) % MUSIC_TRACKS.length;
     const track = this.getMusicTrack();
     this.music.setScore(track.score);
@@ -124,24 +133,33 @@ class SoundEngine {
   }
 
   updateMusic(state, isFinalSeconds = false) {
-    // Automatically strike up Widor's Toccata as the cathedral organ postlude on "ITE, LUDUS FINITUS EST"!
-    const wantsPostlude = state === 'GAME_OVER';
-    if (wantsPostlude && !this.playingPostlude) {
-      this.playingPostlude = true;
+    // Route special post-match scores cleanly:
+    // - GAME_OVER: Widor Toccata cathedral organ postlude
+    // - POST_CREDITS: Palestrina Missa Papae Marcelli Gloria "Amen" (6-voice chiptune choir!)
+    const targetMode = state === 'GAME_OVER' ? 'widor' : state === 'POST_CREDITS' ? 'amen' : 'bgm';
+    if (targetMode !== this.musicMode) {
+      this.musicMode = targetMode;
+      this.playingPostlude = targetMode === 'widor';
       this.postludeFinished = false;
-      this.music.setScore(WIDOR_TOCCATA_SCORE, true);
-    } else if (!wantsPostlude && this.playingPostlude) {
-      this.playingPostlude = false;
-      this.postludeFinished = false;
-      this.music.setScore(this.getMusicTrack().score);
+      this.amenFinished = false;
+      if (targetMode === 'widor') {
+        this.music.setScore(WIDOR_TOCCATA_SCORE, true);
+      } else if (targetMode === 'amen') {
+        this.music.setScore(MARCELLI_AMEN_SCORE, true);
+      } else {
+        this.music.setScore(this.getMusicTrack().score);
+      }
     }
 
     if (this.muted || !this.music.enabled) return;
     if (state === 'BOOT') return;
-    if (this.playingPostlude && this.postludeFinished) return;
+    if (this.musicMode === 'widor' && this.postludeFinished) return;
+    if (this.musicMode === 'amen' && this.amenFinished) return;
     if (!this.ctx || this.ctx.state !== 'running') return;
 
-    if (state === 'GAME_OVER') {
+    if (state === 'POST_CREDITS') {
+      this.music.setMood({ tempoRate: 1.0, volume: 0.86 });
+    } else if (state === 'GAME_OVER') {
       this.music.setMood({ tempoRate: 1.0, volume: 0.78 });
     } else if (state === 'PAUSED') {
       this.music.setMood({ tempoRate: 0.92, volume: 0.26 });

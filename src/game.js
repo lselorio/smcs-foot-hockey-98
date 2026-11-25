@@ -3,6 +3,7 @@ import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
 import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js';
 import { pickBootChant, sound } from './audio.js';
+import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
   catchBall,
   clampPlayerToCourt,
@@ -39,6 +40,7 @@ export class FootHockeyGame {
     this.prevState = 'PLAYING';
     this.tick = 0;
     this.bootFrames = 0;
+    this.postCreditsFrames = 0;
     this.bootChant = pickBootChant(); // Randomly picks Gloria or Magnificat on bootup!
 
     this.score = { home: 0, away: 0 };
@@ -503,6 +505,12 @@ export class FootHockeyGame {
     }
     this.keys.add(code);
 
+    // Post-credits Palestrina "Amen" stinger is completely uninterruptible!
+    if (this.state === 'POST_CREDITS') {
+      sound.ensureContext();
+      return;
+    }
+
     if (code === 'KeyM') {
       const muted = sound.toggleMute();
       this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, muted ? 'AUDIO OFF' : 'AUDIO ON', '#ffe84d');
@@ -831,6 +839,19 @@ export class FootHockeyGame {
     sound.updateMusic('BOOT', false);
   }
 
+  // Uninterruptible secret post-credits stinger after Widor Toccata:
+  // SMCS crest rotates slowly and locks upright at the end of Palestrina's Missa Papae Marcelli Gloria "Amen"!
+  startPostCredits() {
+    this.isDemo = false;
+    this.titleIdleFrames = 0;
+    this.kickCharge = 0;
+    this.passTarget = null;
+    this.postCreditsFrames = 0;
+    sound.stopBootVoice();
+    this.state = 'POST_CREDITS';
+    sound.updateMusic('POST_CREDITS', false);
+  }
+
   // === MAIN FIXED-TIMESTEP UPDATE (60Hz) ===
   update() {
     this.tick++;
@@ -839,6 +860,15 @@ export class FootHockeyGame {
 
     // Keep live 4-voice chiptune Sicut Cervus synced with match state & final-seconds rush!
     sound.updateMusic(this.state, this.state === 'PLAYING' && this.clockFrames <= 15 * 60);
+
+    // Uninterruptible post-credits scene (Palestrina Missa Papae Marcelli "Amen" + rotating SMCS crest)!
+    if (this.state === 'POST_CREDITS') {
+      this.postCreditsFrames++;
+      if (this.postCreditsFrames >= MARCELLI_AMEN_TIMING.totalFrames) {
+        this.returnToBoot();
+      }
+      return;
+    }
 
     if (this.state === 'PAUSED') {
       if (input.statsPagePrevPressed) {
@@ -964,6 +994,11 @@ export class FootHockeyGame {
       this.titleIdleFrames++;
       if (input.replayIntroPressed) {
         sound.ensureContext();
+        // Shift+I on Title Screen lets you preview the secret Palestrina "Amen" post-credits stinger!
+        if (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) {
+          this.startPostCredits();
+          return;
+        }
         this.titleIdleFrames = 0;
         this.bootChant = pickBootChant(this.bootChant?.id);
         this.bootFrames = 0;
@@ -1165,9 +1200,9 @@ export class FootHockeyGame {
         }
         return;
       }
-      // Once Widor's Toccata finishes playing, return cleanly to the BOOT screen instead of restarting it!
+      // Once Widor's Toccata finishes playing, launch the uninterruptible Palestrina "Amen" post-credits scene!
       if (sound.consumePostludeFinished()) {
-        this.returnToBoot();
+        this.startPostCredits();
         return;
       }
       if (input.statsPagePrevPressed) {

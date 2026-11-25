@@ -15,6 +15,7 @@ import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
 import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';
 import { WIDOR_TOCCATA_SCORE } from '../src/music/widor-toccata.js';
+import { MARCELLI_AMEN_SCORE, MARCELLI_AMEN_TIMING } from '../src/music/marcelli-amen.js';
 import { ChiptuneChoirPlayer } from '../src/music-player.js';
 import { sound } from '../src/audio.js';
 
@@ -491,7 +492,22 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   postludeGame.state = 'GAME_OVER';
   postludeGame.stateTimer = 100;
   postludeGame.update();
-  assert.equal(postludeGame.state, 'BOOT', 'Finishing Widor Toccata on GAME_OVER should return to BOOT screen');
+  assert.equal(postludeGame.state, 'POST_CREDITS', 'Finishing Widor Toccata on GAME_OVER should launch the Amen post-credits scene');
+  assert.equal(sound.music.score, MARCELLI_AMEN_SCORE, 'POST_CREDITS should play Palestrina Missa Papae Marcelli Gloria Amen');
+  assert.equal(MARCELLI_AMEN_SCORE.tracks.length, 6, 'Missa Papae Marcelli Amen should have all 6 polyphonic voices');
+
+  // Verify POST_CREDITS cannot be interrupted by any button press!
+  for (const key of ['Enter', 'Space', 'Escape', 'KeyZ', 'KeyX', 'KeyP', 'KeyQ']) {
+    postludeGame.onKeyDown(key);
+    postludeGame.update();
+    postludeGame.onKeyUp(key);
+    assert.equal(postludeGame.state, 'POST_CREDITS', `Pressing ${key} must not interrupt the Amen post-credits scene`);
+  }
+
+  // Advance to the end of the Amen post-credits -> transitions cleanly to BOOT and restores regular BGM!
+  postludeGame.postCreditsFrames = MARCELLI_AMEN_TIMING.totalFrames - 1;
+  postludeGame.update();
+  assert.equal(postludeGame.state, 'BOOT', 'Finishing the Amen post-credits scene should return cleanly to BOOT');
   assert.equal(postludeGame.bootFrames, 0, 'Returning to BOOT should start the boot sequence fresh');
   assert.equal(sound.music.score, SICUT_CERVUS_SCORE, 'Returning to BOOT should restore regular BGM track');
   sound.music.playing = false;
