@@ -432,8 +432,16 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   // Opening "Glo-ri-a in ex-cel-sis De-o" pitches in Mode V (F Major): C5 C5 A4 G4 F4 G4 A4 G4 F4
   const opening = GLORIA_VIII_SCORE.tracks[0].notes.slice(0, 9).map((n) => n[2]);
   assert.deepEqual(opening, [72, 72, 69, 67, 65, 67, 69, 67, 65]);
-  // Final Amen includes the signature B-flat (70)
+  // Final Amen includes the signature B-flat (70) and smoothly ritards across its last 5 notes (Bb4 -> A4 -> G4 -> G4 -> F4)
   assert.ok(GLORIA_VIII_SCORE.tracks[0].notes.some((n) => n[2] === 70), 'Gloria VIII Amen should include Bb4');
+  const gloriaAmenTail = GLORIA_VIII_SCORE.tracks[0].notes.slice(-5);
+  assert.deepEqual(gloriaAmenTail.map((n) => n[2]), [70, 69, 67, 67, 65], 'Gloria VIII final 5 notes should be Bb4-A4-G4-G4-F4');
+  for (let i = 1; i < gloriaAmenTail.length; i++) {
+    assert.ok(
+      gloriaAmenTail[i][1] > gloriaAmenTail[i - 1][1],
+      `Gloria VIII Amen should smoothly ritard across last 5 notes (note ${i} dur=${gloriaAmenTail[i][1]} <= prev ${gloriaAmenTail[i - 1][1]})`
+    );
+  }
 
   // Verify Gregorian Salve Regina (Simple Tone, Mode V) 4-voice chiptune score!
   assert.equal(SALVE_REGINA_SCORE.tracks.length, 4, 'Salve Regina should have 4 SATB voices');

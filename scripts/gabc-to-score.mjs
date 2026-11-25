@@ -150,6 +150,21 @@ function parseGabc(gabc) {
     }
   }
 
+  // Graceful cathedral ritardando across the final 5 notes of the closing "Amen." (Bb4 -> A4 -> G4 -> G4. -> F4.)
+  const noteEvents = events.filter((e) => e.type === 'note');
+  const ritFactors = [1.18, 1.56, 1.88, 1.22, 1.50];
+  if (noteEvents.length >= ritFactors.length) {
+    const startIdx = noteEvents.length - ritFactors.length;
+    let curT = noteEvents[startIdx].start;
+    for (let k = 0; k < ritFactors.length; k++) {
+      const ev = noteEvents[startIdx + k];
+      ev.start = curT;
+      ev.dur *= ritFactors[k];
+      curT += ev.dur;
+    }
+    t = Math.max(t, curT + 0.72);
+  }
+
   return { events, totalDuration: t + 0.4 };
 }
 
