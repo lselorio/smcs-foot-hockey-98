@@ -939,11 +939,8 @@ export class FootHockeyGame {
       if (this.bootFrames === chant.voiceFrame) {
         sound.playBootVoice();
       }
-      const skip =
-        this.bootFrames > 14 &&
-        (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed);
-      if (skip || this.bootFrames >= chant.totalFrames) {
-        if (skip) sound.stopBootVoice();
+      // Boot intro is uninterruptible so everyone experiences the full crest spin, chant & "IN LUDO EST!"
+      if (this.bootFrames >= chant.totalFrames) {
         this.state = 'TITLE';
       }
       return;

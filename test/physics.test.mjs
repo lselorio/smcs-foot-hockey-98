@@ -824,7 +824,7 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
   assert.equal(game.stateTimer, 38, 'Pressing Enter on lineups card should immediately drop the faceoff ball');
 });
 
-test('boot intro spins SMCS crest then automatically transitions to TITLE (or skips on input)', () => {
+test('boot intro spins SMCS crest uninterruptibly then automatically transitions to TITLE', () => {
   const game = new FootHockeyGame();
   assert.equal(game.state, 'BOOT');
   assert.equal(game.bootFrames, 0);
@@ -901,14 +901,16 @@ test('boot intro spins SMCS crest then automatically transitions to TITLE (or sk
     }
   }
 
-  // Verify skipping on keypress after brief intro
-  const gameSkip = new FootHockeyGame();
-  for (let i = 0; i < 20; i++) gameSkip.update();
-  assert.equal(gameSkip.state, 'BOOT');
-  gameSkip.onKeyDown('Enter');
-  gameSkip.update();
-  gameSkip.onKeyUp('Enter');
-  assert.equal(gameSkip.state, 'TITLE');
+  // Verify BOOT intro cannot be skipped on keypress (everyone watches the full crest spin & "IN LUDO EST!")
+  const gameNoSkip = new FootHockeyGame();
+  for (let i = 0; i < 20; i++) gameNoSkip.update();
+  assert.equal(gameNoSkip.state, 'BOOT');
+  for (const key of ['Enter', 'Space', 'Escape', 'KeyZ', 'KeyX']) {
+    gameNoSkip.onKeyDown(key);
+    gameNoSkip.update();
+    gameNoSkip.onKeyUp(key);
+    assert.equal(gameNoSkip.state, 'BOOT', `Pressing ${key} must not skip the boot intro`);
+  }
 });
 
 test('66 Bond court has larger blacktop, asymmetrical 90-degree nets, and swaps nets between recesses', () => {
@@ -1264,7 +1266,12 @@ test('mobile touch controls: analog stick deadzone/clamping, context utility sho
   assert.equal(shouldEnableTouchMode({ maxTouchPoints: 0, coarsePointer: false, search: '?touch=1' }), true);
   assert.equal(shouldEnableTouchMode({ maxTouchPoints: 5, coarsePointer: true, search: '?touch=0' }), false);
 
-  // Context utility bar exposes the right actions for every screen
+  // Context utility bar exposes the right actions for every screen (and no SKIP on mobile BOOT!)
+  assert.deepEqual(
+    getUtilityButtonsForState('BOOT', false).map((b) => b.code),
+    ['KeyM'],
+    'Mobile BOOT utility strip should not offer a SKIP button'
+  );
   assert.deepEqual(
     getUtilityButtonsForState('PLAYING', false).map((b) => b.code),
     ['KeyP', 'KeyB', 'KeyN', 'KeyM']

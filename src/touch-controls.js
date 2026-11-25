@@ -56,7 +56,6 @@ export function getUtilityButtonsForState(state, isDemo = false) {
   }
   if (state === 'BOOT') {
     return [
-      { label: 'SKIP', code: 'Enter', tone: 'accent' },
       { label: 'MUTE', code: 'KeyM', tone: 'neutral' },
     ];
   }
@@ -178,6 +177,8 @@ export function initTouchControls(game, sound) {
     if (!code) return;
     sound.ensureContext();
     sound.preloadBootVoice();
+    // On mobile, let the full Gloria/Magnificat + "In Ludo Est!" boot intro play through (no skip via touch buttons!)
+    if (game.state === 'BOOT' && code !== 'KeyM') return;
     activeKeyPointers.set(pointerId, { code, el, isUtility });
     const count = heldKeyCounts.get(code) || 0;
     heldKeyCounts.set(code, count + 1);

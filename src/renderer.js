@@ -1186,10 +1186,10 @@ function renderBootIntro(ctx, game) {
     ctx.fillRect(Math.round(SCREEN_W / 2 - lineW / 2), 184, lineW, 2);
   }
 
-  // Subtle prompt ONLY if browser autoplay policy muted initial load so user can click to restart with sound
+  // Subtle prompt ONLY if browser autoplay policy muted initial load so user can tap/click to restart with sound
   if (!sound.isAudioUnlocked() && f < totalF - 30) {
     const pulse = Math.floor(f / 20) % 2 === 0 ? '#d0ad67' : '#7b87a8';
-    drawPixelText(ctx, 'CLICK FOR SOUND  -  ENTER: SKIP', SCREEN_W / 2, 224, pulse, 1, 'center', null);
+    drawPixelText(ctx, 'TAP OR CLICK FOR SOUND', SCREEN_W / 2, 224, pulse, 1, 'center', null);
   }
 
   // Smooth fade-out into Title Screen during final 28 frames
