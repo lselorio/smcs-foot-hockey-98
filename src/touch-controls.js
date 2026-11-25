@@ -2,6 +2,7 @@
 // Supports multi-touch analog thumbstick + SHOOT/PASS/CATCH buttons + context-aware utility bar!
 
 const MENU_STATES = new Set([
+  'START_GATE',
   'BOOT',
   'TITLE',
   'OPTIONS',
@@ -48,6 +49,11 @@ export function computeStickVector(dx, dy, maxRadius = 44, deadzone = 0.2) {
 
 // Context-aware 4-button utility strip so every screen is 100% playable on mobile!
 export function getUtilityButtonsForState(state, isDemo = false) {
+  if (state === 'START_GATE') {
+    return [
+      { label: 'TAP TO START', code: 'Enter', tone: 'accent' },
+    ];
+  }
   if (state === 'POST_CREDITS') {
     return [
       { label: 'MUTE', code: 'KeyM', tone: 'neutral' },
@@ -176,8 +182,8 @@ export function initTouchControls(game, sound) {
     if (!code) return;
     sound.ensureContext();
     sound.preloadBootVoice();
-    // On mobile, let the full Gloria/Magnificat + "In Ludo Est!" boot intro play through (no skip via touch buttons!)
-    if (game.state === 'BOOT' && code !== 'KeyM') return;
+    // On mobile, let START_GATE unlock audio cleanly via main.js and let BOOT play through uninterruptibly!
+    if ((game.state === 'START_GATE' || game.state === 'BOOT') && code !== 'KeyM') return;
     activeKeyPointers.set(pointerId, { code, el, isUtility });
     const count = heldKeyCounts.get(code) || 0;
     heldKeyCounts.set(code, count + 1);
@@ -206,6 +212,7 @@ export function initTouchControls(game, sound) {
   // Always forces a clean fresh key edge so rapid taps or state changes can never swallow a press!
   const tapUtilityKey = (pointerId, code, el) => {
     if (!code) return;
+    if (game.state === 'START_GATE' && code !== 'KeyM') return;
     sound.ensureContext();
     sound.preloadBootVoice();
     game.onKeyUp(code);

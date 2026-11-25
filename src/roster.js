@@ -322,6 +322,16 @@ export const CLASSMATES = [
     // Faster & harder shot than average, otherwise unskilled
     stats: { speed: 1.94, kick: 5.55, control: 0.66, hands: 0.65, reflex: 0.65, checking: 0.66 },
   },
+  {
+    name: 'BRINGAS',
+    skin: '#ba7e53',       // Filipino
+    hair: '#ba7e53',
+    hairStyle: 'bald',
+    sneakers: '#ffffff',
+    gloveColor: '#8c4b22',
+    // Average build/height, bald, mediocre stats across the board
+    stats: { speed: 1.70, kick: 4.65, control: 0.72, hands: 0.71, reflex: 0.70, checking: 0.70 },
+  },
 ];
 
 function shuffled(arr, rng = Math.random) {

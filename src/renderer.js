@@ -45,6 +45,11 @@ function getTeamLabel(game, teamKey) {
 export function renderGame(ctx, game) {
   ctx.imageSmoothingEnabled = false;
 
+  if (game.state === 'START_GATE') {
+    renderStartGate(ctx, game);
+    return;
+  }
+
   if (game.state === 'BOOT') {
     renderBootIntro(ctx, game);
     return;
@@ -1133,6 +1138,35 @@ function renderStartingLineups(ctx, game) {
     const prompt = game.isDemo ? 'DEMO MODE - PRESS ENTER TO PLAY' : 'ENTER/Z: DROP BALL   L: PICK TEAMS';
     drawPixelText(ctx, prompt, SCREEN_W / 2, y + 168, '#d9ff2e', 1, 'center');
   }
+}
+
+// Clean 16-bit cartridge power-on gate: one click/tap unlocks audio so the boot intro plays once cleanly with sound!
+function renderStartGate(ctx, game) {
+  ctx.fillStyle = '#070a14';
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // Subtle warm maroon/gold spotlight behind the title card
+  const grad = ctx.createRadialGradient(160, 108, 12, 160, 108, 140);
+  grad.addColorStop(0, 'rgba(134, 38, 51, 0.34)');
+  grad.addColorStop(0.55, 'rgba(208, 173, 103, 0.12)');
+  grad.addColorStop(1, 'rgba(7, 10, 20, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // Crisp gold-trimmed 16-bit arcade marquee frame
+  ctx.fillStyle = 'rgba(10, 15, 33, 0.92)';
+  ctx.fillRect(36, 54, SCREEN_W - 72, 74);
+  ctx.strokeStyle = '#d0ad67';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(37, 55, SCREEN_W - 74, 72);
+
+  drawPixelText(ctx, 'FOOT HOCKEY 98', SCREEN_W / 2, 72, '#ffe84d', 2, 'center');
+  drawPixelText(ctx, '66 BOND  -  ST. MICHAELS RECESS', SCREEN_W / 2, 104, '#9be8ff', 1, 'center');
+
+  // Gently pulsing start prompt
+  const pulse = Math.floor(game.tick / 26) % 2 === 0 ? '#d9ff2e' : '#f5e4b8';
+  drawPixelText(ctx, 'CLICK OR TAP TO START', SCREEN_W / 2, 166, pulse, 1, 'center');
+  drawPixelText(ctx, '(OR PRESS ANY KEY)', SCREEN_W / 2, 182, '#7b87a8', 1, 'center', null);
 }
 
 // Iconic 16-bit EA Sports-style Boot Splash with 360° spinning SMCS Circular Crest

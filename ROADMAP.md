@@ -9,7 +9,7 @@
      - **Elimination** — Classic St. Mike's schoolyard basketball elimination game on 66 Bond's hoops.
      - **Touch Football** — Schoolyard touch football across 66 Bond.
 
-2. **Classmate Roster & Player Attributes** *(26 St. Mike's classmates with Pick Teams, traits & REGULAR/DRESS uniforms; expand or tune attributes anytime)*
+2. **Classmate Roster & Player Attributes** *(27 St. Mike's classmates with Pick Teams, traits & REGULAR/DRESS uniforms; expand or tune attributes anytime)*
    - Distinct playable classmates with individualized player attributes (speed, kick power, ball control, catching/hands, goalie reflexes, checking, glasses & tall/short/beefy/thin builds).
 
 3. **Two Play Surfaces: "66 Bond" & "67 Bond"** *(66 Bond complete; 67 Bond lower priority for now)*

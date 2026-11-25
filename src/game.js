@@ -35,8 +35,8 @@ function createEmptyTeamStats() {
 const STATS_PAGES = ['team', 'players', 'summary'];
 
 export class FootHockeyGame {
-  constructor() {
-    this.state = 'BOOT'; // BOOT | TITLE | FACEOFF | RESTART | PLAYING | GOAL_CELEBRATION | PERIOD_END | GAME_OVER | PAUSED
+  constructor({ startOnGate = false } = {}) {
+    this.state = startOnGate ? 'START_GATE' : 'BOOT'; // START_GATE | BOOT | TITLE | FACEOFF | RESTART | PLAYING | GOAL_CELEBRATION | PERIOD_END | GAME_OVER | PAUSED | POST_CREDITS
     this.prevState = 'PLAYING';
     this.tick = 0;
     this.bootFrames = 0;
@@ -509,6 +509,18 @@ export class FootHockeyGame {
     }
     this.keys.add(code);
 
+    // Start gate waits for initial user click/tap/keypress so Web Audio unlocks before the boot intro!
+    if (this.state === 'START_GATE') {
+      if (code === 'KeyM') {
+        sound.toggleMute();
+      } else {
+        sound.ensureContext();
+        sound.preloadBootVoice();
+        this.beginBoot();
+      }
+      return;
+    }
+
     // Post-credits Palestrina "Amen" stinger is completely uninterruptible (only MUTE is allowed)!
     if (this.state === 'POST_CREDITS') {
       if (code === 'KeyM') {
@@ -874,6 +886,16 @@ export class FootHockeyGame {
     sound.playMenuSelect();
   }
 
+  beginBoot() {
+    this.isDemo = false;
+    this.titleIdleFrames = 0;
+    this.kickCharge = 0;
+    this.passTarget = null;
+    this.bootFrames = 0;
+    this.state = 'BOOT';
+    sound.updateMusic('BOOT', false);
+  }
+
   returnToBoot() {
     this.isDemo = false;
     this.titleIdleFrames = 0;
@@ -904,6 +926,16 @@ export class FootHockeyGame {
     this.tick++;
     const input = this.readInput();
     this.justPressed.clear();
+
+    // Waiting for initial click/tap/keypress to unlock audio and launch boot intro cleanly once!
+    if (this.state === 'START_GATE') {
+      if (input.startPressed || input.kickPressed || input.passPressed || input.catchPressed) {
+        sound.ensureContext();
+        sound.preloadBootVoice();
+        this.beginBoot();
+      }
+      return;
+    }
 
     // Keep live 4-voice chiptune Sicut Cervus synced with match state & final-seconds rush!
     sound.updateMusic(this.state, this.state === 'PLAYING' && this.clockFrames <= 15 * 60);

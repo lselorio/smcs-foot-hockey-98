@@ -703,11 +703,12 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
     'SANFORD',
     'TAYLOR',
     'ARPAD',
+    'BRINGAS',
   ];
   assert.deepEqual(
     CLASSMATES.map((c) => c.name),
     expectedNames,
-    'Master classmate roster should contain all 26 classmates'
+    'Master classmate roster should contain all 27 classmates'
   );
 
   // Verify ISTVAN is strictly the worst player in the game across every attribute by a clear margin!
@@ -749,6 +750,9 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
   assert.equal(brendan.stats.checking, Math.max(...CLASSMATES.map((c) => c.stats.checking)), 'Brendan should be the strongest beast on 66 Bond');
   assert.ok(brendan.stats.speed < 1.65 && brendan.stats.checking > ponesse.stats.checking, 'Brendan should be slow and unskilled but strongest overall');
   assert.ok(arpad.stats.speed > 1.90 && arpad.stats.kick >= 5.50 && arpad.stats.control < 0.70, 'Arpad should be fast with a hard shot, otherwise unskilled');
+  const bringas = CLASSMATES.find((c) => c.name === 'BRINGAS');
+  assert.equal(bringas.hairStyle, 'bald', 'Bringas should have the bald hairstyle');
+  assert.ok(bringas.stats.speed > 1.65 && bringas.stats.speed < 1.78 && bringas.stats.control < 0.78, 'Bringas should have mediocre stats');
   assert.equal(rich.preferredRole, 'HOOPS', 'Rich should be a permanent corner hoops regular');
   assert.equal(ernie.preferredRole, 'HOOPS', 'Ernie should be a permanent corner hoops regular');
   assert.equal(sanford.preferredRole, 'HOOPS', 'Sanford should be a permanent corner hoops regular');
@@ -900,6 +904,16 @@ test('boot intro spins SMCS crest uninterruptibly then automatically transitions
       assert.ok(!hockeySet.has(k.name), `Corner hoops kid ${k.name} must stay undrafted after custom pick`);
     }
   }
+
+  // Verify optional START_GATE waits for user interaction then enters BOOT cleanly once
+  const gatedGame = new FootHockeyGame({ startOnGate: true });
+  assert.equal(gatedGame.state, 'START_GATE');
+  for (let i = 0; i < 30; i++) gatedGame.update();
+  assert.equal(gatedGame.state, 'START_GATE', 'START_GATE should wait until user clicks/presses a key');
+  gatedGame.onKeyDown('Enter');
+  gatedGame.onKeyUp('Enter');
+  assert.equal(gatedGame.state, 'BOOT', 'Pressing a key on START_GATE should launch BOOT intro');
+  assert.equal(gatedGame.bootFrames, 0);
 
   // Verify BOOT intro cannot be skipped on keypress (everyone watches the full crest spin & "IN LUDO EST!")
   const gameNoSkip = new FootHockeyGame();

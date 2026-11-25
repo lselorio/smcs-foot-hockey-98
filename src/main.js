@@ -1,12 +1,12 @@
-import { FootHockeyGame } from './game.js?v=5';
-import { renderGame } from './renderer.js?v=5';
+import { FootHockeyGame } from './game.js?v=6';
+import { renderGame } from './renderer.js?v=6';
 import { sound } from './audio.js';
-import { initTouchControls } from './touch-controls.js?v=5';
+import { initTouchControls } from './touch-controls.js?v=6';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const padBadge = document.getElementById('pad-status');
-const game = new FootHockeyGame();
+const game = new FootHockeyGame({ startOnGate: true });
 const touchControls = initTouchControls(game, sound);
 if (typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location?.hostname || '')) {
   window.game = game;
@@ -41,8 +41,32 @@ const PREVENT_KEYS = new Set([
   'Tab',
 ]);
 
+let startingBoot = false;
+
+function triggerStartGate() {
+  if (game.state !== 'START_GATE' || startingBoot) return;
+  startingBoot = true;
+  const ctx = sound.ensureContext();
+  sound.preloadBootVoice();
+  const launch = () => {
+    startingBoot = false;
+    if (game.state === 'START_GATE') {
+      game.beginBoot();
+    }
+  };
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().then(launch).catch(launch);
+  } else {
+    launch();
+  }
+}
+
 window.addEventListener('keydown', (e) => {
   if (PREVENT_KEYS.has(e.code)) e.preventDefault();
+  if (game.state === 'START_GATE' && e.code !== 'KeyM') {
+    triggerStartGate();
+    return;
+  }
   sound.ensureContext();
   sound.preloadBootVoice();
   game.onKeyDown(e.code);
@@ -52,29 +76,18 @@ window.addEventListener('keyup', (e) => {
   game.onKeyUp(e.code);
 });
 
-// Immediately initialize audio on boot so sound plays automatically whenever browser allows it
+// Preload boot chants and voice clips immediately while waiting on the Start Gate
 sound.ensureContext();
 sound.preloadBootVoice();
 
-// Fallback unlock on first gesture if the browser's autoplay policy initially suspended audio.
-// If clicked during the boot intro while audio was still locked, restart the boot spin cleanly with sound!
+// Click or tap anywhere on the Start Gate unlocks audio and launches the boot intro cleanly once!
 window.addEventListener('pointerdown', () => {
-  const wasLocked = !sound.isAudioUnlocked();
-  const ctx = sound.ensureContext();
-  sound.preloadBootVoice();
-  if (wasLocked && game.state === 'BOOT') {
-    const restartWithSound = () => {
-      if (game.state === 'BOOT') {
-        sound.stopBootVoice();
-        game.bootFrames = 0; // Frame 1 immediately fires playBootChant() cleanly!
-      }
-    };
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume().then(restartWithSound).catch(() => {});
-    } else {
-      restartWithSound();
-    }
+  if (game.state === 'START_GATE') {
+    triggerStartGate();
+    return;
   }
+  sound.ensureContext();
+  sound.preloadBootVoice();
 });
 
 // Warm up browser speech synthesis voices asynchronously so the boot announcer has voices ready

@@ -451,9 +451,17 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   ctx.fillStyle = p.skin;
   ctx.fillRect(x - 4 - hw, hy, 8 + hw * 2, 6);
 
-  // Hair styles (classic 90s kids!)
+  // Hair styles (classic 90s kids — including clean bald dome!)
   ctx.fillStyle = p.hair;
-  if (p.hairStyle === 'cap') {
+  if (p.hairStyle === 'bald') {
+    // Smooth rounded bald crown with subtle sunlit scalp gleam
+    ctx.fillStyle = '#12151f';
+    ctx.fillRect(x - 3 - hw, hy - 2, 6 + hw * 2, 1);
+    ctx.fillStyle = p.skin;
+    ctx.fillRect(x - 3 - hw, hy - 1, 6 + hw * 2, 1);
+    ctx.fillStyle = 'rgba(255, 240, 220, 0.45)';
+    ctx.fillRect(x - 2, hy, 2, 1);
+  } else if (p.hairStyle === 'cap') {
     // Backwards or forwards 90s baseball cap
     ctx.fillStyle = team.primary;
     ctx.fillRect(x - 5 - hw, hy - 2, 10 + hw * 2, 3);
@@ -491,7 +499,7 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
       ctx.fillRect(x - 2 + (flipX > 0 ? 0 : -1), hy + 2, 1, 2);
       ctx.fillRect(x + 1 + (flipX > 0 ? 1 : 0), hy + 2, 1, 2);
     }
-  } else {
+  } else if (p.hairStyle !== 'bald') {
     // Hair covers back of head
     ctx.fillStyle = p.hair;
     ctx.fillRect(x - 4 - hw, hy + 1, 8 + hw * 2, 4);
@@ -680,8 +688,15 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
   ctx.fillStyle = g.skin;
   ctx.fillRect(gx - 4 - hw, hy, 8 + hw * 2, 6);
 
-  // Hair / Cap
-  if (g.hairStyle === 'cap') {
+  // Hair / Cap / Bald
+  if (g.hairStyle === 'bald') {
+    ctx.fillStyle = '#12151f';
+    ctx.fillRect(gx - 3 - hw, hy - 2, 6 + hw * 2, 1);
+    ctx.fillStyle = g.skin;
+    ctx.fillRect(gx - 3 - hw, hy - 1, 6 + hw * 2, 1);
+    ctx.fillStyle = 'rgba(255, 240, 220, 0.45)';
+    ctx.fillRect(gx - 2, hy, 2, 1);
+  } else if (g.hairStyle === 'cap') {
     ctx.fillStyle = team.primary;
     ctx.fillRect(gx - 5 - hw, hy - 2, 10 + hw * 2, 3);
     ctx.fillStyle = team.trim;
@@ -707,7 +722,7 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
       ctx.fillRect(gx - 2, hy + 2, 1, 2);
       ctx.fillRect(gx + 1, hy + 2, 1, 2);
     }
-  } else {
+  } else if (g.hairStyle !== 'bald') {
     ctx.fillStyle = g.hair;
     ctx.fillRect(gx - 4 - hw, hy + 1, 8 + hw * 2, 4);
   }
