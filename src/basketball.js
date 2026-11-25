@@ -415,7 +415,7 @@ export function updateCornerBasketball(hoops, game) {
         k.facingY = ny;
         k.kickTimer = 13;
         k.kickCooldown = 50;
-        game.onHoopsKickAway(k.x, k.y);
+        game.onHoopsKickAway(k.x, k.y, k.name);
         break;
       }
 
@@ -428,7 +428,7 @@ export function updateCornerBasketball(hoops, game) {
         ball.vx = nx * spd;
         ball.vy = ny * spd;
         ball.vz = Math.max(ball.vz, 1.4);
-        game.onHoopsInterference(ball.x, ball.y, 'HOOPS!');
+        game.onHoopsInterference(k.x, k.y, k.name ? `${k.name}!` : 'HOOPS!');
         break;
       }
     }

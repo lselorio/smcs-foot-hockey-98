@@ -1057,6 +1057,10 @@ test('66 Bond top-left corner basketball players stay active and deflect the ten
     game.update();
     if (hoopKid.kickTimer > 0 && Math.hypot(game.ball.vx, game.ball.vy) > 3.0) {
       kicked = true;
+      assert.ok(
+        game.callouts.some((c) => c.text === hoopKid.name),
+        `Kicking tennis ball should pop up the basketball classmate's name (${hoopKid.name}) near his foot`
+      );
     }
   }
   assert.ok(kicked, 'Basketball kid should sometimes boot a nearby tennis ball away');

@@ -2006,13 +2006,19 @@ export class FootHockeyGame {
   onHoopsInterference(x, y, label = 'HOOPS!') {
     sound.playBounce(0.95);
     this.spawnParticles(x, y, '#f58c38', 7);
-    this.addCallout(x, y - 14, label, '#f58c38');
+    const rotated = this.isCameraRotated();
+    this.addCallout(rotated ? x - 6 : x, rotated ? y : y + 6, label, '#ffe84d', 54);
   }
 
-  onHoopsKickAway(x, y) {
+  onHoopsKickAway(x, y, kidName = null) {
     sound.playKick(0.9);
     this.spawnParticles(x, y, '#f58c38', 8);
-    this.addCallout(x, y - 16, 'HEY!!', '#ff9642');
+    const rotated = this.isCameraRotated();
+    this.addCallout(rotated ? x + 16 : x, rotated ? y : y - 16, 'HEY!!', '#ff9642', 46);
+    if (kidName) {
+      // Pop the basketball classmate's name right near his foot so you know who booted it!
+      this.addCallout(rotated ? x - 6 : x, rotated ? y : y + 6, kidName, '#ffe84d', 58);
+    }
   }
 
   onGoalieSave(g, type, shooterTeam = null, shooterPlayer = null) {
@@ -2061,14 +2067,14 @@ export class FootHockeyGame {
     }
   }
 
-  addCallout(x, y, text, color) {
+  addCallout(x, y, text, color, life = 44) {
     const bounds = this.court.bounds;
     this.callouts.push({
       x: Math.max(bounds.left + 26, Math.min(bounds.right - 26, x)),
       y: Math.max(bounds.top + 12, Math.min(bounds.bottom - 12, y)),
       text,
       color,
-      life: 44,
+      life,
     });
   }
 
