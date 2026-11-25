@@ -55,9 +55,8 @@ export function getUtilityButtonsForState(state, isDemo = false) {
     ];
   }
   if (state === 'POST_CREDITS') {
-    return [
-      { label: 'MUTE', code: 'KeyM', tone: 'neutral' },
-    ];
+    // Pure reverence for Palestrina's Amen — no mute button!
+    return [];
   }
   if (state === 'BOOT') {
     // No skip and no mute during the sung Gloria/Magnificat boot intro!

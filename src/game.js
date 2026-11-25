@@ -521,13 +521,9 @@ export class FootHockeyGame {
       return;
     }
 
-    // Post-credits Palestrina "Amen" stinger is completely uninterruptible (only MUTE is allowed)!
+    // Post-credits Palestrina "Amen" stinger is completely uninterruptible & un-mutable!
     if (this.state === 'POST_CREDITS') {
-      if (code === 'KeyM') {
-        sound.toggleMute();
-      } else {
-        sound.ensureContext();
-      }
+      sound.ensureContext();
       return;
     }
 

@@ -1320,8 +1320,8 @@ test('mobile touch controls: analog stick deadzone/clamping, context utility sho
   );
   assert.deepEqual(
     getUtilityButtonsForState('POST_CREDITS', false).map((b) => b.code),
-    ['KeyM'],
-    'Mobile POST_CREDITS (Amen) utility strip should only show MUTE (no redundant AMEN button)'
+    [],
+    'Mobile POST_CREDITS (Amen) utility strip should show no buttons (never mute Palestrina!)'
   );
   assert.deepEqual(
     getUtilityButtonsForState('PLAYING', false).map((b) => b.code),
