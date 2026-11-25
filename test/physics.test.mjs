@@ -10,7 +10,7 @@ import {
   stepBallPhysics,
 } from '../src/physics.js';
 import { FootHockeyGame } from '../src/game.js';
-import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams } from '../src/roster.js';
+import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js';
 import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
 import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';
@@ -739,12 +739,22 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
   assert.equal(new Set(allNames).size, 8, 'All 8 drafted players in a match must be unique');
 
   for (const p of homePlayers) {
-    assert.equal(p.wearsJacket, false, 'Home team wears maroon school uniform without jacket');
+    assert.equal(p.wearsJacket, false, 'USER team wears clean St. Mikes school uniform');
   }
   for (const p of awayPlayers) {
-    assert.equal(p.wearsJacket, true, 'Away team wears colorful jacket over the maroon uniform');
-    assert.ok(p.coatColor && p.coatColor !== UNIFORM_COLORS.maroonShirt, 'Away jacket color must be distinct from maroon');
+    assert.equal(p.wearsJacket, false, 'CPU team wears clean contrasting St. Mikes uniform (no random outer jacket)');
+    assert.ok(p.jacketColor, 'Goalies still carry a colorful recess jacket blocker shield');
   }
+
+  // Verify clean contrasting St. Mike's uniform pairing:
+  // - Regular mode: USER & corner hoops wear maroon/blue; CPU wears dress without blazer (white shirt/maroon tie/grey pants)
+  // - Dress mode:   USER wears dress blazer; CPU wears maroon/blue; corner hoops wear dress without blazer
+  assert.equal(resolveUniformKit('home', 'default'), 'default');
+  assert.equal(resolveUniformKit('away', 'default'), 'dress_no_blazer');
+  assert.equal(resolveUniformKit('hoops', 'default'), 'default');
+  assert.equal(resolveUniformKit('home', 'dress'), 'dress_blazer');
+  assert.equal(resolveUniformKit('away', 'dress'), 'default');
+  assert.equal(resolveUniformKit('hoops', 'dress'), 'dress_no_blazer');
 
   // Default uniform mode should be everyday uniform ('default'), with optional 'dress' toggle
   const game = new FootHockeyGame();

@@ -542,7 +542,7 @@ export class FootHockeyGame {
   toggleUniformMode() {
     this.uniformMode = this.uniformMode === 'default' ? 'dress' : 'default';
     sound.playMenuSelect();
-    const label = this.uniformMode === 'dress' ? 'DRESS UNIFORM' : 'DEFAULT UNIFORM';
+    const label = this.uniformMode === 'dress' ? 'DRESS UNIFORM' : 'REGULAR UNIFORM';
     this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, label, '#ffd84d');
     return this.uniformMode;
   }

@@ -9,13 +9,30 @@ export const UNIFORM_COLORS = {
   tie: '#4a0b17',           // Slightly darker maroon tie
   bluePants: '#234a85',     // Classic school uniform blue pants!
 
-  // Optional Dress Uniform (Mass / concert days): maroon blazer, white shirt, tie, charcoal pants
+  // Optional Dress Uniform (Mass / concert days): maroon blazer, white shirt, maroon tie, grey pants
+  // (CPU wears dress uniform without blazer — white shirt, maroon tie, grey pants — when USER wears default!)
   maroon: '#75182a',
   maroonShade: '#59101f',
   whiteShirt: '#f4f7fc',
+  whiteShirtShade: '#cdd6e6',
+  dressTie: '#7d1a2e',      // Crisp maroon tie popping cleanly against the white shirt
   crest: '#e0b84c',
-  dressPants: '#3a3f4b',
+  dressPants: '#828b9c',    // Classic St. Mike's school-uniform grey trousers
 };
+
+// Resolve which St. Mike's uniform kit a player wears based on team & user uniformMode:
+// - REGULAR ('default'): USER wears maroon/blue; CPU wears white-shirt dress (no blazer); corner hoops wear maroon/blue
+// - DRESS ('dress'):     USER wears maroon blazer/grey; CPU wears maroon/blue; corner hoops wear white-shirt dress (no blazer)
+export function resolveUniformKit(team, uniformMode = 'default') {
+  const isDress = uniformMode === 'dress';
+  if (team === 'hoops') {
+    return isDress ? 'dress_no_blazer' : 'default';
+  }
+  if (team === 'away') {
+    return isDress ? 'default' : 'dress_no_blazer';
+  }
+  return isDress ? 'dress_blazer' : 'default';
+}
 
 // Vibrant non-maroon 80s/90s schoolyard jackets (guaranteed distinct from maroon uniforms!)
 export const JACKET_PALETTE = [
@@ -339,15 +356,14 @@ function assembleTeams(homeRoster, awayRoster, undraftedPlayers, rng = Math.rand
   });
 
   const awayPlayers = awayRoster.map((mate, i) => {
-    const coat = jacketChoices[i % jacketChoices.length];
     const shield = jacketChoices[(i + 2) % jacketChoices.length];
     return {
       ...mate,
       id: `a_${ROLE_SUFFIX[i]}`,
       role: ROLES[i],
-      wearsJacket: true, // Wearing the maroon uniform + tie UNDER a random colorful jacket!
-      coatColor: coat.color,
-      coatTrim: coat.trim,
+      wearsJacket: false, // Contrasting St. Mike's uniform (dress without blazer vs default)!
+      coatColor: null,
+      coatTrim: null,
       jacketColor: shield.color,
       jacketTrim: shield.trim,
       stats: { ...mate.stats },
@@ -444,7 +460,7 @@ export const TEAMS = {
     secondary: UNIFORM_COLORS.whiteShirt,
     trim: '#ffd84d',
     ringColor: '#48c6ff',
-    wearsJacket: true,
+    wearsJacket: false,
     players: initialDraft.awayPlayers,
   },
 };

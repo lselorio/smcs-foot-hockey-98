@@ -1447,9 +1447,9 @@ function renderTeamSelectScreen(ctx, game) {
   const previewEntity = {
     ...mate,
     team: isHomeSlot ? 'home' : 'away',
-    wearsJacket: !isHomeSlot,
-    coatColor: !isHomeSlot ? '#1f78d1' : null,
-    coatTrim: !isHomeSlot ? '#124b8a' : null,
+    wearsJacket: false,
+    coatColor: null,
+    coatTrim: null,
     jacketColor: '#22a05b',
     jacketTrim: '#146638',
     x: px,
@@ -1549,7 +1549,7 @@ function renderOptionsScreen(ctx, game) {
   const rows = [
     {
       label: 'UNIFORMS',
-      value: game.uniformMode === 'dress' ? 'DRESS BLAZER' : 'DEFAULT',
+      value: game.uniformMode === 'dress' ? 'DRESS' : 'REGULAR',
       color: '#ffd84d',
     },
     {
