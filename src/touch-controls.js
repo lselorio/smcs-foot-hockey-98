@@ -60,9 +60,8 @@ export function getUtilityButtonsForState(state, isDemo = false) {
     ];
   }
   if (state === 'BOOT') {
-    return [
-      { label: 'MUTE', code: 'KeyM', tone: 'neutral' },
-    ];
+    // No skip and no mute during the sung Gloria/Magnificat boot intro!
+    return [];
   }
   if (state === 'TITLE') {
     return [
@@ -182,8 +181,12 @@ export function initTouchControls(game, sound) {
     if (!code) return;
     sound.ensureContext();
     sound.preloadBootVoice();
-    // On mobile, let START_GATE unlock audio cleanly via main.js and let BOOT play through uninterruptibly!
-    if ((game.state === 'START_GATE' || game.state === 'BOOT') && code !== 'KeyM') return;
+    // On mobile, let START_GATE unlock audio cleanly and let BOOT play through uninterruptibly (no mute/skip)!
+    if (game.state === 'START_GATE') {
+      game.beginBoot();
+      return;
+    }
+    if (game.state === 'BOOT') return;
     activeKeyPointers.set(pointerId, { code, el, isUtility });
     const count = heldKeyCounts.get(code) || 0;
     heldKeyCounts.set(code, count + 1);
@@ -212,9 +215,12 @@ export function initTouchControls(game, sound) {
   // Always forces a clean fresh key edge so rapid taps or state changes can never swallow a press!
   const tapUtilityKey = (pointerId, code, el) => {
     if (!code) return;
-    if (game.state === 'START_GATE' && code !== 'KeyM') return;
     sound.ensureContext();
     sound.preloadBootVoice();
+    if (game.state === 'START_GATE') {
+      game.beginBoot();
+      return;
+    }
     game.onKeyUp(code);
     game.onKeyDown(code);
     if (el) el.classList.add('pressed');

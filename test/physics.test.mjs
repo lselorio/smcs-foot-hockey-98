@@ -1312,11 +1312,11 @@ test('mobile touch controls: analog stick deadzone/clamping, context utility sho
   assert.equal(shouldEnableTouchMode({ maxTouchPoints: 0, coarsePointer: false, search: '?touch=1' }), true);
   assert.equal(shouldEnableTouchMode({ maxTouchPoints: 5, coarsePointer: true, search: '?touch=0' }), false);
 
-  // Context utility bar exposes the right actions for every screen (and no SKIP on mobile BOOT or AMEN on POST_CREDITS!)
+  // Context utility bar exposes the right actions for every screen (no SKIP or MUTE on mobile BOOT, no redundant AMEN on POST_CREDITS!)
   assert.deepEqual(
     getUtilityButtonsForState('BOOT', false).map((b) => b.code),
-    ['KeyM'],
-    'Mobile BOOT utility strip should not offer a SKIP button'
+    [],
+    'Mobile BOOT utility strip should show neither SKIP nor MUTE'
   );
   assert.deepEqual(
     getUtilityButtonsForState('POST_CREDITS', false).map((b) => b.code),

@@ -1,7 +1,7 @@
-import { FootHockeyGame } from './game.js?v=7';
-import { renderGame } from './renderer.js?v=7';
+import { FootHockeyGame } from './game.js?v=8';
+import { renderGame } from './renderer.js?v=8';
 import { sound } from './audio.js';
-import { initTouchControls } from './touch-controls.js?v=7';
+import { initTouchControls } from './touch-controls.js?v=8';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -41,23 +41,11 @@ const PREVENT_KEYS = new Set([
   'Tab',
 ]);
 
-let startingBoot = false;
-
 function triggerStartGate() {
-  if (game.state !== 'START_GATE' || startingBoot) return;
-  startingBoot = true;
-  const ctx = sound.ensureContext();
+  sound.ensureContext();
   sound.preloadBootVoice();
-  const launch = () => {
-    startingBoot = false;
-    if (game.state === 'START_GATE') {
-      game.beginBoot();
-    }
-  };
-  if (ctx && ctx.state === 'suspended') {
-    ctx.resume().then(launch).catch(launch);
-  } else {
-    launch();
+  if (game.state === 'START_GATE') {
+    game.beginBoot();
   }
 }
 
@@ -80,15 +68,18 @@ window.addEventListener('keyup', (e) => {
 sound.ensureContext();
 sound.preloadBootVoice();
 
-// Click or tap anywhere on the Start Gate unlocks audio and launches the boot intro cleanly once!
-window.addEventListener('pointerdown', () => {
+// Unlock audio cleanly on pointerdown, pointerup, and click (Android Chrome & iOS Safari require touchend/click for user activation!)
+const onUserGesture = () => {
   if (game.state === 'START_GATE') {
     triggerStartGate();
     return;
   }
   sound.ensureContext();
   sound.preloadBootVoice();
-});
+};
+window.addEventListener('pointerdown', onUserGesture);
+window.addEventListener('pointerup', onUserGesture);
+window.addEventListener('click', onUserGesture);
 
 // Warm up browser speech synthesis voices asynchronously so the boot announcer has voices ready
 if (typeof window !== 'undefined' && window.speechSynthesis) {

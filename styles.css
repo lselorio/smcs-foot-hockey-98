@@ -182,6 +182,7 @@ body.touch-mode .touch-utility {
   gap: 6px;
   width: 100%;
   max-width: 460px;
+  min-height: 38px;
 }
 
 .touch-util-btn {
@@ -428,6 +429,7 @@ body.touch-mode .touch-controls {
   body.touch-mode .touch-utility {
     max-width: 380px;
     gap: 5px;
+    min-height: 34px;
   }
 
   .touch-util-btn {
