@@ -2,7 +2,7 @@ import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from
 import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
 import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js';
-import { MUSIC_TRACKS, pickBootChant, sound } from './audio.js';
+import { MUSIC_TRACKS, pickBootChant, sound } from './audio.js?v=10';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
   catchBall,
@@ -511,19 +511,15 @@ export class FootHockeyGame {
 
     // Start gate waits for initial user click/tap/keypress so Web Audio unlocks before the boot intro!
     if (this.state === 'START_GATE') {
-      if (code === 'KeyM') {
-        sound.toggleMute();
-      } else {
-        sound.ensureContext();
-        sound.preloadBootVoice();
-        this.beginBoot();
-      }
+      sound.ensureContext(true);
+      sound.preloadBootVoice();
+      this.beginBoot();
       return;
     }
 
-    // Post-credits Palestrina "Amen" stinger is completely uninterruptible & un-mutable!
-    if (this.state === 'POST_CREDITS') {
-      sound.ensureContext();
+    // Both the Gloria/Magnificat boot intro AND Palestrina "Amen" are uninterruptible & un-mutable!
+    if (this.state === 'BOOT' || this.state === 'POST_CREDITS') {
+      sound.ensureContext(true);
       return;
     }
 

@@ -12,7 +12,7 @@ import {
   drawTennisBall,
 } from './sprites.js';
 import { drawSpinningSmcsCrest } from './smcs-crest.js';
-import { sound } from './audio.js';
+import { sound } from './audio.js?v=10';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
   HOOPS_TEAM_STYLE,

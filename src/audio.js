@@ -103,10 +103,11 @@ class SoundEngine {
     this.bootChantsLoading = false;
     this.bootChantSource = null;
     this.pendingBootChantId = null;
+    this.savedMusicEnabled = null;
   }
 
-  ensureContext() {
-    if (this.muted) return null;
+  ensureContext(ignoreMute = false) {
+    if (this.muted && !ignoreMute) return null;
     if (!this.ctx && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return null;
@@ -117,7 +118,7 @@ class SoundEngine {
       this.ctx
         .resume()
         .then(() => {
-          if (this.pendingBootChantId && !this.muted && this.ctx?.state === 'running') {
+          if (this.pendingBootChantId && this.ctx?.state === 'running') {
             const chantId = this.pendingBootChantId;
             if (this.bootChantBuffers.has(chantId)) {
               this.pendingBootChantId = null;
@@ -179,23 +180,43 @@ class SoundEngine {
   updateMusic(state, isFinalSeconds = false) {
     // Route special post-match scores cleanly:
     // - GAME_OVER: Widor Toccata cathedral organ postlude
-    // - POST_CREDITS: Palestrina Missa Papae Marcelli Gloria "Amen" (6-voice chiptune choir!)
+    // - POST_CREDITS: Palestrina Missa Papae Marcelli Gloria "Amen" (6-voice chiptune choir — NEVER muted!)
     const targetMode = state === 'GAME_OVER' ? 'widor' : state === 'POST_CREDITS' ? 'amen' : 'bgm';
     if (targetMode !== this.musicMode) {
+      const leavingAmen = this.musicMode === 'amen';
       this.musicMode = targetMode;
       this.playingPostlude = targetMode === 'widor';
       this.postludeFinished = false;
       this.amenFinished = false;
-      if (targetMode === 'widor') {
-        this.music.setScore(WIDOR_TOCCATA_SCORE, true);
-      } else if (targetMode === 'amen') {
+      if (targetMode === 'amen') {
+        // Palestrina's Amen always plays at full glory even if gameplay audio/BGM was muted!
+        this.savedMusicEnabled = this.music.enabled;
+        this.music.enabled = true;
+        this.music.setMuted(false);
+        this.ensureContext(true);
         this.music.setScore(MARCELLI_AMEN_SCORE, true);
       } else {
-        this.music.setScore(this.getMusicTrack().score);
+        if (leavingAmen && this.savedMusicEnabled !== null) {
+          this.music.enabled = this.savedMusicEnabled;
+          this.savedMusicEnabled = null;
+        }
+        this.music.setMuted(this.muted);
+        if (targetMode === 'widor') {
+          this.music.setScore(WIDOR_TOCCATA_SCORE, true);
+        } else {
+          this.music.setScore(this.getMusicTrack().score);
+        }
       }
     }
 
-    if (this.muted || !this.music.enabled) return;
+    const isAmen = state === 'POST_CREDITS';
+    if (isAmen) {
+      this.music.enabled = true;
+      this.music.setMuted(false);
+      this.ensureContext(true);
+    } else if (this.muted || !this.music.enabled) {
+      return;
+    }
     if (state === 'BOOT') return;
     if (this.musicMode === 'widor' && this.postludeFinished) return;
     if (this.musicMode === 'amen' && this.amenFinished) return;
@@ -226,8 +247,8 @@ class SoundEngine {
     this.music.tick(this.ctx);
   }
 
-  tone(freqStart, freqEnd, duration, type = 'square', volume = 0.14, delay = 0) {
-    const ctx = this.ensureContext();
+  tone(freqStart, freqEnd, duration, type = 'square', volume = 0.14, delay = 0, ignoreMute = false) {
+    const ctx = this.ensureContext(ignoreMute);
     if (!ctx) return;
     const now = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
@@ -420,8 +441,8 @@ class SoundEngine {
       [587.33, 0.20, 0.55], // D5 triumphant brass/organ finish!
     ];
     for (const [f, d, dur] of chord) {
-      this.tone(f, f, dur, 'sawtooth', 0.09, d);
-      this.tone(f * 0.5, f * 0.5, dur, 'triangle', 0.09, d);
+      this.tone(f, f, dur, 'sawtooth', 0.09, d, true);
+      this.tone(f * 0.5, f * 0.5, dur, 'triangle', 0.09, d, true);
     }
   }
 
@@ -435,7 +456,7 @@ class SoundEngine {
     ) {
       return;
     }
-    const ctx = this.ensureContext();
+    const ctx = this.ensureContext(true);
     if (!ctx) return;
     this.bootChantsLoading = true;
     try {
@@ -450,7 +471,7 @@ class SoundEngine {
               const arr = await res.arrayBuffer();
               const buf = await decodeAudioBuffer(ctx, arr);
               this.bootChantBuffers.set(chant.id, buf);
-              if (this.pendingBootChantId === chant.id && !this.muted && ctx.state === 'running') {
+              if (this.pendingBootChantId === chant.id && ctx.state === 'running') {
                 this.pendingBootChantId = null;
                 this.playBootChant(chant.id);
               }
@@ -469,7 +490,7 @@ class SoundEngine {
   async preloadBootVoice() {
     this.preloadBootChants();
     if (this.bootVoiceLoading || this.bootVoiceBuffer || typeof fetch === 'undefined') return;
-    const ctx = this.ensureContext();
+    const ctx = this.ensureContext(true);
     if (!ctx) return;
     this.bootVoiceLoading = true;
     try {
@@ -497,9 +518,9 @@ class SoundEngine {
   }
 
   playBootChant(chantId = 'gloria') {
-    if (this.muted) return false;
+    // Boot chants (Gloria & Magnificat) ALWAYS play — never muted!
     this.stopBootChant();
-    const ctx = this.ensureContext();
+    const ctx = this.ensureContext(true);
     if (!ctx) return false;
     const buf = this.bootChantBuffers.get(chantId);
     if (!buf) {
@@ -559,12 +580,12 @@ class SoundEngine {
   // Uses custom assets/audio/boot-voice.{ogg,mp3,wav} (with 1994 Genesis crunch + arena echo) if present,
   // otherwise falls back to browser Web Speech API pitched down into a deep baritone!
   playBootVoice() {
-    if (this.muted) return;
+    // Boot announcer ("IN LUDO EST!") ALWAYS plays — never muted!
     this.stopBootVoice();
 
     // Path 1: Mastered neural/recorded voice sample (assets/audio/boot-voice.ogg) — clean & punchy!
     if (this.bootVoiceBuffer) {
-      const ctx = this.ensureContext();
+      const ctx = this.ensureContext(true);
       if (!ctx) return;
       const src = ctx.createBufferSource();
       src.buffer = this.bootVoiceBuffer;
@@ -589,8 +610,8 @@ class SoundEngine {
     }
 
     // Subtle dramatic sub-bass trailer boom underneath the announcer's voice!
-    this.tone(72, 46, 0.75, 'sine', 0.24, 0.0);
-    this.tone(110, 73, 0.55, 'triangle', 0.10, 0.05);
+    this.tone(72, 46, 0.75, 'sine', 0.24, 0.0, true);
+    this.tone(110, 73, 0.55, 'triangle', 0.10, 0.05, true);
 
     const voices = window.speechSynthesis.getVoices() || [];
     // Prefer deep English/North American male voices (never Italian accent!)

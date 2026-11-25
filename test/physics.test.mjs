@@ -20,7 +20,7 @@ import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';
 import { WIDOR_TOCCATA_SCORE } from '../src/music/widor-toccata.js';
 import { MARCELLI_AMEN_SCORE, MARCELLI_AMEN_TIMING } from '../src/music/marcelli-amen.js';
 import { ChiptuneChoirPlayer } from '../src/music-player.js';
-import { BOOT_CHANTS, getAudioCandidates, getAudioFormatOrder, sound } from '../src/audio.js';
+import { BOOT_CHANTS, getAudioCandidates, getAudioFormatOrder, sound } from '../src/audio.js?v=10';
 import {
   computeStickVector,
   getUtilityButtonsForState,
@@ -582,6 +582,10 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   assert.equal(sound.music.score, SICUT_CERVUS_SCORE, 'Returning to BOOT should restore regular BGM track');
 
   // Dedicated Final Screen option: pressing I (or Shift+I) on GAME_OVER launches Amen -> TITLE!
+  // Even if the user had muted audio or turned BGM off, Amen ALWAYS plays unmuted, then restores mute state on TITLE!
+  sound.muted = true;
+  sound.music.setMuted(true);
+  sound.music.enabled = false;
   postludeGame.state = 'GAME_OVER';
   postludeGame.stateTimer = 10;
   postludeGame.onKeyDown('KeyI');
@@ -589,9 +593,21 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
   postludeGame.onKeyUp('KeyI');
   assert.equal(postludeGame.state, 'POST_CREDITS', 'Pressing I on GAME_OVER should launch the Amen exit screen');
   assert.equal(postludeGame.postCreditsNextState, 'TITLE', 'I:AMEN on GAME_OVER should finish on TITLE');
+  assert.equal(sound.music.muted, false, 'Palestrina Amen must NEVER be muted even if gameplay audio was muted');
+  assert.equal(sound.music.enabled, true, 'Palestrina Amen must ALWAYS play even if gameplay BGM was turned off');
+  // Pressing M during Amen or Boot must NOT toggle mute!
+  postludeGame.onKeyDown('KeyM');
+  postludeGame.onKeyUp('KeyM');
+  assert.equal(sound.music.muted, false, 'Pressing M during Amen must not mute Palestrina');
   postludeGame.postCreditsFrames = MARCELLI_AMEN_TIMING.totalFrames - 1;
   postludeGame.update();
   assert.equal(postludeGame.state, 'TITLE', 'Amen triggered via I on GAME_OVER should land cleanly on TITLE');
+  assert.equal(sound.music.muted, true, 'User gameplay mute preference should restore cleanly after Amen finishes');
+  assert.equal(sound.music.enabled, false, 'User gameplay BGM-off preference should restore cleanly after Amen finishes');
+  // Clean up test audio state back to defaults
+  sound.muted = false;
+  sound.music.setMuted(false);
+  sound.music.enabled = true;
   sound.music.playing = false;
 });
 
