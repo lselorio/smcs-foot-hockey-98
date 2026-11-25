@@ -1246,7 +1246,7 @@ function renderPostCredits(ctx, game) {
     ctx.restore();
   }
 
-  // Gentle fade-in over first 30 frames & smooth fade-out over final 54 frames into BOOT
+  // Gentle fade-in over first 30 frames & smooth fade-out over final 54 frames into TITLE or BOOT
   if (f < 30) {
     const fadeIn = 1 - f / 30;
     ctx.fillStyle = `rgba(5, 7, 16, ${fadeIn.toFixed(2)})`;
@@ -1892,9 +1892,9 @@ function renderStatsModal(ctx, game, { isFinal }) {
       const lockRemaining = MATCH.gameOverLockFrames - (game.stateTimer || 0);
       if (lockRemaining > 0) {
         const remSec = Math.max(1, Math.ceil(lockRemaining / 60));
-        drawPixelText(ctx, `</>:BROWSE STATS   CONTINUE IN ${remSec}S`, SCREEN_W / 2, y + 189, '#9be8ff', 1, 'center');
-      } else if (Math.floor(game.tick / 22) % 2 === 0) {
-        drawPixelText(ctx, '</>:PAGE  ENTER/Z:REMATCH  Q/ESC:TITLE', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
+        drawPixelText(ctx, `</>:PAGE  I:AMEN  CONTINUE IN ${remSec}S`, SCREEN_W / 2, y + 189, '#9be8ff', 1, 'center');
+      } else {
+        drawPixelText(ctx, '</>:PAGE  ENTER:REMATCH  Q:TITLE  I:AMEN', SCREEN_W / 2, y + 189, '#d9ff2e', 1, 'center');
       }
     }
   } else {

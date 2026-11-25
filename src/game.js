@@ -41,6 +41,8 @@ export class FootHockeyGame {
     this.tick = 0;
     this.bootFrames = 0;
     this.postCreditsFrames = 0;
+    this.postCreditsNextState = 'TITLE'; // 'TITLE' | 'BOOT' after Amen post-credits finishes
+    this.matchCompleted = false;         // true when all 3 recess periods finished naturally; false if quit early
     this.bootChant = pickBootChant(); // Randomly picks Gloria or Magnificat on bootup!
 
     this.score = { home: 0, away: 0 };
@@ -258,6 +260,7 @@ export class FootHockeyGame {
   startNewMatch(demo = false, customRoster = null) {
     // Draft a fresh collection of classmates (or apply player-chosen custom lineups!)
     this.isDemo = Boolean(demo);
+    this.matchCompleted = false;
     this.titleIdleFrames = 0;
     this.initRoster(true, customRoster);
     this.score = { home: 0, away: 0 };
@@ -818,18 +821,19 @@ export class FootHockeyGame {
     sound.playMenuSelect();
   }
 
-  returnToTitle() {
+  returnToTitle(silent = false) {
     this.isDemo = false;
     this.titleIdleFrames = 0;
     this.kickCharge = 0;
     this.passTarget = null;
     this.state = 'TITLE';
     sound.updateMusic('TITLE', false);
-    sound.playMenuSelect();
+    if (!silent) sound.playMenuSelect();
   }
 
   endMatchEarly() {
     this.isDemo = false;
+    this.matchCompleted = false;
     this.kickCharge = 0;
     this.passTarget = null;
     this.state = 'GAME_OVER';
@@ -850,14 +854,15 @@ export class FootHockeyGame {
     sound.updateMusic('BOOT', false);
   }
 
-  // Uninterruptible secret post-credits stinger after Widor Toccata:
-  // SMCS crest rotates slowly and locks upright at the end of Palestrina's Missa Papae Marcelli Gloria "Amen"!
-  startPostCredits() {
+  // Uninterruptible Palestrina Missa Papae Marcelli Gloria "Amen" exit screen:
+  // SMCS crest rotates slowly and locks upright on the final C Major chord, then proceeds to TITLE (or BOOT after full Widor postlude).
+  startPostCredits(nextState = 'TITLE') {
     this.isDemo = false;
     this.titleIdleFrames = 0;
     this.kickCharge = 0;
     this.passTarget = null;
     this.postCreditsFrames = 0;
+    this.postCreditsNextState = nextState === 'BOOT' ? 'BOOT' : 'TITLE';
     sound.stopBootVoice();
     this.state = 'POST_CREDITS';
     sound.updateMusic('POST_CREDITS', false);
@@ -876,7 +881,11 @@ export class FootHockeyGame {
     if (this.state === 'POST_CREDITS') {
       this.postCreditsFrames++;
       if (this.postCreditsFrames >= MARCELLI_AMEN_TIMING.totalFrames) {
-        this.returnToBoot();
+        if (this.postCreditsNextState === 'BOOT') {
+          this.returnToBoot();
+        } else {
+          this.returnToTitle(true);
+        }
       }
       return;
     }
@@ -1211,13 +1220,16 @@ export class FootHockeyGame {
         }
         return;
       }
-      // Once Widor's Toccata finishes playing (or on Shift+I shortcut), launch the uninterruptible Palestrina "Amen" post-credits scene!
-      if (
-        sound.consumePostludeFinished() ||
-        (input.replayIntroPressed && (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')))
-      ) {
+      // Once Widor's Toccata finishes naturally, launch Amen -> Boot -> Title!
+      if (sound.consumePostludeFinished()) {
         sound.ensureContext();
-        this.startPostCredits();
+        this.startPostCredits('BOOT');
+        return;
+      }
+      // Dedicated Final Screen option: press I (or Shift+I) anytime for Amen -> Title!
+      if (input.replayIntroPressed) {
+        sound.ensureContext();
+        this.startPostCredits('TITLE');
         return;
       }
       if (input.statsPagePrevPressed) {
@@ -1241,7 +1253,14 @@ export class FootHockeyGame {
         return;
       }
       if (input.quitPressed || input.escapePressed) {
-        this.returnToTitle();
+        if (this.matchCompleted) {
+          // Completed all 3 recess periods: Q/Esc closes gracefully through Amen -> Title!
+          sound.ensureContext();
+          this.startPostCredits('TITLE');
+        } else {
+          // Quit early from Pause: Q/Esc returns directly to Title.
+          this.returnToTitle();
+        }
         return;
       }
       if (input.startPressed || input.kickPressed || input.passPressed) {
@@ -1262,6 +1281,7 @@ export class FootHockeyGame {
         this.state = 'PERIOD_END';
         this.stateTimer = 75;
       } else {
+        this.matchCompleted = true;
         this.state = 'GAME_OVER';
         this.stateTimer = 0;
       }

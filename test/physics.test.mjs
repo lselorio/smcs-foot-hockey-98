@@ -315,7 +315,7 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   game.onKeyUp('Escape');
   assert.equal(game.state, 'PLAYING');
 
-  // Pause and press Q -> ends match cleanly into GAME_OVER final stats (with Widor Toccata)!
+  // Pause and press Q -> ends match early into GAME_OVER final stats (with Widor Toccata)!
   game.onKeyDown('KeyP');
   game.update();
   game.onKeyUp('KeyP');
@@ -324,12 +324,13 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
   game.update();
   game.onKeyUp('KeyQ');
   assert.equal(game.state, 'GAME_OVER', 'Pressing Q while paused should end the match to the final stats screen');
+  assert.equal(game.matchCompleted, false, 'Quitting from Pause should mark matchCompleted as false');
   assert.equal(sound.music.score, WIDOR_TOCCATA_SCORE, 'Ending match from Pause should strike up Widor Toccata');
-  // Pressing Q again on the unlocked GAME_OVER screen returns cleanly to TITLE!
+  // Pressing Q again on a quit-early GAME_OVER screen returns directly to TITLE (skipping Amen)!
   game.onKeyDown('KeyQ');
   game.update();
   game.onKeyUp('KeyQ');
-  assert.equal(game.state, 'TITLE', 'Pressing Q on unlocked GAME_OVER should return to Title screen');
+  assert.equal(game.state, 'TITLE', 'Pressing Q on quit-early GAME_OVER should return directly to Title screen');
 
   // Verify NHL Primary & Secondary Assist tracking: Goalie -> Center -> Left Wing scores!
   const goalie = game.players.find((p) => p.id === 'h_g');
@@ -363,6 +364,7 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
 
   // On GAME_OVER ("Ite, ludus finitus est"), exit inputs are locked for 15 seconds while stats browsing stays active!
   game.state = 'GAME_OVER';
+  game.matchCompleted = true;
   game.stateTimer = 0;
   game.onKeyDown('ArrowRight');
   game.update();
@@ -374,12 +376,26 @@ test('pause freezes match clock/simulation and tracks stats to date cleanly', ()
     game.onKeyUp(key);
     assert.equal(game.state, 'GAME_OVER', `Pressing ${key} during 15s GAME_OVER lock must not leave final stats`);
   }
-  // Once 15 seconds elapse, Escape returns cleanly to TITLE!
+  // Once 15 seconds elapse on a COMPLETED match, Escape/Q closes through Amen -> Title!
   game.stateTimer = MATCH.gameOverLockFrames;
   game.onKeyDown('Escape');
   game.update();
   game.onKeyUp('Escape');
-  assert.equal(game.state, 'TITLE', 'Pressing Escape after 15s GAME_OVER lock should return to Title screen');
+  assert.equal(game.state, 'POST_CREDITS', 'Pressing Escape after 15s lock on a completed match should play Amen');
+  assert.equal(game.postCreditsNextState, 'TITLE', 'Completed match Q/Esc Amen exit should finish on Title (not Boot)');
+  game.postCreditsFrames = MARCELLI_AMEN_TIMING.totalFrames - 1;
+  game.update();
+  assert.equal(game.state, 'TITLE', 'Amen after completed match Q/Esc should land cleanly on Title screen');
+
+  // After 15s lock on a completed match, Enter starts a Rematch directly!
+  game.state = 'GAME_OVER';
+  game.matchCompleted = true;
+  game.stateTimer = MATCH.gameOverLockFrames;
+  game.onKeyDown('Enter');
+  game.update();
+  game.onKeyUp('Enter');
+  assert.equal(game.state, 'FACEOFF', 'Pressing Enter on unlocked GAME_OVER should start a Rematch directly');
+  assert.equal(game.matchCompleted, false, 'Starting a new rematch should reset matchCompleted');
 });
 
 test('Sicut Cervus 4-voice SATB score has valid register ordering and choir player toggles cleanly', () => {
@@ -513,22 +529,24 @@ test('Sicut Cervus 4-voice SATB score has valid register ordering and choir play
     assert.equal(postludeGame.state, 'POST_CREDITS', `Pressing ${key} must not interrupt the Amen post-credits scene`);
   }
 
-  // Advance to the end of the Amen post-credits -> transitions cleanly to BOOT and restores regular BGM!
+  // Advance to the end of the Amen post-credits after Widor finishes -> transitions cleanly to BOOT and restores regular BGM!
   postludeGame.postCreditsFrames = MARCELLI_AMEN_TIMING.totalFrames - 1;
   postludeGame.update();
-  assert.equal(postludeGame.state, 'BOOT', 'Finishing the Amen post-credits scene should return cleanly to BOOT');
+  assert.equal(postludeGame.state, 'BOOT', 'Finishing Amen after Widor completes should return cleanly to BOOT');
   assert.equal(postludeGame.bootFrames, 0, 'Returning to BOOT should start the boot sequence fresh');
   assert.equal(sound.music.score, SICUT_CERVUS_SCORE, 'Returning to BOOT should restore regular BGM track');
-  // Shift+I on GAME_OVER (Widor Toccata screen) also jumps cleanly to the Amen post-credits scene!
+
+  // Dedicated Final Screen option: pressing I (or Shift+I) on GAME_OVER launches Amen -> TITLE!
   postludeGame.state = 'GAME_OVER';
   postludeGame.stateTimer = 10;
-  postludeGame.onKeyDown('ShiftLeft');
   postludeGame.onKeyDown('KeyI');
   postludeGame.update();
   postludeGame.onKeyUp('KeyI');
-  postludeGame.onKeyUp('ShiftLeft');
-  assert.equal(postludeGame.state, 'POST_CREDITS', 'Shift+I on GAME_OVER should launch the Amen post-credits scene');
-  postludeGame.returnToBoot();
+  assert.equal(postludeGame.state, 'POST_CREDITS', 'Pressing I on GAME_OVER should launch the Amen exit screen');
+  assert.equal(postludeGame.postCreditsNextState, 'TITLE', 'I:AMEN on GAME_OVER should finish on TITLE');
+  postludeGame.postCreditsFrames = MARCELLI_AMEN_TIMING.totalFrames - 1;
+  postludeGame.update();
+  assert.equal(postludeGame.state, 'TITLE', 'Amen triggered via I on GAME_OVER should land cleanly on TITLE');
   sound.music.playing = false;
 });
 
@@ -577,11 +595,12 @@ test('three recess periods: Morning, double-length Lunch, and Afternoon', () => 
   assert.equal(game.period, 3);
   assert.equal(game.clockFrames, RECESS_PERIODS[2].seconds * 60);
 
-  // End Period 3 -> GAME_OVER
+  // End Period 3 -> GAME_OVER with matchCompleted = true
   game.state = 'PLAYING';
   game.clockFrames = 1;
   game.update();
   assert.equal(game.state, 'GAME_OVER');
+  assert.equal(game.matchCompleted, true, 'Completing Period 3 should mark matchCompleted as true');
 });
 
 test('post-goal possession gives the ball to the conceding team goalie in their crease', () => {
