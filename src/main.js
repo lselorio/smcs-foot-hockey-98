@@ -1,7 +1,7 @@
-import { FootHockeyGame } from './game.js?v=4';
-import { renderGame } from './renderer.js?v=4';
+import { FootHockeyGame } from './game.js?v=5';
+import { renderGame } from './renderer.js?v=5';
 import { sound } from './audio.js';
-import { initTouchControls } from './touch-controls.js?v=4';
+import { initTouchControls } from './touch-controls.js?v=5';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');

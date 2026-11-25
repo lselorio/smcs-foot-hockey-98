@@ -50,7 +50,6 @@ export function computeStickVector(dx, dy, maxRadius = 44, deadzone = 0.2) {
 export function getUtilityButtonsForState(state, isDemo = false) {
   if (state === 'POST_CREDITS') {
     return [
-      { label: 'AMEN', code: null, tone: 'gold', disabled: true },
       { label: 'MUTE', code: 'KeyM', tone: 'neutral' },
     ];
   }

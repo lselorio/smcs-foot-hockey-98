@@ -1266,11 +1266,16 @@ test('mobile touch controls: analog stick deadzone/clamping, context utility sho
   assert.equal(shouldEnableTouchMode({ maxTouchPoints: 0, coarsePointer: false, search: '?touch=1' }), true);
   assert.equal(shouldEnableTouchMode({ maxTouchPoints: 5, coarsePointer: true, search: '?touch=0' }), false);
 
-  // Context utility bar exposes the right actions for every screen (and no SKIP on mobile BOOT!)
+  // Context utility bar exposes the right actions for every screen (and no SKIP on mobile BOOT or AMEN on POST_CREDITS!)
   assert.deepEqual(
     getUtilityButtonsForState('BOOT', false).map((b) => b.code),
     ['KeyM'],
     'Mobile BOOT utility strip should not offer a SKIP button'
+  );
+  assert.deepEqual(
+    getUtilityButtonsForState('POST_CREDITS', false).map((b) => b.code),
+    ['KeyM'],
+    'Mobile POST_CREDITS (Amen) utility strip should only show MUTE (no redundant AMEN button)'
   );
   assert.deepEqual(
     getUtilityButtonsForState('PLAYING', false).map((b) => b.code),
@@ -1301,6 +1306,26 @@ test('mobile touch controls: analog stick deadzone/clamping, context utility sho
   pauseGame.update();
   pauseGame.onKeyUp('KeyQ');
   assert.equal(pauseGame.state, 'GAME_OVER', 'END GAME utility tap on PAUSED must transition to GAME_OVER');
+
+  // MUSIC button (KeyN) cycles through all 3 songs -> OFF -> wraps back to song 1 (Sicut Cervus)!
+  sound.musicTrackIndex = 0;
+  if (!sound.music.enabled) sound.toggleMusic();
+  pauseGame.state = 'PLAYING';
+  pauseGame.onKeyDown('KeyN');
+  pauseGame.onKeyUp('KeyN');
+  assert.equal(sound.music.enabled, true);
+  assert.equal(sound.getMusicTrack().id, 'gloria_viii', 'First MUSIC tap should advance to Gloria VIII');
+  pauseGame.onKeyDown('KeyN');
+  pauseGame.onKeyUp('KeyN');
+  assert.equal(sound.music.enabled, true);
+  assert.equal(sound.getMusicTrack().id, 'salve_regina', 'Second MUSIC tap should advance to Salve Regina');
+  pauseGame.onKeyDown('KeyN');
+  pauseGame.onKeyUp('KeyN');
+  assert.equal(sound.music.enabled, false, 'Third MUSIC tap after final song should turn music OFF');
+  pauseGame.onKeyDown('KeyN');
+  pauseGame.onKeyUp('KeyN');
+  assert.equal(sound.music.enabled, true, 'Fourth MUSIC tap from OFF should turn music back ON');
+  assert.equal(sound.getMusicTrack().id, 'sicut_cervus', 'Wrapping back ON from OFF should return to Sicut Cervus');
 
   // Virtual thumbstick drives skater movement in both normal & rotated Lunch Recess views!
   const game = new FootHockeyGame();

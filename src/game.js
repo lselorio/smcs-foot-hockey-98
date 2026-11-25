@@ -2,7 +2,7 @@ import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from
 import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
 import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js';
-import { pickBootChant, sound } from './audio.js';
+import { MUSIC_TRACKS, pickBootChant, sound } from './audio.js';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
   catchBall,
@@ -509,9 +509,13 @@ export class FootHockeyGame {
     }
     this.keys.add(code);
 
-    // Post-credits Palestrina "Amen" stinger is completely uninterruptible!
+    // Post-credits Palestrina "Amen" stinger is completely uninterruptible (only MUTE is allowed)!
     if (this.state === 'POST_CREDITS') {
-      sound.ensureContext();
+      if (code === 'KeyM') {
+        sound.toggleMute();
+      } else {
+        sound.ensureContext();
+      }
       return;
     }
 
@@ -519,8 +523,7 @@ export class FootHockeyGame {
       const muted = sound.toggleMute();
       this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, muted ? 'AUDIO OFF' : 'AUDIO ON', '#ffe84d');
     } else if (code === 'KeyN') {
-      const musicOn = sound.toggleMusic();
-      this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, musicOn ? 'MUSIC ON' : 'MUSIC OFF', '#9be8ff');
+      this.cycleMusicOrOff();
     } else if (code === 'KeyG') {
       const track = sound.cycleMusicTrack();
       this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, `BGM: ${track.label}`, '#9be8ff');
@@ -549,6 +552,24 @@ export class FootHockeyGame {
     const label = this.uniformMode === 'dress' ? 'DRESS UNIFORM' : 'REGULAR UNIFORM';
     this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, label, '#ffd84d');
     return this.uniformMode;
+  }
+
+  // Cycles BGM through all 3 liturgical tracks -> OFF -> wraps back to track 1 (Sicut Cervus)!
+  cycleMusicOrOff() {
+    if (!sound.music.enabled) {
+      sound.musicTrackIndex = MUSIC_TRACKS.length - 1;
+      const track = sound.cycleMusicTrack();
+      this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, `BGM: ${track.label}`, '#9be8ff');
+      return { enabled: true, track };
+    }
+    if (sound.musicTrackIndex < MUSIC_TRACKS.length - 1) {
+      const track = sound.cycleMusicTrack();
+      this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, `BGM: ${track.label}`, '#9be8ff');
+      return { enabled: true, track };
+    }
+    sound.toggleMusic();
+    this.addCallout(this.cameraX + SCREEN_W / 2, this.cameraY + 40, 'MUSIC OFF', '#9be8ff');
+    return { enabled: false, track: null };
   }
 
   onKeyUp(code) {
