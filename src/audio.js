@@ -18,6 +18,7 @@ export const BOOT_CHANTS = [
   {
     id: 'gloria',
     label: 'Gloria in excelsis Deo',
+    baseUrl: './assets/audio/boot-gloria',
     url: './assets/audio/boot-gloria.ogg',
     spinFrames: 290,  // ~4.83s — crest locks cleanly on "Deo!"
     voiceFrame: 304,  // ~5.07s — "IN LUDO EST!" drops right as reverb settles
@@ -26,12 +27,44 @@ export const BOOT_CHANTS = [
   {
     id: 'magnificat',
     label: 'Magnificat',
+    baseUrl: './assets/audio/boot-magnificat',
     url: './assets/audio/boot-magnificat.ogg',
     spinFrames: 228,  // ~3.80s — crest locks cleanly at end of Magnificat!
     voiceFrame: 242,  // ~4.03s — "IN LUDO EST!" drops right as reverb settles
     totalFrames: 408, // ~6.80s — smooth fade into Title Screen
   },
 ];
+
+export function supportsOggVorbis() {
+  if (typeof Audio === 'undefined') return true;
+  try {
+    return new Audio().canPlayType('audio/ogg; codecs="vorbis"') !== '';
+  } catch {
+    return false;
+  }
+}
+
+export function getAudioFormatOrder(canPlayOgg = supportsOggVorbis()) {
+  return canPlayOgg ? ['ogg', 'mp3'] : ['mp3', 'ogg'];
+}
+
+export function getAudioCandidates(baseUrl, canPlayOgg = supportsOggVorbis(), extras = []) {
+  return [...getAudioFormatOrder(canPlayOgg).map((ext) => `${baseUrl}.${ext}`), ...extras];
+}
+
+function decodeAudioBuffer(ctx, arrayBuffer) {
+  const copy = arrayBuffer.slice(0);
+  return new Promise((resolve, reject) => {
+    try {
+      const result = ctx.decodeAudioData(copy, resolve, reject);
+      if (result && typeof result.then === 'function') {
+        result.then(resolve, reject);
+      }
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
 
 export function pickBootChant(excludeId = null) {
   const pool = excludeId ? BOOT_CHANTS.filter((c) => c.id !== excludeId) : BOOT_CHANTS;
@@ -64,10 +97,10 @@ class SoundEngine {
       },
     });
     this.bootVoiceBuffer = null;
-    this.bootVoiceChecked = false;
+    this.bootVoiceLoading = false;
     this.bootVoiceSource = null;
     this.bootChantBuffers = new Map();
-    this.bootChantsChecked = false;
+    this.bootChantsLoading = false;
     this.bootChantSource = null;
     this.pendingBootChantId = null;
   }
@@ -81,7 +114,18 @@ class SoundEngine {
       this.noiseBuffer = this.createNoiseBuffer(this.ctx);
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
+      this.ctx
+        .resume()
+        .then(() => {
+          if (this.pendingBootChantId && !this.muted && this.ctx?.state === 'running') {
+            const chantId = this.pendingBootChantId;
+            if (this.bootChantBuffers.has(chantId)) {
+              this.pendingBootChantId = null;
+              this.playBootChant(chantId);
+            }
+          }
+        })
+        .catch(() => {});
     }
     return this.ctx;
   }
@@ -382,51 +426,69 @@ class SoundEngine {
   }
 
   // Silently preload all custom recorded boot chants (Gloria & Magnificat) in parallel!
+  // Picks .mp3 first on Safari (macOS/iOS) and .ogg first on Chrome/Firefox, with automatic fallback.
   async preloadBootChants() {
-    if (this.bootChantsChecked || typeof fetch === 'undefined') return;
-    this.bootChantsChecked = true;
-    await Promise.all(
-      BOOT_CHANTS.map(async (chant) => {
-        try {
-          const res = await fetch(chant.url);
-          if (!res.ok) return;
-          const arr = await res.arrayBuffer();
-          const ctx = this.ensureContext();
-          if (!ctx) return;
-          const buf = await ctx.decodeAudioData(arr);
-          this.bootChantBuffers.set(chant.id, buf);
-          if (this.pendingBootChantId === chant.id && !this.muted && ctx.state === 'running') {
-            this.pendingBootChantId = null;
-            this.playBootChant(chant.id);
+    if (
+      this.bootChantsLoading ||
+      this.bootChantBuffers.size >= BOOT_CHANTS.length ||
+      typeof fetch === 'undefined'
+    ) {
+      return;
+    }
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    this.bootChantsLoading = true;
+    try {
+      await Promise.all(
+        BOOT_CHANTS.map(async (chant) => {
+          if (this.bootChantBuffers.has(chant.id)) return;
+          const candidates = getAudioCandidates(chant.baseUrl);
+          for (const url of candidates) {
+            try {
+              const res = await fetch(url);
+              if (!res.ok) continue;
+              const arr = await res.arrayBuffer();
+              const buf = await decodeAudioBuffer(ctx, arr);
+              this.bootChantBuffers.set(chant.id, buf);
+              if (this.pendingBootChantId === chant.id && !this.muted && ctx.state === 'running') {
+                this.pendingBootChantId = null;
+                this.playBootChant(chant.id);
+              }
+              return;
+            } catch {
+              // Try next audio format candidate (e.g. .mp3 fallback for Safari)
+            }
           }
-        } catch {
-          // Optional chant clip not present
-        }
-      })
-    );
+        })
+      );
+    } finally {
+      this.bootChantsLoading = false;
+    }
   }
 
   async preloadBootVoice() {
     this.preloadBootChants();
-    if (this.bootVoiceChecked || typeof fetch === 'undefined') return;
-    this.bootVoiceChecked = true;
-    const candidates = [
-      './assets/audio/boot-voice.ogg',
-      './assets/audio/boot-voice.mp3',
-      './assets/audio/boot-voice.wav',
-    ];
-    for (const url of candidates) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) continue;
-        const arr = await res.arrayBuffer();
-        const ctx = this.ensureContext();
-        if (!ctx) return;
-        this.bootVoiceBuffer = await ctx.decodeAudioData(arr);
-        return;
-      } catch {
-        // Optional custom clip not present; fallback to built-in baritone announcer
+    if (this.bootVoiceLoading || this.bootVoiceBuffer || typeof fetch === 'undefined') return;
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    this.bootVoiceLoading = true;
+    try {
+      const candidates = getAudioCandidates('./assets/audio/boot-voice', supportsOggVorbis(), [
+        './assets/audio/boot-voice.wav',
+      ]);
+      for (const url of candidates) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const arr = await res.arrayBuffer();
+          this.bootVoiceBuffer = await decodeAudioBuffer(ctx, arr);
+          return;
+        } catch {
+          // Try next format candidate; fallback to built-in baritone announcer
+        }
       }
+    } finally {
+      this.bootVoiceLoading = false;
     }
   }
 

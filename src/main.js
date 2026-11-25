@@ -41,6 +41,8 @@ const PREVENT_KEYS = new Set([
 
 window.addEventListener('keydown', (e) => {
   if (PREVENT_KEYS.has(e.code)) e.preventDefault();
+  sound.ensureContext();
+  sound.preloadBootVoice();
   game.onKeyDown(e.code);
 });
 
@@ -57,11 +59,12 @@ sound.preloadBootVoice();
 window.addEventListener('pointerdown', () => {
   const wasLocked = !sound.isAudioUnlocked();
   const ctx = sound.ensureContext();
+  sound.preloadBootVoice();
   if (wasLocked && game.state === 'BOOT') {
     const restartWithSound = () => {
       if (game.state === 'BOOT') {
         sound.stopBootVoice();
-        game.bootFrames = 0; // Frame 1 immediately fires playBootGloria() cleanly!
+        game.bootFrames = 0; // Frame 1 immediately fires playBootChant() cleanly!
       }
     };
     if (ctx && ctx.state === 'suspended') {

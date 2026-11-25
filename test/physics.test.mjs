@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { COURT, GOAL, MATCH, RECESS_PERIODS } from '../src/constants.js';
 import {
   catchBall,
@@ -17,7 +20,7 @@ import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';
 import { WIDOR_TOCCATA_SCORE } from '../src/music/widor-toccata.js';
 import { MARCELLI_AMEN_SCORE, MARCELLI_AMEN_TIMING } from '../src/music/marcelli-amen.js';
 import { ChiptuneChoirPlayer } from '../src/music-player.js';
-import { sound } from '../src/audio.js';
+import { BOOT_CHANTS, getAudioCandidates, getAudioFormatOrder, sound } from '../src/audio.js';
 
 test('tennis ball bounces realistically on asphalt under gravity', () => {
   const ball = createBall(COURT.centerX, COURT.centerY, 16);
@@ -1172,4 +1175,30 @@ test('Basement 56 staircase on bottom red-brick wall catches ball from right and
   game.ball.vy = 0;
   game.update();
   assert.ok(game.ball.vx < 0, 'Tennis ball should bounce off the left face of the protruding room');
+});
+
+test('Safari audio compatibility: prefers MP3 when Ogg is unsupported and ships MP3 + OGG boot assets', () => {
+  assert.deepEqual(getAudioFormatOrder(true), ['ogg', 'mp3'], 'Chrome/Firefox should prefer Ogg first');
+  assert.deepEqual(getAudioFormatOrder(false), ['mp3', 'ogg'], 'Safari (no Ogg Vorbis) should prefer MP3 first');
+  assert.deepEqual(
+    getAudioCandidates('./assets/audio/boot-gloria', false),
+    ['./assets/audio/boot-gloria.mp3', './assets/audio/boot-gloria.ogg'],
+    'Safari chant candidates must request .mp3 before .ogg'
+  );
+  assert.deepEqual(
+    getAudioCandidates('./assets/audio/boot-voice', false, ['./assets/audio/boot-voice.wav']),
+    ['./assets/audio/boot-voice.mp3', './assets/audio/boot-voice.ogg', './assets/audio/boot-voice.wav'],
+    'Safari voice candidates must request .mp3 before .ogg and .wav'
+  );
+
+  // Verify every boot chant and boot voice clip exists on disk in both .ogg and .mp3 formats!
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const requiredBaseUrls = [...BOOT_CHANTS.map((c) => c.baseUrl), './assets/audio/boot-voice'];
+  for (const baseUrl of requiredBaseUrls) {
+    for (const ext of ['ogg', 'mp3']) {
+      const assetPath = resolve(repoRoot, `${baseUrl}.${ext}`);
+      assert.ok(existsSync(assetPath), `Expected boot audio asset to exist: ${baseUrl}.${ext}`);
+      assert.ok(statSync(assetPath).size > 4096, `Expected non-empty boot audio asset: ${baseUrl}.${ext}`);
+    }
+  }
 });
