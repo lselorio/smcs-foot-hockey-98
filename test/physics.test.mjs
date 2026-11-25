@@ -1005,7 +1005,7 @@ test('demo mode runs full CPU-vs-CPU match, auto-starts after title idle, and ex
   assert.equal(game.isDemo, false);
   assert.equal(game.state, 'TITLE');
 
-  // Demo GAME_OVER lingers for 21s, cycling through TEAM -> PLAYERS -> SUMMARY before returning to TITLE
+  // Demo GAME_OVER lingers for 21s, cycling through TEAM -> PLAYERS -> SUMMARY, then plays Amen -> TITLE!
   game.startDemoMatch();
   game.state = 'GAME_OVER';
   game.stateTimer = 0;
@@ -1017,8 +1017,12 @@ test('demo mode runs full CPU-vs-CPU match, auto-starts after title idle, and ex
   assert.equal(game.state, 'GAME_OVER', 'Demo Mode should still linger on final stats after 14 seconds');
   assert.equal(game.statsPage, 'summary', 'Demo Mode final screen should auto-advance to SUMMARY tab');
   for (let i = 0; i < MATCH.demoGameOverFrames - 840; i++) game.update();
-  assert.equal(game.state, 'TITLE', 'Demo Mode should return cleanly to TITLE after full final-stats showcase');
+  assert.equal(game.state, 'POST_CREDITS', 'Demo Mode should launch Amen after full 21s final-stats showcase');
+  assert.equal(game.postCreditsNextState, 'TITLE', 'Demo Mode Amen should transition to TITLE');
   assert.equal(game.isDemo, false);
+  game.postCreditsFrames = MARCELLI_AMEN_TIMING.totalFrames - 1;
+  game.update();
+  assert.equal(game.state, 'TITLE', 'Demo Mode should return cleanly to TITLE after Amen finishes');
 
   // Auto-attract: idling 600 frames on TITLE automatically launches Demo Mode
   for (let i = 0; i < 605; i++) game.update();

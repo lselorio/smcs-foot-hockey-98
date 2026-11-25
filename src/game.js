@@ -1213,10 +1213,7 @@ export class FootHockeyGame {
           this.summaryScroll = 0;
         }
         if (this.stateTimer >= MATCH.demoGameOverFrames) {
-          this.isDemo = false;
-          this.titleIdleFrames = 0;
-          this.state = 'TITLE';
-          sound.updateMusic('TITLE', false);
+          this.startPostCredits('TITLE');
         }
         return;
       }
