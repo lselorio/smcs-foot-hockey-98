@@ -171,14 +171,14 @@ export function initTouchControls(game, sound) {
   );
 
   // Track active virtual keys by pointerId so multi-touch never sticks or collides
-  const activeKeyPointers = new Map(); // pointerId -> { code, el }
+  const activeKeyPointers = new Map(); // pointerId -> { code, el, isUtility }
   const heldKeyCounts = new Map();     // code -> count
 
-  const pressVirtualKey = (pointerId, code, el) => {
+  const pressVirtualKey = (pointerId, code, el, isUtility = false) => {
     if (!code) return;
     sound.ensureContext();
     sound.preloadBootVoice();
-    activeKeyPointers.set(pointerId, { code, el });
+    activeKeyPointers.set(pointerId, { code, el, isUtility });
     const count = heldKeyCounts.get(code) || 0;
     heldKeyCounts.set(code, count + 1);
     if (el) el.classList.add('pressed');
@@ -201,6 +201,13 @@ export function initTouchControls(game, sound) {
       heldKeyCounts.set(code, nextCount);
     }
   };
+
+  // Global release listener guarantees keys never stick even if a utility button re-renders on state change!
+  const onGlobalPointerEnd = (e) => {
+    releaseVirtualPointer(e.pointerId);
+  };
+  window.addEventListener('pointerup', onGlobalPointerEnd, { passive: true });
+  window.addEventListener('pointercancel', onGlobalPointerEnd, { passive: true });
 
   // === LEFT VIRTUAL THUMBSTICK / D-PAD ===
   let stickPointerId = null;
@@ -319,6 +326,11 @@ export function initTouchControls(game, sound) {
     if (sig === lastUtilitySignature) return;
     lastUtilitySignature = sig;
 
+    // Release any held utility button before replacing DOM nodes so keys never stick across state swaps
+    for (const [pid, entry] of Array.from(activeKeyPointers.entries())) {
+      if (entry.isUtility) releaseVirtualPointer(pid);
+    }
+
     const specs = getUtilityButtonsForState(state, isDemo);
     utilityEl.textContent = '';
     for (const spec of specs) {
@@ -332,7 +344,7 @@ export function initTouchControls(game, sound) {
         btn.addEventListener('pointerdown', (e) => {
           e.preventDefault();
           enableTouchMode();
-          pressVirtualKey(e.pointerId, spec.code, btn);
+          pressVirtualKey(e.pointerId, spec.code, btn, true);
         });
         const onEnd = (e) => {
           e.preventDefault();
