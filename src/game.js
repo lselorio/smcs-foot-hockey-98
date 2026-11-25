@@ -1583,17 +1583,6 @@ export class FootHockeyGame {
         return;
       }
 
-      // Scoop-catch own ball with C / Space (great to set up a drop-kick!)
-      if (input.catchPressed) {
-        this.kickCharge = 0;
-        p.windupFrames = 0;
-        catchBall(ball, p);
-        this.stats.home.catches++;
-        if (p.matchStats) p.matchStats.catches++;
-        this.onCatchEffect(p);
-        return;
-      }
-
       // Two-tier NHL '94 Shooting on Z / J:
       // - TAP (< 10 frames): QUICK SHOT (instant low-mid snap kick!)
       // - HOLD (>= 10 frames): HARD SHOT / SLAP-KICK (leg cocks back, charges power, screaming shot!)
@@ -1923,11 +1912,39 @@ export class FootHockeyGame {
       if (ball.throwGrace > 0 && ball.lastTouchTeam !== p.team) continue;
 
       const isIntendedTarget = ball.passTargetId === p.id && ball.passTimer > 0;
+      const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
+
+      // Human-controlled player AUTO-CATCHES airborne balls (goalie throws, high bounces, wall/cage ricochets)!
+      // Low rolling balls (z <= 5.5) still settle cleanly at your feet to dribble without interrupting stride.
+      if (!this.isDemo && p.id === this.controlledId && (ball.isThrow || ball.z > 5.5)) {
+        const hands = p.stats.hands ?? 0.85;
+        const catchRadius = (isIntendedTarget ? 16 : 12.5) * (0.82 + hands * 0.22);
+        const catchMaxZ = PHYSICS.catchMaxZ * (0.78 + hands * 0.28);
+        if (dist <= catchRadius && ball.z <= catchMaxZ) {
+          const ballSpeed = Math.hypot(ball.vx, ball.vy);
+          const bobbleRisk = ballSpeed > 5.5 && hands < 0.72 ? (0.75 - hands) * 0.85 : 0;
+          if (bobbleRisk > 0 && Math.random() < bobbleRisk) {
+            ball.vx = p.facingX * 1.4 + (Math.random() - 0.5) * 1.8;
+            ball.vy = p.facingY * 1.4 + (Math.random() - 0.5) * 1.8;
+            ball.vz = 1.6;
+            ball.pickupCooldown = 10;
+            sound.playBounce(0.7);
+            this.addCallout(p.x, p.y - 18, 'BOBBLED!', '#ffbe3b');
+            return;
+          }
+          catchBall(ball, p);
+          p.catchAnim = 12;
+          this.stats[p.team].catches++;
+          if (p.matchStats) p.matchStats.catches++;
+          this.onCatchEffect(p);
+          return;
+        }
+      }
+
       const maxZ = isIntendedTarget ? 12.5 : 7.5;
       const maxDist = isIntendedTarget ? 14.5 : 10.5;
       if (ball.z > maxZ) continue;
 
-      const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
       if (dist < maxDist) {
         ball.owner = p;
         recordBallTouch(ball, p);

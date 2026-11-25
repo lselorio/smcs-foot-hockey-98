@@ -65,6 +65,38 @@ test('catch-and-drop lets player hold ball in hands then drop to feet cleanly', 
   assert.equal(dropped, true);
   assert.equal(player.holdingBall, false);
   assert.equal(ball.owner, player, 'Player keeps dribbling possession after dropping to feet');
+
+  // Pressing CATCH while already dribbling the ball at feet should do nothing (can only catch loose/airborne balls!)
+  const g = new FootHockeyGame();
+  g.startNewMatch();
+  g.state = 'PLAYING';
+  const ctrl = g.getControlledPlayer();
+  ctrl.holdingBall = false;
+  g.ball.owner = ctrl;
+  g.onKeyDown('KeyC');
+  g.update();
+  g.onKeyUp('KeyC');
+  assert.equal(ctrl.holdingBall, false, 'Pressing CATCH while dribbling at feet must not pick up the ball');
+
+  // Airborne balls (goalie throws / high bounces z > 5.5) are AUTO-CAUGHT by the controlled player, then dropped with PASS (KeyX)!
+  ctrl.stats.hands = 0.92;
+  g.ball.owner = null;
+  g.ball.x = ctrl.x + 4;
+  g.ball.y = ctrl.y;
+  g.ball.z = 12;
+  g.ball.vx = 0;
+  g.ball.vy = 0;
+  g.ball.vz = 0;
+  g.ball.pickupCooldown = 0;
+  g.ball.throwGrace = 0;
+  g.checkLooseBallPickup();
+  assert.equal(ctrl.holdingBall, true, 'Controlled player should auto-catch an airborne bouncing/thrown ball');
+  assert.equal(g.ball.owner, ctrl);
+  g.onKeyDown('KeyX');
+  g.update();
+  g.onKeyUp('KeyX');
+  assert.equal(ctrl.holdingBall, false, 'Pressing PASS (KeyX) while holding a caught ball should drop it cleanly to feet');
+  assert.equal(g.ball.owner, ctrl, 'Dropping via PASS keeps dribbling possession at feet');
 });
 
 test('kicking tennis ball across top goal line between backpacks scores for home', () => {

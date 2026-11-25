@@ -330,7 +330,7 @@ export function renderGame(ctx, game) {
     let hintText = null;
     let hintColor = '#d9ff2e';
     if (ctrl.role === 'G' && ctrl.holdingBall) {
-      hintText = 'AIM + X:THROW  Z:BOMB  C:TOSS';
+      hintText = 'AIM + X:THROW  Z:BOMB';
     } else if (ctrl.holdingBall) {
       hintText = 'HOLDING BALL - X:DROP  Z:DROP-KICK';
     } else if (game.kickCharge >= SHOT.hardMinFrames) {

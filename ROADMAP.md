@@ -18,7 +18,7 @@
 ## Completed Milestones
 
 4. ~~**Mobile Touch Controls & GitHub Pages Hosting**~~ *(Done)*
-   - Auto-detected 16-bit handheld touch controller for phones/tablets (multi-touch analog virtual thumbstick, `SHOOT`/`PASS`/`CATCH` arcade buttons, context-aware utility bar, responsive portrait & landscape layout, `touch-action: none`, safe-area insets).
+   - Auto-detected 16-bit handheld touch controller for phones/tablets (multi-touch analog virtual thumbstick, 2-button NHL '94 `SHOOT`/`PASS` arcade pad with airborne auto-catch, context-aware utility bar, responsive portrait & landscape layout, `touch-action: none`, safe-area insets).
    - Live static site on GitHub Pages (`smcs-foot-hockey-98`) with SMCS tennis-ball favicon and social link-preview tags.
 
 5. ~~**Safari macOS/iOS Audio & Browser Compatibility**~~ *(Done)*
