@@ -332,6 +332,28 @@ export const CLASSMATES = [
     // Average build/height, bald, mediocre stats across the board
     stats: { speed: 1.70, kick: 4.65, control: 0.72, hands: 0.71, reflex: 0.70, checking: 0.70 },
   },
+  {
+    name: 'JAMIE',
+    skin: '#f4c9a8',       // White
+    hair: '#5e3c20',
+    hairStyle: 'part',
+    sneakers: '#ffffff',
+    gloveColor: '#8c4b22',
+    // Solid average player across the board
+    stats: { speed: 1.82, kick: 5.15, control: 0.82, hands: 0.82, reflex: 0.80, checking: 0.80 },
+  },
+  {
+    name: 'LOUIE',
+    short: true,
+    skin: '#efca9e',       // Asian
+    hair: '#141316',
+    hairStyle: 'part',
+    glasses: true,
+    sneakers: '#1d222e',
+    gloveColor: '#7a3f1a',
+    // Short, glasses, right around Fizz level (still well ahead of Istvan)
+    stats: { speed: 1.63, kick: 4.48, control: 0.67, hands: 0.66, reflex: 0.65, checking: 0.62 },
+  },
 ];
 
 function shuffled(arr, rng = Math.random) {

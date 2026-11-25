@@ -752,11 +752,13 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
     'TAYLOR',
     'ARPAD',
     'BRINGAS',
+    'JAMIE',
+    'LOUIE',
   ];
   assert.deepEqual(
     CLASSMATES.map((c) => c.name),
     expectedNames,
-    'Master classmate roster should contain all 27 classmates'
+    'Master classmate roster should contain all 29 classmates'
   );
 
   // Verify ISTVAN is strictly the worst player in the game across every attribute by a clear margin!
@@ -830,12 +832,12 @@ test('roster drafts 8 unique St. Michaels classmates into Maroon Uniforms vs Col
   assert.ok(naturalGoalies.has(awayPlayers[3].name), `Away goalie (${awayPlayers[3].name}) should be a natural goalie`);
   assert.notEqual(homePlayers[3].name, awayPlayers[3].name);
 
-  // Verify glasses & build traits across the 25 classmates
+  // Verify glasses & build traits across the classmates
   const glassesNames = CLASSMATES.filter((c) => c.glasses).map((c) => c.name).sort();
-  assert.deepEqual(glassesNames, ['CHUNG', 'DEREK', 'FIZZ', 'LEN', 'LOWELL', 'PAES', 'SEAN', 'TAYLOR']);
+  assert.deepEqual(glassesNames, ['CHUNG', 'DEREK', 'FIZZ', 'LEN', 'LOUIE', 'LOWELL', 'PAES', 'SEAN', 'TAYLOR']);
   assert.deepEqual(CLASSMATES.filter((c) => c.thin).map((c) => c.name).sort(), ['KEVIN', 'KWONG', 'MASANGKAY', 'PAES']);
   assert.deepEqual(CLASSMATES.filter((c) => c.tall).map((c) => c.name).sort(), ['BRENDAN', 'PONESSE', 'TAYLOR']);
-  assert.deepEqual(CLASSMATES.filter((c) => c.short).map((c) => c.name).sort(), ['FIZZ', 'JIMMY', 'LOWELL', 'MASANGKAY']);
+  assert.deepEqual(CLASSMATES.filter((c) => c.short).map((c) => c.name).sort(), ['FIZZ', 'JIMMY', 'LOUIE', 'LOWELL', 'MASANGKAY']);
   assert.deepEqual(CLASSMATES.filter((c) => c.beefy).map((c) => c.name).sort(), ['BAKER', 'BRENDAN', 'ISTVAN']);
 
   const allNames = [...homePlayers, ...awayPlayers].map((p) => p.name);
