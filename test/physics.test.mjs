@@ -13,7 +13,7 @@ import {
   stepBallPhysics,
 } from '../src/physics.js';
 import { FootHockeyGame } from '../src/game.js';
-import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js?v=14';
+import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js?v=15';
 import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
 import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';

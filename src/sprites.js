@@ -1,5 +1,5 @@
 import { PALETTE, GOAL } from './constants.js';
-import { UNIFORM_COLORS, resolveUniformKit } from './roster.js?v=14';
+import { UNIFORM_COLORS, resolveUniformKit } from './roster.js?v=15';
 
 // Crisp 5x7 16-bit arcade pixel font (uppercase, digits, punctuation)
 const FONT_5X7 = {

@@ -1,7 +1,7 @@
 import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
-import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js?v=14';
+import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js?v=15';
 import { MUSIC_TRACKS, pickBootChant, sound } from './audio.js?v=10';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
@@ -14,7 +14,7 @@ import {
   recordBallTouch,
   stepBallPhysics,
 } from './physics.js';
-import { updateGoalie, updateSkaterAI } from './ai.js?v=14';
+import { updateGoalie, updateSkaterAI } from './ai.js?v=15';
 
 function createEmptyTeamStats() {
   return {

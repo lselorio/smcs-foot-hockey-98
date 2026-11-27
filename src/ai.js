@@ -417,8 +417,9 @@ export function updateSkaterAI(p, game) {
   if (p.cageKicker && attackNet.id === 'right_cage') {
     if (game.canAttemptCageKick(p)) {
       const ballToCage = Math.hypot(ball.x - attackNet.centerX, ball.y - attackNet.centerY);
-      const trigChance = ball.vx > 1.6 ? (ballToCage <= 68 ? 0.22 : 0.1) : 0.05;
-      if (Math.random() < trigChance) {
+      // Hold AI kick until an incoming shot actually arrives near the cage (<= 68px) for convincing timing & full odds!
+      const trigChance = ball.vx > 1.6 ? (ballToCage <= 68 ? 0.28 : 0) : 0.05;
+      if (trigChance > 0 && Math.random() < trigChance) {
         game.attemptCageKick(p);
         return;
       }
