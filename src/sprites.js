@@ -278,19 +278,24 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
       : resolveUniformKit(p.team || team?.id || 'home', uniformMode);
   const isDressPants = kit === 'dress_blazer' || kit === 'dress_no_blazer';
   const isDress = uniformMode === 'dress';
+  const isCrying = p.cryTimer > 0;
   const isStunned = p.stunTimer > 0;
 
   // Ground shadow
   ctx.fillStyle = PALETTE.shadow;
   ctx.beginPath();
-  ctx.ellipse(x, y + 2, isStunned ? 9 : p.beefy ? 8 : p.thin ? 5 : 6, p.beefy ? 3.5 : 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 2, isCrying ? 8 : isStunned ? 9 : p.beefy ? 8 : p.thin ? 5 : 6, p.beefy ? 3.5 : 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // If body-checked / knocked down, tilt sprite sideways with spinning NHL '94 dizziness stars!
+  // If crying (Chung quirk!), sit upright on the blacktop sobbing; otherwise tilt/sprawl when stunned!
   ctx.save();
-  if (isStunned) {
+  if (isCrying) {
+    const sob = Math.floor(tick / 6) % 2;
+    ctx.translate(0, 4 + sob);
+  } else if (isStunned) {
+    const tilt = p.staysDown && p.stunTimer > 35 ? 1.38 : 0.55;
     ctx.translate(x, y - 4);
-    ctx.rotate((p.stunDir || 1) * 0.55);
+    ctx.rotate((p.stunDir || 1) * tilt);
     ctx.translate(-x, -(y - 4));
   }
 
@@ -519,8 +524,13 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
 
   ctx.restore();
 
-  // Spinning golden stars above head when body-checked!
-  if (isStunned) {
+  // Spinning golden stars above head when body-checked (or streaming pixel teardrops when Chung cries!)
+  if (isCrying) {
+    const dropY = (tick * 0.35) % 6;
+    ctx.fillStyle = '#6fd6ff';
+    ctx.fillRect(x - 3, Math.round(y - 12 - tallLift + dropY), 2, 2);
+    ctx.fillRect(x + 2, Math.round(y - 12 - tallLift + ((dropY + 3) % 6)), 2, 2);
+  } else if (isStunned) {
     for (let i = 0; i < 3; i++) {
       const a = tick * 0.25 + (i * Math.PI * 2) / 3;
       const sx = Math.round(x + Math.cos(a) * 6);

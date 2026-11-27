@@ -246,6 +246,8 @@ export class FootHockeyGame {
           throwTimer: 0,
           stunTimer: 0,
           stunDir: 1,
+          cryTimer: 0,
+          cageKickCooldown: 0,
           animOffset: idx * 1.7,
           matchStats: { goals: 0, assists: 0, shots: 0, passes: 0, catches: 0, checks: 0, saves: 0 },
         });
@@ -473,6 +475,8 @@ export class FootHockeyGame {
       p.throwTimer = 0;
       p.stunTimer = 0;
       p.stunDir = 1;
+      p.cryTimer = 0;
+      p.cageKickCooldown = 0;
     }
 
     this.controlledId = 'h_c';
@@ -1359,7 +1363,23 @@ export class FootHockeyGame {
       if (p.jacketTimer > 0) p.jacketTimer--;
       if (p.gloveTimer > 0) p.gloveTimer--;
       if (p.throwTimer > 0) p.throwTimer--;
-      if (p.stunTimer > 0) p.stunTimer--;
+      if (p.stunTimer > 0) {
+        p.stunTimer--;
+        // Quirk: Daniel dramatically complains while staying down on the asphalt!
+        if (p.staysDown && p.stunTimer === 145) {
+          this.addCallout(p.x, p.y - 16, 'REF?!', '#ffe84d');
+        }
+      }
+      if (p.cryTimer > 0) {
+        p.cryTimer--;
+        if (this.tick % 10 === 0) {
+          this.spawnParticles(p.x, p.y - 13, '#6fd6ff', 2);
+        }
+        if (p.cryTimer === 115) {
+          this.addCallout(p.x, p.y - 16, '*SNIFF*', '#9be8ff');
+        }
+      }
+      if (p.cageKickCooldown > 0) p.cageKickCooldown--;
 
       if (p.role === 'G') {
         updateGoalie(p, this);
@@ -1526,7 +1546,17 @@ export class FootHockeyGame {
     }
 
     // 8-way schoolyard footwork movement (slows during slap-kick wind-up or while holding ball; slippery in Snow!)
-    if (p.stunTimer > 0) return;
+    if (p.stunTimer > 0) {
+      // While your controlled player is knocked down (especially Daniel staying down!), PASS switches to a healthy teammate!
+      if (input.passPressed) {
+        const next = this.findNearestPlayer(ball.x, ball.y, 'home', true, p.id);
+        if (next) {
+          this.controlledId = next.id;
+          sound.playMenuSelect();
+        }
+      }
+      return;
+    }
     if (input.mx !== 0 || input.my !== 0) {
       const mag = Math.hypot(input.mx, input.my) || 1;
       const nx = input.mx / mag;
@@ -1682,10 +1712,63 @@ export class FootHockeyGame {
       return;
     }
 
+    // Hidden Easter egg: Avery kicking the right-wall wire cage during a crease scramble to try to steal a goal!
+    if (input.kickPressed && this.canAttemptCageKick(p)) {
+      this.attemptCageKick(p);
+      return;
+    }
+
     // POKE-STEAL / LUNGE KICK (Z / J)
     if (input.kickPressed && p.stealCooldown <= 0) {
       this.attemptSteal(p);
     }
+  }
+
+  canAttemptCageKick(p) {
+    if (!p || !p.cageKicker || p.role === 'G' || p.stunTimer > 0) return false;
+    if ((p.cageKickCooldown || 0) > 0) return false;
+    if (this.ball.owner) return false;
+    const attackNet = this.getAttackNet(p.team);
+    if (!attackNet || attackNet.id !== 'right_cage') return false;
+    const nearCageX = attackNet.lineCoord - p.x <= 28;
+    const nearCageY = p.y >= attackNet.minCoord - 10 && p.y <= attackNet.maxCoord + 10;
+    if (!nearCageX || !nearCageY) return false;
+    const ballToCage = Math.hypot(this.ball.x - attackNet.centerX, this.ball.y - attackNet.centerY);
+    const incomingShot = this.ball.vx > 1.6 && ballToCage <= 92;
+    if (incomingShot) return true;
+    if (ballToCage > 52) return false;
+    return this.players.some(
+      (o) => o.team !== p.team && Math.hypot(o.x - attackNet.centerX, o.y - attackNet.centerY) < 56
+    );
+  }
+
+  attemptCageKick(p, rng = Math.random) {
+    if (!this.canAttemptCageKick(p)) return false;
+    const attackNet = this.getAttackNet(p.team);
+    p.facingX = 1;
+    p.facingY = 0;
+    p.kickTimer = 14;
+    p.cageKickCooldown = 180;
+    this.goalShake[attackNet.id] = 16;
+    sound.playFenceHit();
+    sound.playPostHit();
+    this.spawnParticles(attackNet.lineCoord - 4, p.y, '#e3eefc', 9);
+
+    const ballToCage = Math.hypot(this.ball.x - attackNet.centerX, this.ball.y - attackNet.centerY);
+    const incomingShot = this.ball.vx > 1.6 && ballToCage <= 92;
+    const stealChance = incomingShot && ballToCage <= 68 ? 0.32 : ballToCage < 34 ? 0.30 : 0.18;
+    if (rng() < stealChance) {
+      this.ball.lastTouchTeam = p.team;
+      this.ball.lastTouchPlayer = p;
+      this.ball.possessionTeam = p.team;
+      this.ball.possessionChain = [p];
+      this.addCallout(p.x - 8, p.y - 20, 'STOLEN GOAL?!', '#ffe84d');
+      this.handleGoalScored(p.team, attackNet.id);
+      return 'stolen';
+    }
+
+    this.addCallout(attackNet.lineCoord - 24, p.y - 18, 'NO GOAL! KICKED CAGE!', '#ff8c42');
+    return 'caught';
   }
 
   executeDeliberatePass(p, target, input) {
@@ -1826,10 +1909,20 @@ export class FootHockeyGame {
 
       targetOpp.vx = nx * (4.2 * impact);
       targetOpp.vy = ny * (4.2 * impact);
-      targetOpp.stunTimer = Math.round(36 * impact);
+      const baseStun = Math.round(36 * impact);
+      const startedCrying = Boolean(targetOpp.criesWhenHit && Math.random() < 0.55);
+      if (startedCrying) {
+        targetOpp.cryTimer = 230;
+        targetOpp.stunTimer = 230;
+        targetOpp.vx *= 0.25;
+        targetOpp.vy *= 0.25;
+      } else {
+        targetOpp.cryTimer = 0;
+        targetOpp.stunTimer = targetOpp.staysDown ? Math.max(270, baseStun * 5) : baseStun;
+      }
       targetOpp.stunDir = nx >= 0 ? 1 : -1;
       targetOpp.windupFrames = 0;
-      targetOpp.stealCooldown = Math.round(36 * impact);
+      targetOpp.stealCooldown = baseStun;
       this.stats[p.team].checks++;
       if (p.matchStats) p.matchStats.checks++;
       this.screenShake = Math.round(6 * impact);
@@ -1839,12 +1932,12 @@ export class FootHockeyGame {
       if (nearLeftWall && (targetOpp.x <= this.court.bounds.left + 22 || nx < -0.15)) {
         this.triggerLeftWallGive(targetOpp.y, Math.min(1.2, impact));
       }
-      this.spawnParticles(targetOpp.x, targetOpp.y, this.weather === 'snow' ? '#ffffff' : '#ffe84d', 12);
+      this.spawnParticles(targetOpp.x, targetOpp.y, startedCrying ? '#6fd6ff' : this.weather === 'snow' ? '#ffffff' : '#ffe84d', 12);
       this.addCallout(
         targetOpp.x,
         targetOpp.y - 18,
-        nearLeftWall ? 'BOARDED!' : 'BODY CHECK!',
-        '#ff6d2e'
+        startedCrying ? 'WAHHH!!' : targetOpp.staysDown ? 'OW!! STILL DOWN!' : nearLeftWall ? 'BOARDED!' : 'BODY CHECK!',
+        startedCrying ? '#6fd6ff' : '#ff6d2e'
       );
 
       // Pop the tennis ball loose if the checked player had it!

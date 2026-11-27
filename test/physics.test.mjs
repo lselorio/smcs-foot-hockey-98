@@ -1413,3 +1413,137 @@ test('mobile touch controls: analog stick deadzone/clamping, context utility sho
   assert.ok(skater.vx > 0, 'Pushing touch stick UP in rotated Lunch Recess should skate +X');
   game.setTouchMove(0, 0);
 });
+
+test('classmate personality quirks: Adam cherry-picks, Daniel stays down & hogs ball, Istvan flees ball, Arpad bombs from deep', () => {
+  const game = new FootHockeyGame();
+  game.startNewMatch(false, {
+    homeNames: ['ADAM', 'DANIEL', 'ARPAD', 'LOWELL'],
+    awayNames: ['ISTVAN', 'BLAIR', 'PONESSE', 'MASANGKAY'],
+  });
+  game.state = 'PLAYING';
+  game.weather = 'snow'; // Allow open-court checks to test Daniel's staysDown quirk cleanly
+
+  const adam = game.players.find((p) => p.name === 'ADAM');
+  const daniel = game.players.find((p) => p.name === 'DANIEL');
+  const arpad = game.players.find((p) => p.name === 'ARPAD');
+  const istvan = game.players.find((p) => p.name === 'ISTVAN');
+  const ponesse = game.players.find((p) => p.name === 'PONESSE');
+
+  // 1) ADAM (noDefense): when away has ball deep in home's end, AI Adam drifts UP toward away's top net instead of defending!
+  game.controlledId = daniel.id; // Let AI steer Adam
+  adam.x = 200;
+  adam.y = 260;
+  adam.vx = 0;
+  adam.vy = 0;
+  ponesse.x = 340;
+  ponesse.y = 320;
+  game.ball.owner = ponesse;
+  for (let i = 0; i < 12; i++) game.update();
+  assert.ok(adam.y < 258, `Adam (noDefense) should drift upfield toward top net instead of chasing back on defense (y=${adam.y.toFixed(1)})`);
+
+  // 2) DANIEL (staysDown + ballHog): getting body-checked leaves Daniel sprawled out for ~4.5s (>= 260 frames)!
+  assert.equal(daniel.ballHog, true, 'Daniel should have the ballHog quirk');
+  ponesse.x = 200;
+  ponesse.y = 240;
+  daniel.x = 212;
+  daniel.y = 240;
+  daniel.stunTimer = 0;
+  ponesse.stealCooldown = 0;
+  game.ball.owner = daniel;
+  game.attemptSteal(ponesse);
+  assert.ok(daniel.stunTimer >= 260, `Daniel (staysDown) should stay down much longer when checked (stunTimer=${daniel.stunTimer})`);
+
+  // 3) ISTVAN (scaredOfBall): flees AWAY when the tennis ball gets close!
+  istvan.x = 180;
+  istvan.y = 240;
+  istvan.vx = 0;
+  istvan.vy = 0;
+  game.ball.owner = null;
+  game.ball.x = 210;
+  game.ball.y = 240;
+  game.ball.z = 2;
+  game.ball.vx = 0;
+  game.ball.vy = 0;
+  const distBefore = Math.hypot(istvan.x - game.ball.x, istvan.y - game.ball.y);
+  for (let i = 0; i < 10; i++) game.update();
+  const distAfter = Math.hypot(istvan.x - game.ball.x, istvan.y - game.ball.y);
+  assert.ok(distAfter > distBefore + 3, `Istvan (scaredOfBall) should run away from nearby ball (${distBefore.toFixed(1)} -> ${distAfter.toFixed(1)})`);
+
+  // 4) ARPAD (longBomber): rips a booming, accurate shot toward the top net even from 220px away!
+  game.controlledId = adam.id; // Let AI steer Arpad
+  const topNet = game.getAttackNet('home');
+  arpad.x = topNet.centerX;
+  arpad.y = topNet.lineCoord + 220;
+  arpad.aiDecisionCooldown = 0;
+  arpad.stunTimer = 0;
+  game.ball.owner = arpad;
+  game.update();
+  assert.equal(game.ball.owner, null, 'Arpad (longBomber) should launch a long shot from 220px out');
+  assert.ok(game.ball.vy < -5.5, `Arpad's long bomb should fire powerfully toward the top net (vy=${game.ball.vy.toFixed(2)})`);
+  assert.ok(Math.abs(game.ball.vx) < 1.2, `Arpad's long bomb should stay tightly aimed on target (vx=${game.ball.vx.toFixed(2)})`);
+
+  // 5) CHUNG (criesWhenHit): getting body-checked can make Chung sit down and cry!
+  const chungGame = new FootHockeyGame();
+  chungGame.startNewMatch(false, {
+    homeNames: ['CHUNG', 'ADAM', 'BLAIR', 'LOWELL'],
+    awayNames: ['PONESSE', 'BRENDAN', 'STEVE', 'MASANGKAY'],
+  });
+  chungGame.state = 'PLAYING';
+  chungGame.weather = 'snow';
+  const chung = chungGame.players.find((p) => p.name === 'CHUNG');
+  const hitter = chungGame.players.find((p) => p.name === 'PONESSE');
+  let cried = false;
+  for (let attempt = 0; attempt < 25 && !cried; attempt++) {
+    chung.x = 200;
+    chung.y = 240;
+    chung.stunTimer = 0;
+    chung.cryTimer = 0;
+    hitter.x = 188;
+    hitter.y = 240;
+    hitter.stealCooldown = 0;
+    chungGame.ball.owner = chung;
+    chungGame.attemptSteal(hitter);
+    if (chung.cryTimer >= 200) cried = true;
+  }
+  assert.equal(cried, true, 'Chung (criesWhenHit) should sometimes sit down and cry when body-checked');
+
+  // 6) AVERY (cageKicker): kicking the right-wall wire cage during a crease scramble rattles it and can steal a phantom goal!
+  const averyGame = new FootHockeyGame();
+  averyGame.startNewMatch(false, {
+    homeNames: ['AVERY', 'BLAIR', 'STEVE', 'LOWELL'],
+    awayNames: ['PONESSE', 'DEREK', 'KWONG', 'MASANGKAY'],
+  });
+  averyGame.state = 'PLAYING';
+  averyGame.period = 2; // Lunch Recess: HOME attacks right_cage!
+  const avery = averyGame.players.find((p) => p.name === 'AVERY');
+  const rightCage = averyGame.getAttackNet('home');
+  assert.equal(rightCage.id, 'right_cage');
+  const awayG = averyGame.players.find((p) => p.id === 'a_g');
+  awayG.x = rightCage.centerX - 14;
+  awayG.y = rightCage.centerY;
+  avery.x = rightCage.lineCoord - 14;
+  avery.y = rightCage.centerY + 4;
+  avery.cageKickCooldown = 0;
+  averyGame.ball.owner = null;
+  averyGame.ball.x = rightCage.centerX - 18;
+  averyGame.ball.y = rightCage.centerY - 4;
+  // Caught red-handed (rng = 0.95): cage shakes, no goal awarded!
+  assert.equal(averyGame.attemptCageKick(avery, () => 0.95), 'caught');
+  assert.equal(averyGame.score.home, 0);
+  assert.ok(averyGame.goalShake.right_cage > 0, 'Kicking the wire cage should rattle it');
+  // Gets away with it in the confusion (rng = 0.05): phantom goal counts for Avery!
+  avery.cageKickCooldown = 0;
+  assert.equal(averyGame.attemptCageKick(avery, () => 0.05), 'stolen');
+  assert.equal(averyGame.score.home, 1, 'Successful cage-kick phantom goal should count on scoreboard');
+  // Also works when timed with a fast incoming shot heading toward the cage (even from 75px out)!
+  averyGame.state = 'PLAYING';
+  avery.cageKickCooldown = 0;
+  averyGame.ball.owner = null;
+  averyGame.ball.x = rightCage.centerX - 72;
+  averyGame.ball.y = rightCage.centerY + 18;
+  averyGame.ball.vx = 4.5;
+  averyGame.ball.vy = 0;
+  assert.equal(averyGame.canAttemptCageKick(avery), true, 'Avery should be able to time a cage kick on an incoming shot');
+  assert.equal(averyGame.attemptCageKick(avery, () => 0.1), 'stolen');
+  assert.equal(averyGame.score.home, 2, 'Timing cage kick on incoming shot should steal a goal');
+});

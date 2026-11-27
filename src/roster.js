@@ -119,6 +119,8 @@ export const CLASSMATES = [
     hairStyle: 'part',
     sneakers: '#222633',
     gloveColor: '#a65d2a',
+    ballHog: true,         // Hidden Easter egg: refuses to pass as AI!
+    staysDown: true,       // Hidden Easter egg: stays dramatically sprawled when body-checked!
     // Good forward, though not especially fast
     stats: { speed: 1.73, kick: 5.55, control: 0.91, hands: 0.91, reflex: 0.82, checking: 0.84 },
   },
@@ -129,6 +131,7 @@ export const CLASSMATES = [
     hairStyle: 'buzz',
     sneakers: '#ffffff',
     gloveColor: '#7a3f1a',
+    noDefense: true,       // Hidden Easter egg: refuses to hustle back on defense — cherry-picks upfield!
     stats: { speed: 1.82, kick: 5.15, control: 0.82, hands: 0.83, reflex: 0.81, checking: 0.80 },
   },
   {
@@ -172,6 +175,7 @@ export const CLASSMATES = [
     hairStyle: 'buzz',
     sneakers: '#232836',
     gloveColor: '#a65d2a',
+    cageKicker: true,      // Hidden Easter egg: kicks the right-wall wire cage during scrambles to try to steal a goal!
     // Fastest on 66 Bond with legit soccer skills — best pure foot hockey player!
     stats: { speed: 2.04, kick: 5.75, control: 0.96, hands: 0.90, reflex: 0.85, checking: 0.82 },
   },
@@ -203,6 +207,7 @@ export const CLASSMATES = [
     hairStyle: 'messy',
     sneakers: '#2a2e38',
     gloveColor: '#6e3d1e',
+    scaredOfBall: true,    // Hidden Easter egg: literally scared of the tennis ball!
     // Undisputed worst player in the game by a fair margin!
     stats: { speed: 1.28, kick: 3.40, control: 0.42, hands: 0.38, reflex: 0.36, checking: 0.35 },
   },
@@ -244,6 +249,7 @@ export const CLASSMATES = [
     glasses: true,
     sneakers: '#ffffff',
     gloveColor: '#7a3f1a',
+    criesWhenHit: true,    // Hidden Easter egg: might sit down and cry when body-checked!
     stats: { speed: 1.84, kick: 5.10, control: 0.84, hands: 0.84, reflex: 0.81, checking: 0.77 },
   },
   {
@@ -319,6 +325,7 @@ export const CLASSMATES = [
     hairStyle: 'part',
     sneakers: '#232836',
     gloveColor: '#8c4b22',
+    longBomber: true,      // Hidden Easter egg: loves ripping booming, laser-accurate shots from deep!
     // Faster & harder shot than average, otherwise unskilled
     stats: { speed: 1.94, kick: 5.55, control: 0.66, hands: 0.65, reflex: 0.65, checking: 0.66 },
   },
