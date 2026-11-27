@@ -372,6 +372,16 @@ export function updateSkaterAI(p, game) {
       return;
     }
 
+    // Hidden Easter egg: when attacking the right-wall wire cage, Avery crashes the post waiting to kick the net!
+    if (p.cageKicker && attackNet.id === 'right_cage' && ball.owner.x > bounds.centerX - 55) {
+      const postY = p.y < attackNet.centerY ? attackNet.minCoord + 2 : attackNet.maxCoord - 2;
+      const avoidRoom = p.y < 236 && p.x > 398;
+      const crashX = avoidRoom ? 404 : attackNet.lineCoord - 16;
+      const crashY = avoidRoom ? 264 : postY;
+      steerToward(p, crashX, crashY, 1.04, isSnow);
+      return;
+    }
+
     const wingOffset = p.role === 'LW' ? -58 : p.role === 'RW' ? 58 : 0;
     const idealX = clampX(ball.owner.x + ax * 68 + wx * wingOffset);
     const idealY = clampY(ball.owner.y + ay * 68 + wy * wingOffset);
@@ -380,12 +390,29 @@ export function updateSkaterAI(p, game) {
   }
 
   // === CASE 4: BALL IS LOOSE OR OPPONENT HAS IT ===
-  // Hidden Easter egg: Avery kicks the right-wall wire cage during crease chaos OR timed with an incoming shot!
-  if (p.cageKicker && game.canAttemptCageKick(p)) {
-    const trigChance = ball.vx > 1.6 ? 0.14 : 0.04;
-    if (Math.random() < trigChance) {
-      game.attemptCageKick(p);
-      return;
+  // Hidden Easter egg: Avery crashes & kicks the right-wall wire cage during crease chaos OR incoming shots!
+  if (p.cageKicker && attackNet.id === 'right_cage') {
+    if (game.canAttemptCageKick(p)) {
+      const ballToCage = Math.hypot(ball.x - attackNet.centerX, ball.y - attackNet.centerY);
+      const trigChance = ball.vx > 1.6 ? (ballToCage <= 68 ? 0.22 : 0.1) : 0.05;
+      if (Math.random() < trigChance) {
+        game.attemptCageKick(p);
+        return;
+      }
+    }
+    if (!ball.owner) {
+      const ballToCage = Math.hypot(ball.x - attackNet.centerX, ball.y - attackNet.centerY);
+      const averyToCage = Math.hypot(p.x - attackNet.centerX, p.y - attackNet.centerY);
+      const shotHeadingIn = ball.vx > 1.4 && ballToCage < 165;
+      const creaseChaos = ballToCage < 75;
+      if ((shotHeadingIn || creaseChaos) && averyToCage < 125) {
+        const postY = p.y < attackNet.centerY ? attackNet.minCoord + 2 : attackNet.maxCoord - 2;
+        const avoidRoom = p.y < 236 && p.x > 398;
+        const crashX = avoidRoom ? 404 : attackNet.lineCoord - 16;
+        const crashY = avoidRoom ? 264 : postY;
+        steerToward(p, crashX, crashY, 1.08, isSnow);
+        return;
+      }
     }
   }
 

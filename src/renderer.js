@@ -1,6 +1,6 @@
 import { HUD_H, MATCH, PALETTE, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { DEFAULT_COURT } from './courts.js';
-import { CLASSMATES, TEAMS } from './roster.js';
+import { CLASSMATES, TEAMS } from './roster.js?v=13';
 import {
   drawGoalie,
   drawPassTargetMarker,
@@ -10,7 +10,7 @@ import {
   drawSpectator,
   drawStarRing,
   drawTennisBall,
-} from './sprites.js';
+} from './sprites.js?v=13';
 import { drawSpinningSmcsCrest } from './smcs-crest.js';
 import { sound } from './audio.js?v=10';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';

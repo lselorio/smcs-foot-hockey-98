@@ -1,7 +1,7 @@
 import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
-import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js';
+import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js?v=13';
 import { MUSIC_TRACKS, pickBootChant, sound } from './audio.js?v=10';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
@@ -14,7 +14,7 @@ import {
   recordBallTouch,
   stepBallPhysics,
 } from './physics.js';
-import { updateGoalie, updateSkaterAI } from './ai.js';
+import { updateGoalie, updateSkaterAI } from './ai.js?v=13';
 
 function createEmptyTeamStats() {
   return {
@@ -1730,7 +1730,7 @@ export class FootHockeyGame {
     if (this.ball.owner) return false;
     const attackNet = this.getAttackNet(p.team);
     if (!attackNet || attackNet.id !== 'right_cage') return false;
-    const nearCageX = attackNet.lineCoord - p.x <= 28;
+    const nearCageX = attackNet.lineCoord - p.x <= 30;
     const nearCageY = p.y >= attackNet.minCoord - 10 && p.y <= attackNet.maxCoord + 10;
     if (!nearCageX || !nearCageY) return false;
     const ballToCage = Math.hypot(this.ball.x - attackNet.centerX, this.ball.y - attackNet.centerY);

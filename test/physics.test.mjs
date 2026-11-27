@@ -13,7 +13,7 @@ import {
   stepBallPhysics,
 } from '../src/physics.js';
 import { FootHockeyGame } from '../src/game.js';
-import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js';
+import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js?v=13';
 import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
 import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';
@@ -1546,4 +1546,19 @@ test('classmate personality quirks: Adam cherry-picks, Daniel stays down & hogs 
   assert.equal(averyGame.canAttemptCageKick(avery), true, 'Avery should be able to time a cage kick on an incoming shot');
   assert.equal(averyGame.attemptCageKick(avery, () => 0.1), 'stolen');
   assert.equal(averyGame.score.home, 2, 'Timing cage kick on incoming shot should steal a goal');
+  // Teammate carrying the ball in the offensive zone makes AI Avery crash the wire cage post!
+  averyGame.state = 'PLAYING';
+  const blair = averyGame.players.find((p) => p.name === 'BLAIR');
+  averyGame.controlledId = blair.id;
+  blair.x = 280;
+  blair.y = 260;
+  averyGame.ball.owner = blair;
+  avery.x = 340;
+  avery.y = 250;
+  avery.vx = 0;
+  avery.vy = 0;
+  const startCageDist = Math.hypot(avery.x - rightCage.lineCoord, avery.y - rightCage.centerY);
+  for (let i = 0; i < 30; i++) averyGame.update();
+  const endCageDist = Math.hypot(avery.x - rightCage.lineCoord, avery.y - rightCage.centerY);
+  assert.ok(endCageDist < startCageDist - 25, 'AI Avery should crash toward the wire cage when a teammate has the ball');
 });
