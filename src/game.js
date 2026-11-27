@@ -1,7 +1,7 @@
 import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
-import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js?v=13';
+import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js?v=14';
 import { MUSIC_TRACKS, pickBootChant, sound } from './audio.js?v=10';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
@@ -14,7 +14,7 @@ import {
   recordBallTouch,
   stepBallPhysics,
 } from './physics.js';
-import { updateGoalie, updateSkaterAI } from './ai.js?v=13';
+import { updateGoalie, updateSkaterAI } from './ai.js?v=14';
 
 function createEmptyTeamStats() {
   return {
@@ -248,6 +248,8 @@ export class FootHockeyGame {
           stunDir: 1,
           cryTimer: 0,
           cageKickCooldown: 0,
+          gingerTimer: 0,
+          flinchTimer: 0,
           animOffset: idx * 1.7,
           matchStats: { goals: 0, assists: 0, shots: 0, passes: 0, catches: 0, checks: 0, saves: 0 },
         });
@@ -477,6 +479,8 @@ export class FootHockeyGame {
       p.stunDir = 1;
       p.cryTimer = 0;
       p.cageKickCooldown = 0;
+      p.gingerTimer = 0;
+      p.flinchTimer = 0;
     }
 
     this.controlledId = 'h_c';
@@ -1380,6 +1384,21 @@ export class FootHockeyGame {
         }
       }
       if (p.cageKickCooldown > 0) p.cageKickCooldown--;
+      if (p.gingerTimer > 0) p.gingerTimer--;
+      if (p.flinchTimer > 0) p.flinchTimer--;
+
+      // Even when player-controlled, Istvan visibly braces & sweats when close to the ball or facing a fast shot!
+      if (p.scaredOfBall && p.role !== 'G' && p.stunTimer <= 0 && !this.isDemo && p.id === this.controlledId) {
+        const dBall = Math.hypot(this.ball.x - p.x, this.ball.y - p.y);
+        if (this.ball.owner !== p && dBall < 74) {
+          p.gingerTimer = Math.max(p.gingerTimer, 10);
+          const bSpd = Math.hypot(this.ball.vx, this.ball.vy);
+          const toward = (p.x - this.ball.x) * this.ball.vx + (p.y - this.ball.y) * this.ball.vy;
+          if (!this.ball.owner && bSpd > 2.2 && toward > 0 && dBall < 66) {
+            p.flinchTimer = Math.max(p.flinchTimer, 16);
+          }
+        }
+      }
 
       if (p.role === 'G') {
         updateGoalie(p, this);

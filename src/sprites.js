@@ -1,5 +1,5 @@
 import { PALETTE, GOAL } from './constants.js';
-import { UNIFORM_COLORS, resolveUniformKit } from './roster.js?v=13';
+import { UNIFORM_COLORS, resolveUniformKit } from './roster.js?v=14';
 
 // Crisp 5x7 16-bit arcade pixel font (uppercase, digits, punctuation)
 const FONT_5X7 = {
@@ -280,6 +280,9 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   const isDress = uniformMode === 'dress';
   const isCrying = p.cryTimer > 0;
   const isStunned = p.stunTimer > 0;
+  const isFlinching = !isStunned && !isCrying && p.flinchTimer > 0;
+  const isGinger = !isStunned && !isCrying && (p.gingerTimer > 0 || isFlinching);
+  const effectiveStride = isGinger ? stride * 0.45 : stride;
 
   // Ground shadow
   ctx.fillStyle = PALETTE.shadow;
@@ -287,7 +290,7 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
   ctx.ellipse(x, y + 2, isCrying ? 8 : isStunned ? 9 : p.beefy ? 8 : p.thin ? 5 : 6, p.beefy ? 3.5 : 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // If crying (Chung quirk!), sit upright on the blacktop sobbing; otherwise tilt/sprawl when stunned!
+  // If crying (Chung quirk!), sit upright on the blacktop sobbing; otherwise tilt/sprawl when stunned, or cringe back if flinching!
   ctx.save();
   if (isCrying) {
     const sob = Math.floor(tick / 6) % 2;
@@ -297,11 +300,20 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
     ctx.translate(x, y - 4);
     ctx.rotate((p.stunDir || 1) * tilt);
     ctx.translate(-x, -(y - 4));
+  } else if (isFlinching) {
+    const shiver = Math.floor(tick / 3) % 2 === 0 ? -1 : 1;
+    ctx.translate(x + shiver * 0.5, y - 4);
+    ctx.rotate(-flipX * 0.17);
+    ctx.translate(-x, -(y - 4));
+  } else if (isGinger) {
+    // Subtle nervous shiver while tiptoeing gingerly toward the ball!
+    const shiver = Math.floor(tick / 5) % 2 === 0 ? 0 : 1;
+    ctx.translate(shiver * 0.5, 0);
   }
 
-  // Legs & Sneakers (animated run, slap-kick wind-up cockback, or big kick extension!)
-  const leftLegY = y - 1 + Math.round(stride * 2);
-  const rightLegY = y - 1 - Math.round(stride * 2);
+  // Legs & Sneakers (animated run, tiptoe creep, slap-kick wind-up cockback, or big kick extension!)
+  const leftLegY = y - 1 + Math.round(effectiveStride * 2);
+  const rightLegY = y - 1 - Math.round(effectiveStride * 2);
   const isWindup = p.windupFrames >= 10;
   const kickExt = p.kickTimer > 0 ? 4 : isWindup ? -4 : 0;
 
@@ -429,7 +441,7 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
     }
   }
 
-  // Arms — raised forward if catching/holding the tennis ball!
+  // Arms — raised forward if catching/holding, guarding face/chest if creeping gingerly (Istvan!), else running swing!
   const armsUp = p.holdingBall || p.catchAnim > 0;
   const armW = p.beefy ? 3 : 2;
   ctx.fillStyle = sleeveColor;
@@ -439,8 +451,16 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
     ctx.fillStyle = p.skin;
     ctx.fillRect(x - 5 - bw - armW, ty - 2, armW, 2);
     ctx.fillRect(x + 5 + bw, ty - 2, armW, 2);
+  } else if (isGinger) {
+    // Defensive guard posture: elbows tucked, hands up near face/chest bracing for the ball!
+    const guardLift = isFlinching ? 2 : 0;
+    ctx.fillRect(x - 5 - bw - armW + 1, ty - guardLift, armW, 4);
+    ctx.fillRect(x + 4 + bw, ty - guardLift, armW, 4);
+    ctx.fillStyle = p.skin;
+    ctx.fillRect(x - 4 - bw, ty - 2 - guardLift, 2, 2);
+    ctx.fillRect(x + 2 + bw, ty - 2 - guardLift, 2, 2);
   } else {
-    const armSwing = Math.round(stride * 1.5);
+    const armSwing = Math.round(effectiveStride * 1.5);
     ctx.fillRect(x - 5 - bw - armW, ty + 1 - armSwing, armW, 5);
     ctx.fillRect(x + 5 + bw, ty + 1 + armSwing, armW, 5);
     ctx.fillStyle = p.skin;
@@ -524,7 +544,7 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
 
   ctx.restore();
 
-  // Spinning golden stars above head when body-checked (or streaming pixel teardrops when Chung cries!)
+  // Spinning golden stars above head when body-checked, tears when Chung cries, or nervous sweat drop when Istvan creeps gingerly!
   if (isCrying) {
     const dropY = (tick * 0.35) % 6;
     ctx.fillStyle = '#6fd6ff';
@@ -538,6 +558,14 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
       ctx.fillStyle = '#ffe84d';
       ctx.fillRect(sx - 1, sy, 2, 2);
     }
+  } else if (isGinger) {
+    const sweatDrop = Math.floor((tick * 0.22) % 4);
+    const sx = x + (flipX > 0 ? -7 : 5);
+    const sy = Math.round(y - 20 - tallLift + sweatDrop);
+    ctx.fillStyle = '#6fd6ff';
+    ctx.fillRect(sx, sy, 2, 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(sx, sy, 1, 1);
   }
 }
 
@@ -735,6 +763,15 @@ export function drawGoalie(ctx, g, team, tick, uniformMode = 'default') {
   } else if (g.hairStyle !== 'bald') {
     ctx.fillStyle = g.hair;
     ctx.fillRect(gx - 4 - hw, hy + 1, 8 + hw * 2, 4);
+  }
+
+  // Nervous 16-bit sweat drop when Istvan is in goal eyeing an approaching ball!
+  if (g.gingerTimer > 0 || g.flinchTimer > 0) {
+    const sweatDrop = Math.floor((tick * 0.24) % 4);
+    ctx.fillStyle = '#6fd6ff';
+    ctx.fillRect(gx + 6, hy + sweatDrop, 2, 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(gx + 6, hy + sweatDrop, 1, 1);
   }
 }
 

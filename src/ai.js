@@ -96,19 +96,24 @@ export function updateGoalie(g, game) {
   }
   const clampedCoord = Math.max(clampMin, Math.min(clampMax, trackCoord));
 
-  // Quirk: Istvan in net is literally scared of the ball — slides & dives AWAY from incoming shots!
+  // Quirk: Istvan in net handles slow rollers gingerly, but flinches sideways on screaming hard shots!
   const distToNet = Math.hypot(ball.x - net.centerX, ball.y - net.centerY);
+  const incomingSpd = Math.hypot(ball.vx, ball.vy);
   let goalieCoord = clampedCoord;
-  if (g.scaredOfBall && distToNet < 130) {
-    const midCoord = (clampMin + clampMax) / 2;
-    goalieCoord = trackCoord >= midCoord ? clampMin : clampMax;
-    if (movingTowardGoal && distToNet < 65 && g.diveTimer <= 0) {
-      const along = (ball.x - g.x) * tx + (ball.y - g.y) * ty;
-      g.diveDir = along >= 0 ? -1 : 1; // Flinch AWAY from the incoming tennis ball!
-      g.diveTimer = 18;
-      if (g.aiDecisionCooldown <= 0) {
-        game.addCallout(g.x, g.y - 18, 'AAAH!!', '#ffe84d');
-        g.aiDecisionCooldown = 70;
+  if (g.scaredOfBall && distToNet < 98) {
+    g.gingerTimer = Math.max(g.gingerTimer || 0, 12);
+    if (movingTowardGoal && incomingSpd > 2.4 && distToNet < 78) {
+      const midCoord = (clampMin + clampMax) / 2;
+      goalieCoord = trackCoord >= midCoord ? clampMin : clampMax;
+      g.flinchTimer = Math.max(g.flinchTimer || 0, 22);
+      if (g.diveTimer <= 0) {
+        const along = (ball.x - g.x) * tx + (ball.y - g.y) * ty;
+        g.diveDir = along >= 0 ? -1 : 1; // Flinch sideways away from the hard shot!
+        g.diveTimer = 16;
+        if (g.aiDecisionCooldown <= 0) {
+          game.addCallout(g.x, g.y - 18, Math.random() < 0.5 ? 'WHOA!' : 'YIKES!', '#ffe84d');
+          g.aiDecisionCooldown = 75;
+        }
       }
     }
   }
@@ -226,8 +231,9 @@ export function updateSkaterAI(p, game) {
   if (p.holdingBall && ball.owner === p) {
     p.holdFrames++;
     if (p.scaredOfBall && p.holdFrames > 6) {
+      p.gingerTimer = 16;
       dropHeldBall(ball, p);
-      game.onDropEffect(p, 'EW!!');
+      game.onDropEffect(p, 'EASY!');
       return;
     }
     const distToGoal = Math.hypot(attackNet.centerX - p.x, attackNet.centerY - p.y);
@@ -253,12 +259,24 @@ export function updateSkaterAI(p, game) {
 
   // === CASE 2: THIS AI SKATER HAS THE BALL AT THEIR FEET ===
   if (ball.owner === p) {
-    // Quirk: Istvan panics and immediately boots the scary ball away!
+    // Quirk: Istvan treats the ball like a hot potato — gingerly tap-passes it to a teammate right away!
     if (p.scaredOfBall) {
-      const panicAngle = Math.atan2(ay, ax) + (Math.random() - 0.5) * 1.4;
-      launchBall(ball, p, Math.cos(panicAngle), Math.sin(panicAngle), p.stats.kick * 0.9, 1.3);
-      p.aiDecisionCooldown = 50;
-      game.onKickEffect(p.x, p.y, 'NOPE!', '#ffe84d', false);
+      p.gingerTimer = 18;
+      const mates = game.players
+        .filter((m) => m.team === p.team && m.id !== p.id && m.role !== 'G')
+        .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+      const target = mates[0];
+      const tx = target ? target.x - p.x : ax;
+      const ty = target ? target.y - p.y : ay;
+      launchBall(ball, p, tx, ty, 3.4, 0.55, {
+        passTargetId: target?.id ?? null,
+      });
+      if (target) {
+        game.stats[p.team].passes++;
+        if (p.matchStats) p.matchStats.passes++;
+      }
+      p.aiDecisionCooldown = 45;
+      game.onKickEffect(p.x, p.y, Math.random() < 0.5 ? 'HERE!' : 'TAKE IT!', '#ffe84d', false);
       return;
     }
 
@@ -328,28 +346,33 @@ export function updateSkaterAI(p, game) {
     return;
   }
 
-  // Quirk: Istvan is literally scared of the tennis ball — whenever it gets anywhere near him, he flees!
+  // Quirk: Istvan approaches the ball very gingerly — only flinches back a step when a fast shot zips at him!
   const distToBall = Math.hypot(ball.x - p.x, ball.y - p.y);
   if (p.scaredOfBall) {
-    if (distToBall < 92) {
+    const ballSpeed = Math.hypot(ball.vx, ball.vy);
+    const headingTowardIstvan = (p.x - ball.x) * ball.vx + (p.y - ball.y) * ball.vy > 0;
+    if (!ball.owner && ballSpeed > 2.2 && headingTowardIstvan && distToBall < 76) {
       const awayX = p.x - ball.x;
       const awayY = p.y - ball.y;
       const awayMag = Math.hypot(awayX, awayY) || 1;
-      const fleeX = clampX(p.x + (awayX / awayMag) * 70);
-      const fleeY = clampY(p.y + (awayY / awayMag) * 70);
-      steerToward(p, fleeX, fleeY, 1.08, isSnow);
-      if (distToBall < 48 && p.aiDecisionCooldown <= 0) {
-        const cries = ['AAAH!!', 'YIKES!', 'NOPE!'];
+      const recoilX = clampX(p.x + (awayX / awayMag) * 28);
+      const recoilY = clampY(p.y + (awayY / awayMag) * 28);
+      steerToward(p, recoilX, recoilY, 0.86, isSnow);
+      // Keep facing the scary ball while cringing back!
+      p.facingX = -awayX / awayMag;
+      p.facingY = -awayY / awayMag;
+      p.flinchTimer = 22;
+      p.gingerTimer = 26;
+      if (p.aiDecisionCooldown <= 0) {
+        const cries = ['WHOA!', 'CAREFUL!', 'YIKES!'];
         game.addCallout(p.x, p.y - 16, cries[Math.floor(Math.random() * cries.length)], '#ffe84d');
-        p.aiDecisionCooldown = 75;
+        p.aiDecisionCooldown = 85;
       }
       return;
     }
-    // Even from afar, Istvan cautiously drifts toward the far side of the yard away from the ball
-    const safeX = clampX(ball.x > bounds.centerX ? bounds.left + 44 : bounds.right - 44);
-    const safeY = clampY(ball.y > bounds.centerY ? bounds.top + 52 : bounds.bottom - 52);
-    steerToward(p, safeX, safeY, 0.7, isSnow);
-    return;
+    if (distToBall < 86) {
+      p.gingerTimer = Math.max(p.gingerTimer || 0, 14);
+    }
   }
 
   // === CASE 3: TEAMMATE HAS THE BALL -> GET OPEN FOR PASS / ONE-TIMER / FULL-FIELD THROW! ===
@@ -425,12 +448,12 @@ export function updateSkaterAI(p, game) {
     return;
   }
 
-  // Pick closest willing defender (skipping slackers like Adam & ball-fearing Istvan so teammates actually cover!)
+  // Pick closest willing defender (skipping slackers like Adam so teammates actually cover!)
   let closestDefender = null;
   let closestDefDist = Infinity;
   for (const mate of game.players) {
     if (mate.team !== p.team || mate.role === 'G') continue;
-    if (mate.noDefense || mate.scaredOfBall) continue;
+    if (mate.noDefense) continue;
     const d = Math.hypot(mate.x - ball.x, mate.y - ball.y);
     if (d < closestDefDist) {
       closestDefDist = d;
@@ -472,18 +495,48 @@ export function updateSkaterAI(p, game) {
   }
 
   if (isClosestMate) {
-    steerToward(p, ball.x, ball.y, 0.96, isSnow);
-
-    if (
-      ball.owner &&
-      ball.owner.team !== p.team &&
-      !ball.owner.holdingBall &&
-      distToBall < 18 &&
-      p.stealCooldown <= 0
-    ) {
-      const checkChance = game.isBodyCheckLegal(ball.owner.x, ball.owner.y) ? 0.12 : 0.07;
-      if (Math.random() < checkChance) {
+    if (p.scaredOfBall) {
+      // Istvan creeps toward the ball very gingerly — tiptoeing slowly & hesitating right as he gets close!
+      const toBallMag = distToBall || 1;
+      p.facingX = (ball.x - p.x) / toBallMag;
+      p.facingY = (ball.y - p.y) / toBallMag;
+      p.gingerTimer = Math.max(p.gingerTimer || 0, 14);
+      const hesitating = distToBall > 16 && distToBall < 46 && Math.sin(game.tick * 0.16 + p.animOffset) < -0.2;
+      if (hesitating) {
+        p.vx *= 0.72;
+        p.vy *= 0.72;
+      } else {
+        const creepScale = distToBall < 82 ? 0.4 : 0.68;
+        steerToward(p, ball.x, ball.y, creepScale, isSnow);
+      }
+      if (distToBall < 48 && p.aiDecisionCooldown <= 0) {
+        game.addCallout(p.x, p.y - 16, Math.random() < 0.5 ? 'EASY...' : 'CAREFUL!', '#ffe84d');
+        p.aiDecisionCooldown = 125;
+      }
+      if (
+        ball.owner &&
+        ball.owner.team !== p.team &&
+        !ball.owner.holdingBall &&
+        distToBall < 18 &&
+        p.stealCooldown <= 0 &&
+        Math.random() < 0.03
+      ) {
         game.attemptSteal(p);
+      }
+    } else {
+      steerToward(p, ball.x, ball.y, 0.96, isSnow);
+
+      if (
+        ball.owner &&
+        ball.owner.team !== p.team &&
+        !ball.owner.holdingBall &&
+        distToBall < 18 &&
+        p.stealCooldown <= 0
+      ) {
+        const checkChance = game.isBodyCheckLegal(ball.owner.x, ball.owner.y) ? 0.12 : 0.07;
+        if (Math.random() < checkChance) {
+          game.attemptSteal(p);
+        }
       }
     }
   } else {

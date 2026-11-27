@@ -13,7 +13,7 @@ import {
   stepBallPhysics,
 } from '../src/physics.js';
 import { FootHockeyGame } from '../src/game.js';
-import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js?v=13';
+import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js?v=14';
 import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
 import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';
@@ -1453,21 +1453,39 @@ test('classmate personality quirks: Adam cherry-picks, Daniel stays down & hogs 
   game.attemptSteal(ponesse);
   assert.ok(daniel.stunTimer >= 260, `Daniel (staysDown) should stay down much longer when checked (stunTimer=${daniel.stunTimer})`);
 
-  // 3) ISTVAN (scaredOfBall): flees AWAY when the tennis ball gets close!
+  // 3) ISTVAN (scaredOfBall): creeps gingerly toward a slow ball with nervous guard/sweat, and flinches on fast shots!
+  const blairAway = game.players.find((p) => p.name === 'BLAIR');
+  ponesse.x = 40;
+  ponesse.y = 400;
+  blairAway.x = 40;
+  blairAway.y = 380;
   istvan.x = 180;
   istvan.y = 240;
   istvan.vx = 0;
   istvan.vy = 0;
+  istvan.gingerTimer = 0;
+  istvan.flinchTimer = 0;
   game.ball.owner = null;
-  game.ball.x = 210;
+  game.ball.x = 235;
   game.ball.y = 240;
   game.ball.z = 2;
   game.ball.vx = 0;
   game.ball.vy = 0;
   const distBefore = Math.hypot(istvan.x - game.ball.x, istvan.y - game.ball.y);
-  for (let i = 0; i < 10; i++) game.update();
+  for (let i = 0; i < 12; i++) game.update();
   const distAfter = Math.hypot(istvan.x - game.ball.x, istvan.y - game.ball.y);
-  assert.ok(distAfter > distBefore + 3, `Istvan (scaredOfBall) should run away from nearby ball (${distBefore.toFixed(1)} -> ${distAfter.toFixed(1)})`);
+  assert.ok(istvan.gingerTimer > 0, 'Istvan should enter ginger tiptoe/guard posture near the ball');
+  assert.ok(
+    distAfter < distBefore && distBefore - distAfter < 14,
+    `Istvan should approach a slow ball very gingerly rather than sprinting or fleeing (${distBefore.toFixed(1)} -> ${distAfter.toFixed(1)})`
+  );
+  // Fast shot flying right at Istvan makes him flinch back!
+  game.ball.x = istvan.x + 48;
+  game.ball.y = istvan.y;
+  game.ball.vx = -4.2;
+  game.ball.vy = 0;
+  game.update();
+  assert.ok(istvan.flinchTimer > 0, 'Istvan should flinch when a fast shot zips toward him');
 
   // 4) ARPAD (longBomber): rips a booming, accurate shot toward the top net even from 220px away!
   game.controlledId = adam.id; // Let AI steer Arpad
