@@ -1,6 +1,6 @@
 import { HUD_H, MATCH, PALETTE, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { DEFAULT_COURT } from './courts.js';
-import { CLASSMATES, TEAMS } from './roster.js?v=15';
+import { CLASSMATES, TEAMS } from './roster.js?v=16';
 import {
   drawGoalie,
   drawPassTargetMarker,
@@ -10,9 +10,9 @@ import {
   drawSpectator,
   drawStarRing,
   drawTennisBall,
-} from './sprites.js?v=15';
+} from './sprites.js?v=16';
 import { drawSpinningSmcsCrest } from './smcs-crest.js';
-import { sound } from './audio.js?v=10';
+import { sound } from './audio.js?v=16';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
   HOOPS_TEAM_STYLE,
@@ -964,20 +964,24 @@ function renderGoalBanner(ctx, game) {
   const team = TEAMS[game.lastGoalTeam] || TEAMS.home;
   const scorer = game.lastScorer;
   const info = game.lastGoalInfo;
+  const isStolen = Boolean(info?.stolenGoal);
   const scorerName = info?.scorerName || scorer?.name || null;
   const goalCount = info?.goalCount || scorer?.matchStats?.goals || 1;
-  const scorerLabel = scorerName
+  const scorerLabel = isStolen
+    ? `${scorerName || 'AVERY'} (${goalCount}) *SQUEAL!*`
+    : scorerName
     ? goalCount > 1
       ? `${scorerName} SCORES! (${goalCount} GOALS)`
       : `${scorerName} SCORES!`
     : `${getTeamLabel(game, game.lastGoalTeam || 'home')} SCORES!`;
   const assists = info?.assists || [];
-  const assistLabel =
-    assists.length === 1
-      ? `ASSIST: ${assists[0]}`
-      : assists.length >= 2
-      ? `ASSISTS: ${assists[0]}, ${assists[1]}`
-      : 'UNASSISTED';
+  const assistLabel = isStolen
+    ? 'CAGE KICK STEAL!'
+    : assists.length === 1
+    ? `ASSIST: ${assists[0]}`
+    : assists.length >= 2
+    ? `ASSISTS: ${assists[0]}, ${assists[1]}`
+    : 'UNASSISTED';
 
   const bx = 14;
   const by = 82;
@@ -985,7 +989,8 @@ function renderGoalBanner(ctx, game) {
   const bh = 72;
   ctx.fillStyle = 'rgba(10, 14, 28, 0.94)';
   ctx.fillRect(bx, by, bw, bh);
-  ctx.strokeStyle = team.ringColor;
+  const stolenFlash = Math.floor(game.tick / 6) % 2 === 0;
+  ctx.strokeStyle = isStolen ? (stolenFlash ? '#ffe84d' : '#ff8c42') : team.ringColor;
   ctx.lineWidth = 2;
   ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
 
@@ -994,10 +999,10 @@ function renderGoalBanner(ctx, game) {
   const py = by + 8;
   const pw = 46;
   const ph = 56;
-  ctx.fillStyle = '#131b32';
+  ctx.fillStyle = isStolen ? '#2a1d0d' : '#131b32';
   ctx.fillRect(px, py, pw, ph);
-  // Subtle team color stripe at top & bottom of portrait frame
-  ctx.fillStyle = team.primary;
+  // Subtle team color stripe at top & bottom of portrait frame (or flashing mischief gold on a stolen goal!)
+  ctx.fillStyle = isStolen ? (stolenFlash ? '#ff8c42' : '#b85a14') : team.primary;
   ctx.fillRect(px + 1, py + 1, pw - 2, 6);
   ctx.fillRect(px + 1, py + ph - 5, pw - 2, 4);
   ctx.strokeStyle = '#ffd84d';
@@ -1005,20 +1010,26 @@ function renderGoalBanner(ctx, game) {
   ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
 
   if (scorer) {
-    const hop = Math.round(Math.abs(Math.sin(game.tick * 0.22)) * 2);
+    const hop = isStolen
+      ? Math.round(Math.abs(Math.sin(game.tick * 0.42)) * 3)
+      : Math.round(Math.abs(Math.sin(game.tick * 0.22)) * 2);
     const portraitEntity = {
       ...scorer,
       x: 0,
       y: -hop,
       vx: 0,
       vy: 0,
-      facingX: 0,
+      facingX: isStolen ? (Math.floor(game.tick / 7) % 2 === 0 ? 0.5 : -0.5) : 0,
       facingY: 1,
       holdingBall: false,
       windupFrames: 0,
-      kickTimer: 0,
-      catchAnim: Math.floor(game.tick / 10) % 2 === 0 ? 10 : 0, // Pumping arms in celebration!
+      kickTimer: isStolen ? (Math.floor(game.tick / 7) % 2 === 0 ? 10 : 0) : 0,
+      catchAnim: isStolen ? 10 : Math.floor(game.tick / 10) % 2 === 0 ? 10 : 0, // Pumping arms in celebration!
       stunTimer: 0,
+      cryTimer: 0,
+      gingerTimer: 0,
+      flinchTimer: 0,
+      squealing: isStolen,
       diveTimer: 0,
       diveDir: 0,
       jacketTimer: 0,
@@ -1036,18 +1047,29 @@ function renderGoalBanner(ctx, game) {
       drawSkater(ctx, portraitEntity, team, game.tick, game.uniformMode);
     }
     ctx.restore();
+    if (isStolen) {
+      drawPixelText(ctx, 'SQUEAL!', px + pw / 2, py + 2, '#ffe84d', 1, 'center', '#12151f');
+    }
   }
 
-  // Right text area: GOAL!! + Scorer (+ multi-goal count) + Assist(s) / Unassisted
+  // Right text area: GOAL!! (or GOAL?! on Avery's stolen cage kick!) + Scorer + Assist(s) / CAGE KICK STEAL!
   const textCenterX = Math.round((px + pw + 6 + bx + bw - 8) / 2);
-  drawPixelText(ctx, 'GOAL!!', textCenterX, by + 11, team.ringColor, 2, 'center');
-  drawPixelText(ctx, scorerLabel, textCenterX, by + 35, '#f4f7ff', 1, 'center');
+  drawPixelText(
+    ctx,
+    isStolen ? 'GOAL?!' : 'GOAL!!',
+    textCenterX,
+    by + 11,
+    isStolen ? (stolenFlash ? '#ffe84d' : '#ff8c42') : team.ringColor,
+    2,
+    'center'
+  );
+  drawPixelText(ctx, scorerLabel, textCenterX, by + 35, isStolen ? '#ffe84d' : '#f4f7ff', 1, 'center');
   drawPixelText(
     ctx,
     assistLabel,
     textCenterX,
     by + 51,
-    assists.length > 0 ? '#9be8ff' : '#96a5c4',
+    isStolen ? '#ff8c42' : assists.length > 0 ? '#9be8ff' : '#96a5c4',
     1,
     'center',
     null
@@ -1807,10 +1829,14 @@ function renderStatsModal(ctx, game, { isFinal }) {
         drawPixelText(ctx, timeText, x + 10, gy, '#9be8ff', 1, 'left', null);
         drawPixelText(ctx, tag, x + 56, gy, tagCol, 1, 'left', null);
 
-        const assistList = Array.isArray(g.assists) && g.assists.length > 0 ? g.assists.join(', ') : 'UNASSISTED';
+        const assistList = g.stolenGoal
+          ? 'CAGE KICK!'
+          : Array.isArray(g.assists) && g.assists.length > 0
+          ? g.assists.join(', ')
+          : 'UNASSISTED';
         const detail = `${g.name} (${assistList})`;
         const trimmed = detail.length > 34 ? detail.slice(0, 33) + '.' : detail;
-        drawPixelText(ctx, trimmed, x + 66, gy, '#ffffff', 1, 'left', null);
+        drawPixelText(ctx, trimmed, x + 66, gy, g.stolenGoal ? '#ffe84d' : '#ffffff', 1, 'left', null);
       }
     }
   } else if (page === 'players') {

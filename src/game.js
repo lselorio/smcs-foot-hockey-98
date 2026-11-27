@@ -1,8 +1,8 @@
 import { MATCH, PHYSICS, RECESS_PERIODS, SCREEN_H, SCREEN_W, SHOT, VIEW_H } from './constants.js';
 import { createBond66Court } from './courts.js';
 import { createCornerBasketballGames, updateCornerBasketball } from './basketball.js';
-import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js?v=15';
-import { MUSIC_TRACKS, pickBootChant, sound } from './audio.js?v=10';
+import { CLASSMATES, TEAMS, buildCustomTeams, draftRecessTeams } from './roster.js?v=16';
+import { MUSIC_TRACKS, pickBootChant, sound } from './audio.js?v=16';
 import { MARCELLI_AMEN_TIMING } from './music/marcelli-amen.js';
 import {
   catchBall,
@@ -14,7 +14,7 @@ import {
   recordBallTouch,
   stepBallPhysics,
 } from './physics.js';
-import { updateGoalie, updateSkaterAI } from './ai.js?v=15';
+import { updateGoalie, updateSkaterAI } from './ai.js?v=16';
 
 function createEmptyTeamStats() {
   return {
@@ -250,6 +250,7 @@ export class FootHockeyGame {
           cageKickCooldown: 0,
           gingerTimer: 0,
           flinchTimer: 0,
+          squealing: false,
           animOffset: idx * 1.7,
           matchStats: { goals: 0, assists: 0, shots: 0, passes: 0, catches: 0, checks: 0, saves: 0 },
         });
@@ -481,6 +482,7 @@ export class FootHockeyGame {
       p.cageKickCooldown = 0;
       p.gingerTimer = 0;
       p.flinchTimer = 0;
+      p.squealing = false;
     }
 
     this.controlledId = 'h_c';
@@ -1781,8 +1783,9 @@ export class FootHockeyGame {
       this.ball.lastTouchPlayer = p;
       this.ball.possessionTeam = p.team;
       this.ball.possessionChain = [p];
-      this.addCallout(p.x - 8, p.y - 20, 'STOLEN GOAL?!', '#ffe84d');
-      this.handleGoalScored(p.team, attackNet.id);
+      p.squealing = true;
+      this.addCallout(p.x - 10, p.y - 22, 'SQUEAL!!', '#ffe84d');
+      this.handleGoalScored(p.team, attackNet.id, { stolenGoal: true });
       return 'stolen';
     }
 
@@ -2088,7 +2091,8 @@ export class FootHockeyGame {
     }
   }
 
-  handleGoalScored(team, goalSide) {
+  handleGoalScored(team, goalSide, options = {}) {
+    const stolenGoal = Boolean(options.stolenGoal);
     const pIdx = Math.max(0, Math.min(2, this.period - 1));
     this.score[team]++;
     this.stats[team].shots++; // True hockey Shot on Goal!
@@ -2132,6 +2136,7 @@ export class FootHockeyGame {
         scorerName: this.lastScorer.name,
         goalCount,
         assists: assistNames,
+        stolenGoal,
       };
 
       this.goalLog.push({
@@ -2139,6 +2144,7 @@ export class FootHockeyGame {
         name: this.lastScorer.name,
         goalCount,
         assists: assistNames,
+        stolenGoal,
         period: this.period,
         periodShort: pInfo.short,
         time: timeStr,
@@ -2149,6 +2155,7 @@ export class FootHockeyGame {
         scorerName: null,
         goalCount: 1,
         assists: [],
+        stolenGoal,
       };
     }
 
@@ -2158,13 +2165,16 @@ export class FootHockeyGame {
     this.screenShake = 10;
 
     sound.playGoalHorn();
+    if (stolenGoal) {
+      sound.playSqueal();
+    }
     this.spawnParticles(this.ball.x, this.ball.y, '#ffe84d', 18);
     this.spawnParticles(this.ball.x, this.ball.y, team === 'home' ? '#ff7090' : '#48c6ff', 14);
     const scoredNet = this.court.nets.find((n) => n.id === goalSide) || this.getAttackNet(team);
     this.addCallout(
       scoredNet.centerX + scoredNet.normalX * 26,
       scoredNet.centerY + scoredNet.normalY * 26,
-      'GOAL!!',
+      stolenGoal ? 'STOLEN GOAL?!' : 'GOAL!!',
       '#ffe84d'
     );
   }

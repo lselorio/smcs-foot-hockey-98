@@ -1,5 +1,5 @@
 import { PALETTE, GOAL } from './constants.js';
-import { UNIFORM_COLORS, resolveUniformKit } from './roster.js?v=15';
+import { UNIFORM_COLORS, resolveUniformKit } from './roster.js?v=16';
 
 // Crisp 5x7 16-bit arcade pixel font (uppercase, digits, punctuation)
 const FONT_5X7 = {
@@ -510,7 +510,16 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
 
   // Face (eyes + optional 16-bit glasses when facing down/side; hair back when facing up)
   if (!facingUp) {
-    if (p.glasses) {
+    if (p.squealing) {
+      // Ecstatic squinting joy eyes + wide open-mouth squeal (Avery stolen-goal celebration!)
+      ctx.fillStyle = '#12151f';
+      ctx.fillRect(x - 3, hy + 2, 2, 1);
+      ctx.fillRect(x + 1, hy + 2, 2, 1);
+      // Wide open squealing mouth
+      ctx.fillRect(x - 1, hy + 4, 3, 2);
+      ctx.fillStyle = '#ff6b8b';
+      ctx.fillRect(x, hy + 5, 1, 1);
+    } else if (p.glasses) {
       const glx = x + (flipX > 0 ? 0 : -1);
       ctx.fillStyle = '#181e2c'; // dark frames
       ctx.fillRect(glx - 3, hy + 1, 3, 3);
@@ -566,6 +575,15 @@ export function drawSkater(ctx, p, team, tick, uniformMode = 'default') {
     ctx.fillRect(sx, sy, 2, 3);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(sx, sy, 1, 1);
+  } else if (p.squealing) {
+    // High-pitched 16-bit squeal sound-burst rays pulsing beside Avery's head!
+    const burst = Math.floor(tick / 4) % 2;
+    const burstCol = burst === 0 ? '#ffe84d' : '#ff7090';
+    ctx.fillStyle = burstCol;
+    ctx.fillRect(x - 8 - burst, Math.round(y - 21 - tallLift), 2, 1);
+    ctx.fillRect(x - 7 - burst, Math.round(y - 18 - tallLift), 2, 1);
+    ctx.fillRect(x + 6 + burst, Math.round(y - 21 - tallLift), 2, 1);
+    ctx.fillRect(x + 5 + burst, Math.round(y - 18 - tallLift), 2, 1);
   }
 }
 

@@ -13,14 +13,14 @@ import {
   stepBallPhysics,
 } from '../src/physics.js';
 import { FootHockeyGame } from '../src/game.js';
-import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js?v=15';
+import { CLASSMATES, UNIFORM_COLORS, draftRecessTeams, resolveUniformKit } from '../src/roster.js?v=16';
 import { SICUT_CERVUS_SCORE } from '../src/music/sicut-cervus.js';
 import { GLORIA_VIII_SCORE } from '../src/music/gloria-viii.js';
 import { SALVE_REGINA_SCORE } from '../src/music/salve-regina.js';
 import { WIDOR_TOCCATA_SCORE } from '../src/music/widor-toccata.js';
 import { MARCELLI_AMEN_SCORE, MARCELLI_AMEN_TIMING } from '../src/music/marcelli-amen.js';
 import { ChiptuneChoirPlayer } from '../src/music-player.js';
-import { BOOT_CHANTS, getAudioCandidates, getAudioFormatOrder, sound } from '../src/audio.js?v=10';
+import { BOOT_CHANTS, getAudioCandidates, getAudioFormatOrder, sound } from '../src/audio.js?v=16';
 import {
   computeStickVector,
   getUtilityButtonsForState,
@@ -1553,6 +1553,9 @@ test('classmate personality quirks: Adam cherry-picks, Daniel stays down & hogs 
   avery.cageKickCooldown = 0;
   assert.equal(averyGame.attemptCageKick(avery, () => 0.05), 'stolen');
   assert.equal(averyGame.score.home, 1, 'Successful cage-kick phantom goal should count on scoreboard');
+  assert.equal(averyGame.lastGoalInfo?.stolenGoal, true, 'Stolen cage-kick goal should flag lastGoalInfo.stolenGoal');
+  assert.equal(averyGame.goalLog.at(-1)?.stolenGoal, true, 'Stolen cage-kick goal should be marked in scoring summary');
+  assert.equal(avery.squealing, true, 'Avery should enter squealing celebration state on a stolen goal');
   // Also works when timed with a fast incoming shot heading toward the cage (even from 75px out)!
   averyGame.state = 'PLAYING';
   avery.cageKickCooldown = 0;

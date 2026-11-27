@@ -424,6 +424,14 @@ class SoundEngine {
     this.noise(0.55, 1100, 'bandpass', 0.08, 0.05);
   }
 
+  // Cheeky 16-bit high-pitched triumphant squeal when Avery steals a goal by kicking the wire cage!
+  playSqueal() {
+    this.tone(1120, 1880, 0.14, 'triangle', 0.14, 0.04);
+    this.tone(1880, 2320, 0.16, 'square', 0.07, 0.16);
+    this.tone(2240, 1740, 0.14, 'triangle', 0.12, 0.30);
+    this.tone(1620, 2460, 0.18, 'triangle', 0.11, 0.44);
+  }
+
   playMenuSelect() {
     this.tone(520, 780, 0.08, 'square', 0.10);
   }
